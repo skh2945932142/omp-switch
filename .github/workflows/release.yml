@@ -1,0 +1,112 @@
+name: Release Draft
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build and attest Windows assets
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match package version $version"
+          }
+          if (-not (Test-Path "docs/releases/${{ github.ref_name }}.md")) {
+            throw "Missing docs/releases/${{ github.ref_name }}.md"
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v4
+        with:
+          node-version: 24
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Enable Corepack
+        shell: pwsh
+        run: corepack enable
+
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify source
+        shell: pwsh
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Package Windows artifacts
+        shell: pwsh
+        run: pnpm package:win
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $assets = @(Get-ChildItem -Path dist -File -Filter "*.exe" | Sort-Object Name)
+          if ($assets.Count -ne 2) {
+            throw "Expected exactly the installer and portable executable in dist/"
+          }
+          $lines = foreach ($asset in $assets) {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant(), $asset.Name
+          }
+          [System.IO.File]::WriteAllLines((Join-Path $PWD "dist/SHA256SUMS.txt"), [string[]]$lines, [System.Text.UTF8Encoding]::new($false))
+
+      - name: Attest executable provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/*.exe
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v4
+        with:
+          name: release-assets
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+
+  draft-release:
+    name: Create release draft
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+
+      - name: Download release assets
+        uses: actions/download-artifact@43d14bc2b83dec42d39ecae14e916627a18bb661 # v5
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Create GitHub Release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" release-assets/* \
+            --draft \
+            --verify-tag \
+            --title "OMP Switch $TAG_NAME" \
+            --notes-file "docs/releases/$TAG_NAME.md"

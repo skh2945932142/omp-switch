@@ -1,0 +1,87 @@
+{
+  "name": "omp-switch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A focused desktop companion for managing Oh My Pi model providers.",
+  "author": "OMP Switch contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skh2945932142/omp-switch.git"
+  },
+  "homepage": "https://github.com/skh2945932142/omp-switch#readme",
+  "bugs": {
+    "url": "https://github.com/skh2945932142/omp-switch/issues"
+  },
+  "keywords": [
+    "oh-my-pi",
+    "electron",
+    "llm",
+    "model-provider",
+    "windows"
+  ],
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "type": "module",
+  "main": "out/main/main.js",
+  "scripts": {
+    "build:secret-bridge": "dotnet publish native/secret-bridge/OmpSwitch.SecretBridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false -o native/secret-bridge/publish",
+    "predev": "pnpm build:secret-bridge",
+    "dev": "electron-vite dev",
+    "build": "pnpm build:secret-bridge && electron-vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "electron-vite preview",
+    "package:win": "pnpm build && electron-builder --win nsis portable"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "lucide-react": "^0.511.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "yaml": "^2.8.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.omp.switch",
+    "productName": "OMP Switch",
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/secret-bridge/publish/omp-switch-secret.exe",
+        "to": "secret-bridge/omp-switch-secret.exe"
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

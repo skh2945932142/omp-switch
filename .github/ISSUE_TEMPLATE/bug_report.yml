@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible OMP Switch problem without sensitive data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, OAuth tokens, full configuration files, session content, personal paths, or app-data files. See SECURITY.md for private reports.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Redacted reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Save ...
+    validations:
+      required: true
+  - type: input
+    id: omp_switch_version
+    attributes:
+      label: OMP Switch version or commit
+    validations:
+      required: true
+  - type: input
+    id: omp_version
+    attributes:
+      label: Oh My Pi version
+  - type: dropdown
+    id: install_kind
+    attributes:
+      label: Installation type
+      options:
+        - Source checkout
+        - NSIS installer
+        - Portable executable
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Remove secrets, full paths, and private content before pasting.

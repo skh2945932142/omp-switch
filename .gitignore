@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+.playwright-cli/
+.playwright-mcp/
+output/
+*.log
+*.tmp
+native/secret-bridge/bin/
+native/secret-bridge/obj/
+native/secret-bridge/publish/
+.tmp-dpapi-probe.txt
+.tmp-secret-bridge-data/
