@@ -15,15 +15,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out source
-        uses: actions/checkout@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v4
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
           node-version: 24
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
         with:
           dotnet-version: 10.0.x
 
