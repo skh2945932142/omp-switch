@@ -1,0 +1,84 @@
+name: Sync Scoop bucket
+
+# The Scoop bucket is served from this repository, so bucket/omp-switch.json has to carry a literal
+# SHA256 of the portable ZIP. electron-builder output is not reproducible, so the hash is only final
+# once a release is *published* — gating the draft on it can never converge, because every re-tag
+# rebuilds and produces a different hash.
+#
+# This runs after publication and writes the hash of the asset that actually shipped.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to sync from (for example v0.2.0)
+        required: true
+
+permissions: {}
+
+jobs:
+  sync:
+    name: Point the bucket at the published asset
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+
+      - name: Update bucket/omp-switch.json from the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          gh release download "$TAG_NAME" --repo "$REPO" --pattern "SHA256SUMS.txt" --dir sums --clobber
+          hash="$(awk '/-win\.zip$/ {print $1}' sums/SHA256SUMS.txt)"
+          name="$(awk '/-win\.zip$/ {print $2}' sums/SHA256SUMS.txt)"
+          if [ -z "$hash" ] || [ -z "$name" ]; then
+            echo "No portable ZIP line in the published SHA256SUMS.txt" >&2
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const [version, hash, name, repo] = process.argv.slice(1);
+            const path = "bucket/omp-switch.json";
+            const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+            manifest.version = version;
+            manifest.architecture["64bit"].url =
+              `https://github.com/${repo}/releases/download/v${version}/${name}`;
+            manifest.architecture["64bit"].hash = hash;
+            fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          ' "$version" "$hash" "$name" "$REPO"
+
+          if git diff --quiet -- bucket/omp-switch.json; then
+            echo "Bucket already matches the published release; nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bucket/omp-switch.json
+          git commit -m "chore(scoop): point the bucket at $TAG_NAME
+
+          Automated: the portable ZIP hash is only final once a release is published, because
+          electron-builder output is not reproducible."
+          git push origin main
+
+      - name: Report
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          echo "### Scoop bucket synced" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag: \`$TAG_NAME\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat bucket/omp-switch.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

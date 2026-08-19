@@ -49,19 +49,21 @@ That writes reviewed copies into `packaging/out/` for winget and Chocolatey subm
 `bucket/omp-switch.json` in place. The Scoop bucket is served from this repository, so that file must
 be committed with a real hash for `scoop install` to work at all.
 
-**This creates an ordering problem, and the workflow enforces the answer.** electron-builder output is
+**The Scoop hash is only final at publication, and a workflow handles it.** electron-builder output is
 not reproducible, so every build — including a re-tag of the same commit — produces a different hash.
-The `draft-release` job therefore refuses to create the draft when `bucket/omp-switch.json` does not
-match the assets just built. When that fires:
+That makes it impossible to commit the correct hash *before* the build that will ship: whatever you
+commit, the next build invalidates it.
 
-1. `gh run download <id> -n release-assets -D dist-release`
-2. `pnpm render:packaging -Source dist-release`
-3. Commit `bucket/omp-switch.json`.
-4. Move the tag to the new commit and push it again.
+So `bucket/omp-switch.json` is maintained by `.github/workflows/sync-scoop-bucket.yml`, which runs on
+`release: published`, reads the hash out of the published `SHA256SUMS.txt`, and commits it to `main`.
+Nothing to do by hand. `render:packaging` can still update the file locally, which is useful when
+publishing a release built outside the workflow.
 
-A first release of a version therefore takes two passes: one to learn the hash, one to publish with it
-committed. That is deliberate — the alternative is a Scoop manifest whose hash check fails for every
-user.
+If the sync ever needs re-running, `workflow_dispatch` takes a tag:
+
+```powershell
+gh workflow run sync-scoop-bucket.yml -f tag=vX.Y.Z
+```
 
 ## Update Manifest
 
