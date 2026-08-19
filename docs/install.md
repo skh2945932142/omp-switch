@@ -60,7 +60,13 @@ docker pull ghcr.io/skh2945932142/omp-switch-cli:0.2.0
 docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.2.0 validate --profile default
 ```
 
-`:latest` also tracks the newest release. To build it yourself instead:
+`:latest` also tracks the newest release.
+
+> **The published image may still be private.** GitHub creates container packages as private and
+> visibility is a repository-settings toggle, not something the release workflow can set. If the pull
+> fails with `unauthorized`, either the owner has not made the package public yet — Settings →
+> Packages → `omp-switch-cli` → Change visibility → Public — or you need
+> `docker login ghcr.io` with a token carrying `read:packages`. Building locally always works:
 
 ```bash
 docker build -t omp-switch-cli .

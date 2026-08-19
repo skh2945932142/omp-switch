@@ -47,6 +47,10 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
   ghcr.io/skh2945932142/omp-switch-cli:latest validate --profile default
 ```
 
+> The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
+> repository setting. If the pull reports `unauthorized`, see
+> [docs/install.md](docs/install.md#docker) — a local `docker build` always works.
+
 Every method, including checksum and provenance verification, is in
 **[docs/install.md](docs/install.md)**.
 

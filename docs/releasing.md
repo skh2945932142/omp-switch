@@ -69,6 +69,19 @@ gh workflow run sync-scoop-bucket.yml -f tag=vX.Y.Z
 
 The future in-app update checker requires a separately signed manifest. Keep the Ed25519 private key outside the repository and store it only in the protected `OMP_SWITCH_UPDATE_SIGNING_KEY` GitHub Environment secret. A release without that secret may still be published; it must not advertise an unsigned update manifest.
 
+## One-time setup for the container image
+
+`publish-cli-image` pushes to GHCR successfully, but GitHub creates the container package as
+**private**, and container visibility cannot be set from a workflow or the REST API. Until an owner
+flips it once — Settings → Packages → `omp-switch-cli` → Change visibility → Public — an anonymous
+`docker pull` returns `401 unauthorized`. Verify with:
+
+```bash
+curl -sI https://ghcr.io/v2/<owner>/omp-switch-cli/manifests/<version>
+```
+
+A `401` means it is still private.
+
 ## Rollback
 
 If an asset or release note is incorrect, keep the release in draft or unpublish it, revoke any related update manifest, publish corrected assets with fresh checksums and attestations, and document the corrective action in the next release notes.
