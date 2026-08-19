@@ -1,20 +1,82 @@
 import path from "node:path";
 import fs from "node:fs";
-import { ProfilePaths, ProfileRef } from "./domain";
+import { OmpPathOverride, OmpPathResolution, ProfilePaths, ProfileRef } from "./domain";
 
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
+export const DEFAULT_PROFILE = "default";
+
+/** The subset of the environment that moves OMP's config paths (docs/config-usage.md). */
+export interface OmpPathEnv {
+  PI_CONFIG_DIR?: string;
+  PI_CODING_AGENT_DIR?: string;
+  OMP_PROFILE?: string;
+  PI_PROFILE?: string;
+}
+
 export function validateProfileName(name: string): string {
-  if (name !== "default" && !PROFILE_PATTERN.test(name)) {
+  if (name !== DEFAULT_PROFILE && !PROFILE_PATTERN.test(name)) {
     throw new Error("Profile names may contain only letters, numbers, dot, underscore and dash");
   }
   return name;
 }
 
-export function getProfilePaths(homeDir: string, profileName: string): ProfilePaths {
+/** `default`, empty and whitespace all select the default profile. */
+function normalizeProfileName(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" || trimmed === DEFAULT_PROFILE ? DEFAULT_PROFILE : trimmed;
+}
+
+/**
+ * Resolves the OMP root and active profile the way OMP itself does.
+ *
+ * - `PI_CONFIG_DIR` relocates the OMP root. OMP documents it both as `~/<PI_CONFIG_DIR>` and as a
+ *   relocation of `<config-dir>`, so an absolute value is honored as-is and a relative one is
+ *   resolved under the home directory. Both readings agree for the common case.
+ * - `OMP_PROFILE` wins over `PI_PROFILE` whenever it is defined, *including when it is empty*.
+ */
+export function resolveOmpPaths(homeDir: string, env: OmpPathEnv = {}): OmpPathResolution {
+  const overrides: OmpPathOverride[] = [];
+
+  const configDir = env.PI_CONFIG_DIR?.trim();
+  let ompRoot = path.join(homeDir, ".omp");
+  if (configDir) {
+    ompRoot = path.isAbsolute(configDir) ? path.resolve(configDir) : path.resolve(homeDir, configDir);
+    overrides.push({ variable: "PI_CONFIG_DIR", value: configDir, effect: `OMP root moved to ${ompRoot}` });
+  }
+
+  let activeProfile = DEFAULT_PROFILE;
+  const fromOmpProfile = normalizeProfileName(env.OMP_PROFILE);
+  const fromPiProfile = normalizeProfileName(env.PI_PROFILE);
+  if (fromOmpProfile !== undefined) {
+    activeProfile = fromOmpProfile;
+    overrides.push({ variable: "OMP_PROFILE", value: env.OMP_PROFILE ?? "", effect: `Active profile is ${activeProfile}` });
+  } else if (fromPiProfile !== undefined) {
+    activeProfile = fromPiProfile;
+    overrides.push({ variable: "PI_PROFILE", value: env.PI_PROFILE ?? "", effect: `Active profile is ${activeProfile}` });
+  }
+
+  // PI_CODING_AGENT_DIR only moves the agent dir of the default profile; named profiles ignore it.
+  const agentDirOverride = env.PI_CODING_AGENT_DIR?.trim();
+  if (agentDirOverride && activeProfile === DEFAULT_PROFILE) {
+    overrides.push({
+      variable: "PI_CODING_AGENT_DIR",
+      value: agentDirOverride,
+      effect: `Default-profile agent dir moved to ${path.resolve(agentDirOverride)}`,
+    });
+  }
+
+  return { ompRoot, activeProfile, overrides };
+}
+
+export function getProfilePaths(homeDir: string, profileName: string, env: OmpPathEnv = {}): ProfilePaths {
   validateProfileName(profileName);
-  const ompRoot = path.join(homeDir, ".omp");
-  const agentDir = profileName === "default" ? path.join(ompRoot, "agent") : path.join(ompRoot, "profiles", profileName, "agent");
+  const { ompRoot } = resolveOmpPaths(homeDir, env);
+  const agentDirOverride = env.PI_CODING_AGENT_DIR?.trim();
+  const agentDir = profileName === DEFAULT_PROFILE
+    ? (agentDirOverride ? path.resolve(agentDirOverride) : path.join(ompRoot, "agent"))
+    : path.join(ompRoot, "profiles", profileName, "agent");
   return {
     profile: profileName,
     agentDir,
@@ -27,17 +89,18 @@ export function getProfilePaths(homeDir: string, profileName: string): ProfilePa
   };
 }
 
-export function listProfileNames(entries: string[]): string[] {
-  const names = new Set<string>(["default"]);
-  for (const entry of entries) {
-    if (!entry || entry === "default") continue;
+export function listProfileNames(entries: string[], activeProfile = DEFAULT_PROFILE): string[] {
+  const names = new Set<string>([DEFAULT_PROFILE]);
+  for (const entry of [...entries, activeProfile]) {
+    if (!entry || entry === DEFAULT_PROFILE) continue;
     if (PROFILE_PATTERN.test(entry)) names.add(entry);
   }
-  return ["default", ...Array.from(names).filter((name) => name !== "default").sort()];
+  return [DEFAULT_PROFILE, ...Array.from(names).filter((name) => name !== DEFAULT_PROFILE).sort()];
 }
 
-export function discoverProfileNames(homeDir: string): string[] {
-  const profilesDir = path.join(homeDir, ".omp", "profiles");
+export function discoverProfileNames(homeDir: string, env: OmpPathEnv = {}): string[] {
+  const { ompRoot, activeProfile } = resolveOmpPaths(homeDir, env);
+  const profilesDir = path.join(ompRoot, "profiles");
   let entries: string[] = [];
   try {
     entries = fs
@@ -47,15 +110,17 @@ export function discoverProfileNames(homeDir: string): string[] {
   } catch {
     entries = [];
   }
-  return listProfileNames(entries);
+  // An OMP_PROFILE that has never been written yet still has to be listed, or the app would
+  // silently edit the default profile while OMP reads the named one.
+  return listProfileNames(entries, activeProfile);
 }
 
-export function toProfileRef(homeDir: string, profileName: string): ProfileRef {
-  const paths = getProfilePaths(homeDir, profileName);
+export function toProfileRef(homeDir: string, profileName: string, env: OmpPathEnv = {}): ProfileRef {
+  const paths = getProfilePaths(homeDir, profileName, env);
   return {
     id: profileName,
-    name: profileName === "default" ? "Default" : profileName,
-    kind: profileName === "default" ? "default" : "named",
+    name: profileName === DEFAULT_PROFILE ? "Default" : profileName,
+    kind: profileName === DEFAULT_PROFILE ? "default" : "named",
     agentDir: paths.agentDir,
   };
 }

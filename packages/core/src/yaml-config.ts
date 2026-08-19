@@ -1,9 +1,51 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isMap, Document, parseDocument, stringify, YAMLMap } from "yaml";
+import { isAlias, isCollection, isMap, isScalar, Document, Node, parseDocument, stringify, visit, YAMLMap } from "yaml";
 import { isDeepStrictEqual } from "node:util";
 import { ConfigConflictError, Diagnostic, LoadedConfig } from "./domain";
+
+/**
+ * Replacing a node that carries an anchor, or that is an alias, would rewrite the value as plain
+ * expanded YAML. That silently destroys the anchor other nodes point at, so the write is refused
+ * instead. The user keeps a file this app cannot express rather than a corrupted one.
+ */
+export class YamlAnchorError extends Error {
+  constructor(public readonly keyPath: string) {
+    super(`Refusing to rewrite ${keyPath}: the value uses a YAML anchor or alias that OMP Switch cannot preserve. Edit the file by hand or remove the anchor.`);
+    this.name = "YamlAnchorError";
+  }
+}
+
+export function documentUsesAnchors(document: Document): boolean {
+  let found = false;
+  visit(document, (_key, node) => {
+    if (isAlias(node) || ((isScalar(node) || isCollection(node)) && (node as Node & { anchor?: string }).anchor)) {
+      found = true;
+      return visit.BREAK;
+    }
+    return undefined;
+  });
+  return found;
+}
+
+function assertReplaceable(node: unknown, keyPath: string): void {
+  if (node === undefined || node === null) return;
+  if (isAlias(node)) throw new YamlAnchorError(keyPath);
+  if ((isScalar(node) || isCollection(node)) && (node as Node & { anchor?: string }).anchor) throw new YamlAnchorError(keyPath);
+  // A subtree can also hold an anchor another part of the document aliases.
+  if (isCollection(node)) {
+    let nested = false;
+    visit(node as never, (_key, child) => {
+      if (isAlias(child) || ((isScalar(child) || isCollection(child)) && (child as Node & { anchor?: string }).anchor)) {
+        nested = true;
+        return visit.BREAK;
+      }
+      return undefined;
+    });
+    if (nested) throw new YamlAnchorError(keyPath);
+  }
+}
 
 export interface FileExpectation {
   exists: boolean;
@@ -38,6 +80,13 @@ export function parseYaml<T extends Record<string, unknown>>(raw: string, fallba
     return { value: fallback, document, diagnostics };
   }
   const value = (document.toJS({ mapAsMap: false }) ?? fallback) as T;
+  if (documentUsesAnchors(document)) {
+    diagnostics.push({
+      severity: "warning",
+      code: "yaml.anchors",
+      message: "This file uses YAML anchors or aliases. Sections that use them cannot be rewritten in place and saving those will be refused.",
+    });
+  }
   return { value, document, diagnostics };
 }
 
@@ -120,14 +169,20 @@ export function patchModelsYaml(raw: string, before: Record<string, unknown>, af
   const afterProviders = asRecord(after.providers);
   const providers = ensureChildMap(document, root, "providers");
   for (const key of Object.keys(beforeProviders)) {
-    if (!(key in afterProviders)) providers.delete(key);
+    if (!(key in afterProviders)) {
+      // Deleting the node that carries an anchor leaves every `*alias` dangling, which makes the
+      // file unparseable. In-place edits are fine and are handled below.
+      assertReplaceable(providers.get(key, true), `providers.${key}`);
+      providers.delete(key);
+    }
   }
   for (const [key, value] of Object.entries(afterProviders)) {
     if (!isDeepStrictEqual(beforeProviders[key], value)) {
       const existing = providers.get(key, true);
       if (isMap(existing) && isRecord(beforeProviders[key]) && isRecord(value)) {
-        patchMap(existing, beforeProviders[key], value);
+        patchMap(existing, beforeProviders[key], value, `providers.${key}`);
       } else {
+        assertReplaceable(existing, `providers.${key}`);
         providers.set(key, value);
       }
     }
@@ -140,16 +195,30 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
   const root = ensureMap(document);
   const beforeRoles = asRecord(before.modelRoles);
   const afterRoles = asRecord(after.modelRoles);
-  if (Object.keys(afterRoles).length === 0) {
-    root.delete("modelRoles");
-    return documentToYaml(document);
+  if (Object.keys(afterRoles).length === 0) root.delete("modelRoles");
+  else {
+    const roles = ensureChildMap(document, root, "modelRoles");
+    for (const key of Object.keys(beforeRoles)) {
+      if (!(key in afterRoles)) {
+        assertReplaceable(roles.get(key, true), `modelRoles.${key}`);
+        roles.delete(key);
+      }
+    }
+    for (const [key, value] of Object.entries(afterRoles)) {
+      if (!isDeepStrictEqual(beforeRoles[key], value)) {
+        assertReplaceable(roles.get(key, true), `modelRoles.${key}`);
+        roles.set(key, value);
+      }
+    }
   }
-  const roles = ensureChildMap(document, root, "modelRoles");
-  for (const key of Object.keys(beforeRoles)) {
-    if (!(key in afterRoles)) roles.delete(key);
-  }
-  for (const [key, value] of Object.entries(afterRoles)) {
-    if (!isDeepStrictEqual(beforeRoles[key], value)) roles.set(key, value);
+
+  for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel"]) {
+    const beforeValue = before[key];
+    const afterValue = after[key];
+    if (isDeepStrictEqual(beforeValue, afterValue)) continue;
+    assertReplaceable(root.get(key, true), key);
+    if (afterValue === undefined || (Array.isArray(afterValue) && afterValue.length === 0)) root.delete(key);
+    else root.set(key, afterValue);
   }
   return documentToYaml(document);
 }
@@ -178,16 +247,20 @@ function ensureChildMap(document: Document, parent: YAMLMap, key: string): YAMLM
   return created;
 }
 
-function patchMap(map: YAMLMap, before: Record<string, unknown>, after: Record<string, unknown>): void {
+function patchMap(map: YAMLMap, before: Record<string, unknown>, after: Record<string, unknown>, keyPath: string): void {
   for (const key of Object.keys(before)) {
-    if (!(key in after)) map.delete(key);
+    if (!(key in after)) {
+      assertReplaceable(map.get(key, true), `${keyPath}.${key}`);
+      map.delete(key);
+    }
   }
   for (const [key, value] of Object.entries(after)) {
     if (isDeepStrictEqual(before[key], value)) continue;
     const existing = map.get(key, true);
     if (isMap(existing) && isRecord(before[key]) && isRecord(value)) {
-      patchMap(existing, before[key], value);
+      patchMap(existing, before[key], value, `${keyPath}.${key}`);
     } else {
+      assertReplaceable(existing, `${keyPath}.${key}`);
       map.set(key, value);
     }
   }

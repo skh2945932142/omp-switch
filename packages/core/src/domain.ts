@@ -1,5 +1,22 @@
 export type ProfileKind = "default" | "named";
 
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "auto";
+
+/**
+ * OMP accepts three different thinking-level sets and they are not interchangeable.
+ * `defaultThinkingLevel` in config.yml takes everything except `off` (docs/settings.md).
+ */
+export type SettingsThinkingLevel = Exclude<ThinkingLevel, "off">;
+
+/**
+ * A `provider/model:<level>` role suffix takes neither `off` nor `auto` (docs/settings.md).
+ * The full `ThinkingLevel` union only applies to OMP's `--model` command-line patterns,
+ * which this app does not write.
+ */
+export type RoleThinkingLevel = Exclude<ThinkingLevel, "off" | "auto">;
+
+export type OmpSchemaStatus = "supported" | "readonly" | "unknown";
+
 export interface ProfileRef {
   id: string;
   name: string;
@@ -14,11 +31,31 @@ export interface ProfilePaths {
   settingsCandidates: string[];
 }
 
+/** One OMP environment variable that moved the paths this app is about to write. */
+export interface OmpPathOverride {
+  variable: "PI_CONFIG_DIR" | "PI_CODING_AGENT_DIR" | "OMP_PROFILE" | "PI_PROFILE";
+  value: string;
+  effect: string;
+}
+
+/**
+ * Where OMP actually reads config from, after its own environment overrides.
+ * Resolved by `resolveOmpPaths`; `overrides` exists so the UI can show the user
+ * why the paths are not the plain `~/.omp/agent` default.
+ */
+export interface OmpPathResolution {
+  ompRoot: string;
+  activeProfile: string;
+  overrides: OmpPathOverride[];
+}
+
 export interface OmpInstallation {
   executable: string | null;
   version: string | null;
   supported: boolean;
   reason?: string;
+  schemaMajor?: number;
+  schemaStatus?: OmpSchemaStatus;
 }
 
 export interface Diagnostic {
@@ -38,6 +75,10 @@ export interface OmpModel extends Record<string, unknown> {
   maxTokens?: number;
   headers?: Record<string, string>;
   compat?: Record<string, unknown>;
+  transport?: string;
+  remoteCompaction?: RemoteCompactionConfig;
+  cost?: Record<string, number>;
+  imageInputDecoder?: string;
 }
 
 export interface OmpProvider extends Record<string, unknown> {
@@ -49,6 +90,9 @@ export interface OmpProvider extends Record<string, unknown> {
   authHeader?: boolean;
   auth?: "apiKey" | "none" | "oauth" | string;
   disableStrictTools?: boolean;
+  transport?: string;
+  remoteCompaction?: RemoteCompactionConfig;
+  cost?: Record<string, number>;
   discovery?: {
     type?: string;
     timeoutMs?: number;
@@ -65,7 +109,26 @@ export interface ModelsDocument extends Record<string, unknown> {
 
 export interface SettingsDocument extends Record<string, unknown> {
   modelRoles?: Record<string, string>;
+  modelProviderOrder?: string[];
+  enabledModels?: EnabledModelRule[];
+  disabledProviders?: DisabledProviderRule[];
+  defaultThinkingLevel?: SettingsThinkingLevel;
 }
+
+export interface RemoteCompactionConfig extends Record<string, unknown> {
+  enabled?: boolean;
+  api?: string;
+  endpoint?: string;
+  model?: string;
+  v2StreamingEnabled?: boolean;
+  v2Endpoint?: string;
+  streamingEndpoint?: string;
+}
+
+export type EnabledModelRule = string | Record<string, unknown>;
+
+/** Same bare-string-or-path-scoped-mapping shape as `enabledModels`, keyed by `providers`. */
+export type DisabledProviderRule = string | Record<string, unknown>;
 
 export interface CredentialRef {
   id: string;
@@ -91,6 +154,13 @@ export interface Snapshot {
   modelsWriteHash?: string;
   modelsWriteExisted?: boolean;
   settingsExisted?: boolean;
+  /**
+   * Hashes the commit guarded by this snapshot actually wrote. Absent for a standalone snapshot.
+   * A restore accepts either these or the pre-write hashes, which is what lets it tell this app's
+   * own write apart from an edit made by something else.
+   */
+  committedModelsHash?: string;
+  committedSettingsHash?: string;
 }
 
 export interface LoadedConfig<T> {
@@ -111,6 +181,27 @@ export interface EffectiveConfig {
   diagnostics: Diagnostic[];
 }
 
+export interface ProjectOverlay {
+  root: string;
+  models: LoadedConfig<ModelsDocument>;
+  settings: LoadedConfig<SettingsDocument>;
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * The directory project-level `.omp` lookups start from, plus what was found there.
+ * A packaged GUI launched from the Start Menu has an arbitrary `process.cwd()`, so the root is a
+ * deliberate choice rather than whatever the process happened to start in.
+ */
+export interface ProjectContext {
+  root: string;
+  /** False when the root is only a `process.cwd()` guess the user has not confirmed. */
+  explicit: boolean;
+  overlay: ProjectOverlay | null;
+  /** How this overlay overrides the user-level config (array replacement, role storage). */
+  precedence: Diagnostic[];
+}
+
 export interface ProviderDraft {
   id: string;
   baseUrl: string;
@@ -122,12 +213,18 @@ export interface ProviderDraft {
   models: OmpModel[];
   discovery?: OmpProvider["discovery"];
   modelOverrides?: OmpProvider["modelOverrides"] | null;
+  authHeader?: boolean;
+  disableStrictTools?: boolean;
+  transport?: string;
+  remoteCompaction?: RemoteCompactionConfig | null;
+  cost?: Record<string, number> | null;
 }
 
 export interface ConfigPatch {
   provider?: ProviderDraft;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
+  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel">>;
   confirmLegacyMigration?: boolean;
 }
 
@@ -157,6 +254,83 @@ export interface DiscoveryResult {
   models: DiscoveryModel[];
   endpoint: string;
   durationMs: number;
+  type?: string;
+}
+
+export interface CatalogModel extends OmpModel {
+  providerId: string;
+  source?: string;
+  updatedAt?: string;
+}
+
+export interface ProviderPreset {
+  id: string;
+  label: string;
+  baseUrl: string;
+  api: string;
+  auth?: string;
+  discovery?: OmpProvider["discovery"];
+  models?: CatalogModel[];
+  source: string;
+  version: string;
+  category?: string;
+  requiresBaseUrl?: boolean;
+}
+
+export type SurfaceSourceKind = "user" | "profile" | "project" | "plugin" | "external";
+
+export interface ManagedSurfaceEntry {
+  id: string;
+  name: string;
+  path: string;
+  source: SurfaceSourceKind;
+  enabled: boolean;
+  updatedAt?: string;
+}
+
+export interface SessionIndexEntry {
+  id: string;
+  /** Stable local lookup key; keeps duplicate event IDs from different JSONL files distinct. */
+  sourceKey?: string;
+  profile: string;
+  filePath: string;
+  offset: number;
+  length: number;
+  startedAt?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+  usage?: Record<string, number>;
+  cost?: number;
+}
+
+export interface GatewayUpstream {
+  id: string;
+  providerId: string;
+  modelId: string;
+  kind: "secret" | "omp-auth-gateway";
+  credentialId?: string;
+  enabled: boolean;
+}
+
+export interface GatewayPool {
+  id: string;
+  profile: string;
+  virtualModel: string;
+  port: number;
+  enabled: boolean;
+  upstreams: GatewayUpstream[];
+}
+
+/** Per-upstream observation recorded while forwarding, surfaced for latency/health display. */
+export interface GatewayUpstreamStat {
+  poolId: string;
+  upstreamId: string;
+  lastStatus?: number;
+  lastLatencyMs?: number;
+  lastAt?: string;
+  lastError?: string;
+  consecutiveFailures: number;
 }
 
 export class ConfigConflictError extends Error {
