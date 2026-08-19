@@ -49,6 +49,20 @@ That writes reviewed copies into `packaging/out/` for winget and Chocolatey subm
 `bucket/omp-switch.json` in place. The Scoop bucket is served from this repository, so that file must
 be committed with a real hash for `scoop install` to work at all.
 
+**This creates an ordering problem, and the workflow enforces the answer.** electron-builder output is
+not reproducible, so every build — including a re-tag of the same commit — produces a different hash.
+The `draft-release` job therefore refuses to create the draft when `bucket/omp-switch.json` does not
+match the assets just built. When that fires:
+
+1. `gh run download <id> -n release-assets -D dist-release`
+2. `pnpm render:packaging -Source dist-release`
+3. Commit `bucket/omp-switch.json`.
+4. Move the tag to the new commit and push it again.
+
+A first release of a version therefore takes two passes: one to learn the hash, one to publish with it
+committed. That is deliberate — the alternative is a Scoop manifest whose hash check fails for every
+user.
+
 ## Update Manifest
 
 The future in-app update checker requires a separately signed manifest. Keep the Ed25519 private key outside the repository and store it only in the protected `OMP_SWITCH_UPDATE_SIGNING_KEY` GitHub Environment secret. A release without that secret may still be published; it must not advertise an unsigned update manifest.
