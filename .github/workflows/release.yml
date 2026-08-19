@@ -115,6 +115,32 @@ jobs:
           name: release-assets
           path: release-assets
 
+      # The Scoop bucket is served from this repository, so its manifest carries a literal hash of
+      # the portable ZIP. electron-builder output is not reproducible, so any rebuild — including a
+      # re-tag — changes that hash and would leave `scoop install` failing verification. Fail here
+      # rather than publishing a bucket that does not match the assets.
+      - name: Check the Scoop bucket matches the built assets
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          expected="$(awk '/-win\.zip$/ {print $1}' release-assets/SHA256SUMS.txt)"
+          actual="$(node -p "require('./bucket/omp-switch.json').architecture['64bit'].hash")"
+          bucket_version="$(node -p "require('./bucket/omp-switch.json').version")"
+          if [ "$bucket_version" != "$version" ] || [ "$actual" != "$expected" ]; then
+            echo "bucket/omp-switch.json is stale."
+            echo "  version : $bucket_version (expected $version)"
+            echo "  hash    : $actual"
+            echo "  built   : $expected"
+            echo
+            echo "Update it with 'pnpm render:packaging -Source <dir with the built assets>',"
+            echo "commit the result, then move the tag. Publishing now would ship a Scoop"
+            echo "manifest whose hash check fails for every user."
+            exit 1
+          fi
+          echo "Scoop bucket matches the built portable ZIP."
+
       - name: Create GitHub Release draft
         env:
           GH_TOKEN: ${{ github.token }}
