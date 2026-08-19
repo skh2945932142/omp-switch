@@ -6,7 +6,7 @@
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
 
-> 当前源码为未发布的 `0.2.0`。尚未创建 tag 或公开下载版；发布前仍需完成干净 Windows 的安装、升级与卸载回归。
+> `v0.2.0` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
 
 ![OMP Switch 供应商工作区](docs/images/provider-workspace.png)
 
