@@ -25,6 +25,8 @@ const api = {
   indexSessions: (profileId: string) => ipcRenderer.invoke("session:index", profileId),
   listSessions: (profileId: string): Promise<SessionIndexEntry[]> => ipcRenderer.invoke("session:list", profileId),
   readSession: (profileId: string, id: string): Promise<string> => ipcRenderer.invoke("session:raw", profileId, id),
+  usageSummary: (profileId = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => ipcRenderer.invoke("usage:summary", profileId, options),
+  setUsagePrice: (key: string, price: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null) => ipcRenderer.invoke("usage:set-price", key, price),
   listGatewayPools: (profileId?: string): Promise<GatewayPool[]> => ipcRenderer.invoke("gateway:list", profileId),
   saveGatewayPool: (pool: GatewayPool): Promise<GatewayPool> => ipcRenderer.invoke("gateway:save", pool),
   gatewayStatus: () => ipcRenderer.invoke("gateway:status"),

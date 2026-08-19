@@ -7,6 +7,7 @@ import {
   ChevronDown,
   CircleAlert,
   CloudDownload,
+  Coins,
   Download,
   FileCheck2,
   FolderOpen,
@@ -36,6 +37,7 @@ import type {
 } from "@omp-switch/core";
 import { SETTINGS_THINKING_LEVELS } from "@omp-switch/core/validation";
 import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
+import { UsageModule } from "./usage-module";
 
 const ROLES = ["default", "smol", "slow", "vision", "plan", "designer", "commit", "tiny", "task", "advisor"];
 const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
@@ -266,6 +268,20 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     indexSessions: async () => ({ entries: [], invalidLines: 0 }),
     listSessions: async () => [],
     readSession: async () => "",
+    usageSummary: async () => ({
+      report: {
+        totals: { key: "total", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0, firstAt: "2026-08-18T10:00:00Z", lastAt: "2026-08-18T12:00:00Z" },
+        byModel: [{ key: "demo/demo-1", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
+        byProvider: [{ key: "demo", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
+        byDay: [{ key: "2026-08-18", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
+        unpriced: ["demo/demo-1"],
+      },
+      indexedEntries: 2,
+      invalidLines: 0,
+      pricedModels: 0,
+      overrides: {},
+    }),
+    setUsagePrice: async () => ({}),
     listGatewayPools: async () => [],
     saveGatewayPool: async (pool) => pool,
     gatewayStatus: async () => ({ running: false, port: null, upstreams: [] }),
@@ -389,7 +405,7 @@ export default function App() {
   const [form, setForm] = useState<FormState>(blankForm);
   const [roles, setRoles] = useState<Record<string, string>>({});
   const [authResult, setAuthResult] = useState<string>("");
-  const [section, setSection] = useState<"models" | "prompts" | "skills" | "sessions" | "gateway">("models");
+  const [section, setSection] = useState<"models" | "prompts" | "skills" | "sessions" | "usage" | "gateway">("models");
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
@@ -713,7 +729,7 @@ export default function App() {
     return text.includes(query.trim().toLowerCase());
   });
   const healthLabel = readOnly ? "只读" : errorDiagnostics.length > 0 ? "有问题" : config?.models.exists ? "已连接" : "未配置";
-  const sectionLabels = { models: "模型", prompts: "提示", skills: "技能", sessions: "会话", gateway: "网关" } as const;
+  const sectionLabels = { models: "模型", prompts: "提示", skills: "技能", sessions: "会话", usage: "用量", gateway: "网关" } as const;
 
   return (
     <div className="app-shell">
@@ -749,7 +765,7 @@ export default function App() {
           <nav className="section-nav" aria-label="模块">
             {(Object.keys(sectionLabels) as Array<keyof typeof sectionLabels>).map((item) => (
               <button key={item} className={section === item ? "active" : ""} onClick={() => { setSection(item); setFormOpen(false); setDrawerOpen(false); }}>
-                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : <ShieldCheck size={16} />}</span>
+                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : item === "usage" ? <Coins size={16} /> : <ShieldCheck size={16} />}</span>
                 <span>{sectionLabels[item]}</span>
                 {item === "models" ? <span className="nav-count">{providers.length}</span> : null}
               </button>
@@ -808,6 +824,7 @@ export default function App() {
           ) : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={setNotice} />
             : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={setNotice} />
               : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={setNotice} />
+              : section === "usage" ? <UsageModule api={api} profileId={profileId} onNotice={setNotice} />
                 : <GatewayModule api={api} profileId={profileId} readOnly={readOnly} onNotice={setNotice} providers={providers} />}
         </section>
 
