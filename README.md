@@ -36,6 +36,9 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
   ghcr.io/skh2945932142/omp-switch-cli:latest validate --profile default
 ```
 
+> 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
+> 若拉取报 `unauthorized`，见 [docs/install.md](docs/install.md#docker)（本地 `docker build` 始终可用）。
+
 完整方式（含校验和与 provenance 验证）见 **[docs/install.md](docs/install.md)**。
 
 ## 已实现
