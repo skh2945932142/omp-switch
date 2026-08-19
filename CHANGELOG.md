@@ -4,7 +4,7 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
-## [Unreleased]
+## 0.2.0 - 2026-08-19
 
 ### Added
 
@@ -46,14 +46,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The secret bridge publishes as Native AOT: 29 ms median cold start versus 148 ms, and 2.4 MB versus 13.5 MB. Building it now needs the Visual Studio "Desktop development with C++" workload; `scripts/build-secret-bridge.ps1` handles `vswhere.exe` discovery.
 - The gateway panel shows the bearer token and per-upstream latency, last status and consecutive failures.
 
-### Release gate
+### Not yet done
 
-- Clean Windows verification for NSIS, portable, uninstall, upgrade, and real OMP profiles.
-- Maintainer review of the draft release, checksums, and provenance.
+- Clean-Windows install, upgrade and uninstall regression against real OMP profiles.
+- Code signing; the binaries are unsigned and rely on build-provenance attestations.
 
-## 0.2.0 - Unreleased
-
-### Added
+### Also in this release
 
 - OMP v16/v17 write support with unknown-major read-only protection.
 - Versioned catalog imports, expanded discovery, compact Provider/Model workbench, Prompts, Skills, Sessions, and Gateway modules.

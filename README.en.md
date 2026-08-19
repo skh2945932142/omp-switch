@@ -9,8 +9,9 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> The source currently tracks an unreleased `0.2.0`. No tag or public download exists yet; a clean
-> Windows install/upgrade/uninstall regression is still required before release.
+> `v0.2.0` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
+> build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
 ![OMP Switch provider workspace](docs/images/provider-workspace.png)
 
