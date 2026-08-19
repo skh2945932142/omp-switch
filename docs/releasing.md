@@ -24,10 +24,10 @@ The workflow rejects a tag whose name does not match `package.json` and requires
 The workflow produces only these user-facing assets:
 
 - NSIS installer (`OMP Switch Setup X.Y.Z.exe`)
-- Portable executable (`OMP Switch X.Y.Z.exe`)
+- Portable ZIP (`OMP Switch X.Y.Z-win.zip`)
 - `SHA256SUMS.txt`
 
-It also creates GitHub build-provenance attestations for the executable assets. Review the artifact names, checksums, release notes, installation behavior, and provenance before publishing the draft.
+It also creates GitHub build-provenance attestations for both assets. Review the artifact names, checksums, release notes, installation behavior, and provenance before publishing the draft.
 
 Do not attach `.blockmap` files unless a future updater implementation explicitly consumes them.
 

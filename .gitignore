@@ -9,5 +9,15 @@ output/
 native/secret-bridge/bin/
 native/secret-bridge/obj/
 native/secret-bridge/publish/
+native/cli-proxy/bin/
+native/cli-proxy/obj/
+native/cli-proxy/publish/
+.tmp-*/
+omp-switch-v02-1024.png
 .tmp-dpapi-probe.txt
 .tmp-secret-bridge-data/
+packages/cli/dist/
+packaging/out/
+.vscode/
+.idea/
+coverage/

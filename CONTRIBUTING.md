@@ -17,7 +17,7 @@ pnpm test
 pnpm build
 ```
 
-Windows packaging also requires .NET SDK 10.0 because the secret bridge is a self-contained console executable.
+Windows packaging also requires .NET SDK 10.0 and the Visual Studio "Desktop development with C++" workload, because the secret bridge is published as a Native AOT console executable. Cold start matters there: OMP resolves an `!command` API key reference with a hard 10-second timeout and silently omits the key when the command is slower, so do not trade bridge startup time away.
 
 ## Pull Requests
 

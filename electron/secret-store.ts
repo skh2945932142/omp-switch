@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { safeStorage } from "electron";
-import { CredentialStatus } from "@omp-switch/core";
+import { CredentialRef, CredentialStatus } from "@omp-switch/core";
 
 interface VaultEntry {
   label: string;
@@ -55,6 +55,12 @@ export class SecretStoreService {
       label: entry?.label ?? id,
       masked: entry ? "••••••••" : "Not configured",
     };
+  }
+
+  /** Ids and labels only — never ciphertext — so callers can find entries no config references. */
+  async list(): Promise<CredentialRef[]> {
+    const vault = await this.readVault();
+    return Object.entries(vault.entries).map(([id, entry]) => ({ id, label: entry.label }));
   }
 
   private async readVault(): Promise<VaultFile> {

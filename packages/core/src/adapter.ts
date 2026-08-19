@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import {
   CommitResult,
+  ConfigConflictError,
   ConfigPatch,
   ConfigValidationError,
   Diagnostic,
@@ -14,17 +15,32 @@ import {
   SettingsDocument,
   Snapshot,
 } from "./domain";
-import { discoverProfileNames, getProfilePaths, toProfileRef } from "./paths";
+import { discoverProfileNames, getProfilePaths, OmpPathEnv, resolveOmpPaths, toProfileRef } from "./paths";
 import { assertFileExpectation, FileExpectation, loadStructuredConfig, patchModelsYaml, patchSettingsYaml, sha256File, sha256Text, writeTextAtomic } from "./yaml-config";
 import { validateModelsDocument, validateSettingsDocument } from "./validation";
 
 const emptyModels = (): ModelsDocument => ({ providers: {} });
 const emptySettings = (): SettingsDocument => ({});
 
+/** Snapshots kept per profile. Every commit creates one, so an unpruned directory grows forever. */
+export const DEFAULT_SNAPSHOT_RETENTION = 30;
+
 export interface AdapterOptions {
   homeDir: string;
   snapshotDir: string;
   installation?: OmpInstallation;
+  /** OMP's own path overrides; pass `process.env` so the app edits the files OMP actually reads. */
+  pathEnv?: OmpPathEnv;
+  /** How many snapshots to keep per profile; older directories are deleted after each commit. */
+  snapshotRetention?: number;
+}
+
+export interface RestoreOptions {
+  /**
+   * Restoring overwrites whatever is on disk now. When false (the default) a file that changed
+   * since the snapshot was taken aborts the restore instead of being clobbered.
+   */
+  force?: boolean;
 }
 
 export interface OmpAdapter {
@@ -41,11 +57,15 @@ export class OmpFilesystemAdapter implements OmpAdapter {
   readonly homeDir: string;
   readonly snapshotDir: string;
   readonly installation: OmpInstallation;
+  readonly pathEnv: OmpPathEnv;
+  readonly snapshotRetention: number;
 
   constructor(options: AdapterOptions) {
     this.homeDir = options.homeDir;
     this.snapshotDir = options.snapshotDir;
     this.installation = options.installation ?? { executable: null, version: null, supported: true };
+    this.pathEnv = options.pathEnv ?? {};
+    this.snapshotRetention = options.snapshotRetention ?? DEFAULT_SNAPSHOT_RETENTION;
   }
 
   async detectInstallation(): Promise<OmpInstallation> {
@@ -53,11 +73,11 @@ export class OmpFilesystemAdapter implements OmpAdapter {
   }
 
   async listProfiles(): Promise<ProfileRef[]> {
-    return discoverProfileNames(this.homeDir).map((name) => toProfileRef(this.homeDir, name));
+    return discoverProfileNames(this.homeDir, this.pathEnv).map((name) => toProfileRef(this.homeDir, name, this.pathEnv));
   }
 
   async loadProfile(profile: ProfileRef): Promise<EffectiveConfig> {
-    const paths = getProfilePaths(this.homeDir, profile.id);
+    const paths = getProfilePaths(this.homeDir, profile.id, this.pathEnv);
     const [models, settings] = await Promise.all([
       loadStructuredConfig(paths.modelsCandidates, emptyModels()),
       loadStructuredConfig(paths.settingsCandidates, emptySettings()),
@@ -66,19 +86,23 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       ...models.diagnostics,
       ...settings.diagnostics,
       ...validateModelsDocument(models.value),
-      ...validateSettingsDocument(settings.value),
+      ...validateSettingsDocument(settings.value, Object.keys(models.value.providers ?? {})),
     ];
     if (models.legacy) diagnostics.push({ severity: "info", code: "models.legacy", message: "Legacy models.json detected; save will create models.yml after confirmation" });
     if (!this.installation.supported) diagnostics.push({ severity: "warning", code: "omp.version", message: this.installation.reason ?? "Unknown Oh My Pi version" });
+    for (const override of resolveOmpPaths(this.homeDir, this.pathEnv).overrides) {
+      diagnostics.push({ severity: "info", code: "omp.path-override", message: `${override.variable}=${override.value}: ${override.effect}` });
+    }
     return { profile, paths, models, settings, diagnostics };
   }
+
 
   validate(config: EffectiveConfig): Diagnostic[] {
     return [
       ...config.models.diagnostics,
       ...config.settings.diagnostics,
       ...validateModelsDocument(config.models.value),
-      ...validateSettingsDocument(config.settings.value),
+      ...validateSettingsDocument(config.settings.value, Object.keys(config.models.value.providers ?? {})),
     ];
   }
 
@@ -102,6 +126,11 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       applyOptionalField(next, "headers", provider.headers);
       applyOptionalField(next, "compat", provider.compat);
       applyOptionalField(next, "modelOverrides", provider.modelOverrides);
+      applyOptionalField(next, "authHeader", provider.authHeader);
+      applyOptionalField(next, "disableStrictTools", provider.disableStrictTools);
+      applyOptionalField(next, "transport", provider.transport);
+      applyOptionalField(next, "remoteCompaction", provider.remoteCompaction);
+      applyOptionalField(next, "cost", provider.cost);
       models.providers[provider.id] = next;
     }
     if (patch.roleAssignments) {
@@ -112,7 +141,14 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       }
       if (Object.keys(settings.modelRoles).length === 0) delete settings.modelRoles;
     }
-    const diagnostics = [...validateModelsDocument(models), ...validateSettingsDocument(settings)];
+    if (patch.settings) {
+      for (const [key, value] of Object.entries(patch.settings)) {
+        if (value === undefined) continue;
+        if (Array.isArray(value) && value.length === 0) delete settings[key];
+        else settings[key] = value;
+      }
+    }
+    const diagnostics = [...validateModelsDocument(models), ...validateSettingsDocument(settings, Object.keys(models.providers ?? {}))];
     return {
       profile: config.profile,
       models,
@@ -151,7 +187,29 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       settingsExisted: config.settings.exists,
     };
     await fs.writeFile(path.join(dir, "snapshot.json"), JSON.stringify(snapshot, null, 2), "utf8");
+    await this.pruneSnapshots(config.profile.id).catch(() => undefined);
     return snapshot;
+  }
+
+  /**
+   * Deletes the oldest snapshot directories beyond the retention limit. Ids start with an ISO
+   * timestamp, so lexical order is chronological.
+   */
+  async pruneSnapshots(profileId: string, keep = this.snapshotRetention): Promise<string[]> {
+    if (keep <= 0) return [];
+    const profileDir = path.join(this.snapshotDir, profileId);
+    let entries: string[];
+    try {
+      entries = (await fs.readdir(profileDir, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const removable = entries.sort().slice(0, Math.max(0, entries.length - keep));
+    for (const id of removable) {
+      await fs.rm(path.join(profileDir, id), { recursive: true, force: true });
+    }
+    return removable;
   }
 
   async commitPatch(config: EffectiveConfig, preview: PatchPreview): Promise<CommitResult> {
@@ -176,31 +234,70 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       assertFileExpectation(settingsPath, settingsExpected),
     ]);
     const snapshot = await this.createSnapshot(config);
-    await writeTextAtomic(modelsPath, modelsText, modelsExpected);
+    const committedModelsHash = await writeTextAtomic(modelsPath, modelsText, modelsExpected);
+    let committedSettingsHash: string;
     try {
-      await writeTextAtomic(settingsPath, settingsText, settingsExpected);
+      committedSettingsHash = await writeTextAtomic(settingsPath, settingsText, settingsExpected);
     } catch (error) {
       if (await sha256File(modelsPath) === sha256Text(modelsText)) {
         await this.restoreSnapshotFile(snapshot, modelsPath, snapshot.modelsWriteExisted).catch(() => undefined);
       }
       throw error;
     }
+    // Record what this commit wrote so a later restore can tell it apart from an external edit.
+    snapshot.committedModelsHash = committedModelsHash;
+    snapshot.committedSettingsHash = committedSettingsHash;
+    await fs.writeFile(
+      path.join(this.snapshotDir, config.profile.id, snapshot.id, "snapshot.json"),
+      JSON.stringify(snapshot, null, 2),
+      "utf8",
+    ).catch(() => undefined);
     return { snapshot, config: await this.loadProfile(config.profile) };
   }
 
-  async restoreSnapshot(snapshot: Snapshot): Promise<void> {
+  /**
+   * Restores a snapshot. Unless `force` is set, every target file must still hash to what it did
+   * when the snapshot was taken; otherwise the restore would silently discard an external edit,
+   * which is exactly what `commitPatch` refuses to do.
+   */
+  async restoreSnapshot(snapshot: Snapshot, options: RestoreOptions = {}): Promise<void> {
     const dir = path.join(this.snapshotDir, snapshot.profile, snapshot.id);
-    await this.restoreSnapshotFile(snapshot, snapshot.modelsPath, snapshot.modelsExisted, dir);
     const modelsWritePath = snapshot.modelsWritePath
       ?? (snapshot.modelsPath.endsWith(".json") ? path.join(path.dirname(snapshot.modelsPath), "models.yml") : undefined);
+    if (!options.force) {
+      await this.assertSnapshotStillApplies(snapshot, modelsWritePath);
+    }
+    await this.restoreSnapshotFile(snapshot, snapshot.modelsPath, snapshot.modelsExisted, dir);
     if (modelsWritePath && modelsWritePath !== snapshot.modelsPath) {
       await this.restoreSnapshotFile(snapshot, modelsWritePath, snapshot.modelsWriteExisted ?? false, dir);
     }
     await this.restoreSnapshotFile(snapshot, snapshot.settingsPath, snapshot.settingsExisted, dir);
   }
 
+  private async assertSnapshotStillApplies(snapshot: Snapshot, modelsWritePath: string | undefined): Promise<void> {
+    const expectations = new Map<string, Set<string | undefined>>();
+    const accept = (filePath: string | undefined, ...hashes: Array<string | undefined>): void => {
+      if (!filePath) return;
+      const allowed = expectations.get(filePath) ?? new Set<string | undefined>();
+      for (const hash of hashes) allowed.add(hash);
+      expectations.set(filePath, allowed);
+    };
+    accept(snapshot.modelsPath, snapshot.modelsHash);
+    accept(modelsWritePath, snapshot.modelsWriteHash, snapshot.committedModelsHash);
+    accept(snapshot.settingsPath, snapshot.settingsHash, snapshot.committedSettingsHash);
+
+    // Snapshots taken before the hash fields existed, and snapshots of a profile that had no files
+    // at all, carry nothing to compare against.
+    const verifiable = Array.from(expectations.values()).some((allowed) => Array.from(allowed).some((hash) => hash !== undefined));
+    if (!verifiable) return;
+
+    for (const [filePath, allowed] of expectations) {
+      if (!allowed.has(await sha256File(filePath))) throw new ConfigConflictError(filePath);
+    }
+  }
+
   private modelsWritePath(config: EffectiveConfig): string {
-    return config.models.legacy ? getProfilePaths(this.homeDir, config.profile.id).modelsCandidates[0] : config.models.path;
+    return config.models.legacy ? getProfilePaths(this.homeDir, config.profile.id, this.pathEnv).modelsCandidates[0] : config.models.path;
   }
 
   private modelsWriteExpectation(config: EffectiveConfig, modelsPath: string): FileExpectation {
@@ -219,9 +316,33 @@ export class OmpFilesystemAdapter implements OmpAdapter {
   }
 }
 
+/**
+ * Credential ids referenced from a models document, read out of the `--secret-get "<id>"` argument
+ * of an `!command` apiKey (or header) reference. Deleting a provider leaves its vault entry behind
+ * otherwise, and deleting a credential that a config still references breaks that provider silently.
+ */
+export function collectReferencedCredentialIds(models: ModelsDocument): Set<string> {
+  const found = new Set<string>();
+  const scan = (value: unknown): void => {
+    if (typeof value === "string") {
+      for (const match of value.matchAll(/--secret-get\s+"([A-Za-z0-9][A-Za-z0-9._-]{0,127})"/g)) found.add(match[1]);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) scan(item);
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const item of Object.values(value)) scan(item);
+    }
+  };
+  scan(models.providers ?? {});
+  return found;
+}
+
 function applyOptionalField(
   target: Record<string, unknown>,
-  key: "apiKey" | "headers" | "compat" | "modelOverrides",
+  key: "apiKey" | "headers" | "compat" | "modelOverrides" | "authHeader" | "disableStrictTools" | "transport" | "remoteCompaction" | "cost",
   value: unknown | null | undefined,
 ): void {
   if (value === undefined) return;

@@ -56,3 +56,94 @@ jobs:
             $changes
             throw "Build created tracked or unignored files. Update .gitignore or the build process."
           }
+
+  cli:
+    name: Verify headless CLI on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The CLI and packages/core must stay free of Windows-only and Electron-only code. Running the
+      # suite and the built binary on Linux is what actually holds that line.
+      - name: Test
+        run: pnpm test
+
+      - name: Build CLI
+        run: pnpm build:cli
+
+      - name: Smoke-test the CLI against a throwaway HOME
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          # comment must survive the round trip
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          export HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"
+          cli="node $PWD/packages/cli/dist/main.js"
+
+          $cli list | tee /dev/stderr | grep -q '"ok":true'
+          $cli validate --profile default | grep -q '"ok":true'
+          $cli apply --profile default --patch '{"roleAssignments":{"default":"demo/demo-1"}}' > /dev/null
+          grep -q 'default: demo/demo-1' "$root/home/.omp/agent/config.yml"
+          grep -q 'comment must survive' "$root/home/.omp/agent/models.yml"
+          test -d "$root/data/snapshots/default"
+
+          # Usage errors must not pollute stdout.
+          if out="$($cli bogus 2>/dev/null)"; then echo "expected failure"; exit 1; fi
+          test -z "${out:-}"
+          echo "CLI smoke test passed"
+
+  docker:
+    name: Build and smoke-test the Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Build image
+        run: docker build -t omp-switch-cli:ci .
+
+      - name: Run against a mounted config directory
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/.omp/agent"
+          cat > "$root/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$root/.omp:/home/node/.omp" \
+            omp-switch-cli:ci validate --profile default | tee /dev/stderr | grep -q '"ok":true'
+          # Help goes to stderr on purpose so stdout stays pure JSON.
+          docker run --rm omp-switch-cli:ci --help 2>&1 | grep -q "omp-switch-cli <command>"
+          echo "Docker smoke test passed"
+

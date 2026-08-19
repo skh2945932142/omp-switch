@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "description": "Windows desktop companion for managing Oh My Pi model providers",
+  "homepage": "https://github.com/skh2945932142/omp-switch",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.2.0/OMP.Switch-0.2.0-win.zip",
+      "hash": "REPLACE_WITH_SHA256_OF_PORTABLE_ZIP"
+    }
+  },
+  "bin": "omp-switch-cli.exe",
+  "shortcuts": [
+    [
+      "OMP Switch.exe",
+      "OMP Switch"
+    ]
+  ],
+  "persist": [],
+  "notes": [
+    "Configuration lives in ~/.omp and is shared with Oh My Pi; Scoop does not manage it.",
+    "Stored API keys are encrypted per Windows user account and do not migrate to another machine."
+  ],
+  "checkver": {
+    "github": "https://github.com/skh2945932142/omp-switch"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/skh2945932142/omp-switch/releases/download/v$version/OMP.Switch-$version-win.zip"
+      }
+    },
+    "hash": {
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v$version/SHA256SUMS.txt"
+    }
+  }
+}

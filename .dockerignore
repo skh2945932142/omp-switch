@@ -1,0 +1,15 @@
+node_modules
+out
+dist
+build
+.git
+.github
+.tmp-*
+native
+electron
+src
+docs
+packages/cli/dist
+*.md
+*.log
+omp-switch-v02-1024.png

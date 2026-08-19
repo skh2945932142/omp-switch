@@ -59,22 +59,31 @@ jobs:
         shell: pwsh
         run: pnpm package:win
 
+      - name: Verify packaged JSON CLI
+        shell: pwsh
+        run: pnpm verify:package-cli
+
       - name: Generate checksums
         shell: pwsh
         run: |
-          $assets = @(Get-ChildItem -Path dist -File -Filter "*.exe" | Sort-Object Name)
+          $assets = @(Get-ChildItem -Path dist -File | Where-Object { $_.Extension -in ".exe", ".zip" } | Sort-Object Name)
           if ($assets.Count -ne 2) {
-            throw "Expected exactly the installer and portable executable in dist/"
+            throw "Expected exactly the installer executable and portable ZIP in dist/"
           }
           $lines = foreach ($asset in $assets) {
             "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant(), $asset.Name
           }
           [System.IO.File]::WriteAllLines((Join-Path $PWD "dist/SHA256SUMS.txt"), [string[]]$lines, [System.Text.UTF8Encoding]::new($false))
 
-      - name: Attest executable provenance
+      - name: Attest installer provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: dist/*.exe
+
+      - name: Attest portable archive provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/*.zip
 
       - name: Upload release assets
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -83,6 +92,7 @@ jobs:
           if-no-files-found: error
           path: |
             dist/*.exe
+            dist/*.zip
             dist/SHA256SUMS.txt
 
   draft-release:

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>omp-switch</id>
+    <version>0.2.0</version>
+    <packageSourceUrl>https://github.com/skh2945932142/omp-switch/tree/main/packaging/chocolatey</packageSourceUrl>
+    <owners>skh2945932142</owners>
+    <title>OMP Switch</title>
+    <authors>OMP Switch contributors</authors>
+    <projectUrl>https://github.com/skh2945932142/omp-switch</projectUrl>
+    <licenseUrl>https://github.com/skh2945932142/omp-switch/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/skh2945932142/omp-switch</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/skh2945932142/omp-switch/issues</bugTrackerUrl>
+    <tags>omp-switch oh-my-pi llm ai configuration admin</tags>
+    <summary>Desktop companion for managing Oh My Pi model providers</summary>
+    <description>
+OMP Switch edits the Oh My Pi configuration files you already own (`~/.omp/agent/models.yml` and
+`config.yml`). Writes are hash-guarded against external edits, YAML comments and unknown fields are
+preserved, and a snapshot is taken before every commit.
+
+API keys are never written into the configuration: they are encrypted with the Windows user's DPAPI
+key and referenced from the config by command. Unknown Oh My Pi schema versions are opened read-only
+rather than migrated.
+
+Installs per user, because the credential vault is bound to the installing Windows account and is
+not readable by other accounts on the machine.
+    </description>
+    <releaseNotes>https://github.com/skh2945932142/omp-switch/releases/tag/v0.2.0</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

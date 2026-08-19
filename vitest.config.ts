@@ -15,6 +15,6 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["packages/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["electron/**/*.test.ts", "packages/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 });

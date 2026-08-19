@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import {
   Activity,
   ArchiveRestore,
@@ -6,6 +7,7 @@ import {
   ChevronDown,
   CircleAlert,
   CloudDownload,
+  Download,
   FileCheck2,
   FolderOpen,
   KeyRound,
@@ -13,9 +15,12 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   ShieldCheck,
+  Settings2,
   Sparkles,
   Trash2,
+  RotateCcw,
   X,
 } from "lucide-react";
 import type {
@@ -24,12 +29,16 @@ import type {
   EffectiveConfig,
   OmpModel,
   OmpProvider,
+  ProviderPreset,
   ProfileRef,
+  SettingsThinkingLevel,
   Snapshot,
 } from "@omp-switch/core";
+import { SETTINGS_THINKING_LEVELS } from "@omp-switch/core/validation";
+import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
 
 const ROLES = ["default", "smol", "slow", "vision", "plan", "designer", "commit", "tiny", "task", "advisor"];
-const PRESETS = [
+const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
   { label: "Custom OpenAI-compatible", id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions" },
   { label: "OpenAI", id: "openai", baseUrl: "https://api.openai.com/v1", api: "openai-responses" },
   { label: "OpenAI Codex", id: "openai", baseUrl: "https://api.openai.com/v1", api: "openai-codex-responses" },
@@ -43,14 +52,57 @@ const PRESETS = [
   { label: "LM Studio local", id: "lm-studio", baseUrl: "http://127.0.0.1:1234/v1", api: "openai-completions" },
 ];
 
+type FormState = {
+  id: string;
+  baseUrl: string;
+  api: string;
+  auth: string;
+  key: string;
+  headers: string;
+  compat: string;
+  overrides: string;
+  discoveryType: string;
+  authHeader: boolean;
+  disableStrictTools: boolean;
+  transport: string;
+  remoteCompaction: string;
+  cost: string;
+};
+
+function blankForm(): FormState {
+  return {
+    id: "",
+    baseUrl: "https://api.example.com/v1",
+    api: "openai-completions",
+    auth: "apiKey",
+    key: "",
+    headers: "",
+    compat: "",
+    overrides: "",
+    discoveryType: "openai-models-list",
+    authHeader: true,
+    disableStrictTools: false,
+    transport: "",
+    remoteCompaction: "",
+    cost: "",
+  };
+}
+
 interface ModelEditorEntry {
   raw: OmpModel;
   id: string;
   name: string;
+  api: string;
   contextWindow: string;
   maxTokens: string;
   reasoning: boolean;
   vision: boolean;
+  headers: string;
+  compat: string;
+  transport: string;
+  remoteCompaction: string;
+  cost: string;
+  imageInputDecoder: string;
 }
 
 function toModelEditorEntry(model: OmpModel): ModelEditorEntry {
@@ -58,10 +110,17 @@ function toModelEditorEntry(model: OmpModel): ModelEditorEntry {
     raw: model,
     id: model.id ?? "",
     name: model.name ?? "",
+    api: model.api ?? "",
     contextWindow: model.contextWindow?.toString() ?? "",
     maxTokens: model.maxTokens?.toString() ?? "",
     reasoning: Boolean(model.reasoning),
     vision: Boolean(model.input?.includes("image")),
+    headers: formatJson(model.headers),
+    compat: formatJson(model.compat),
+    transport: model.transport ?? "",
+    remoteCompaction: formatJson(model.remoteCompaction),
+    cost: formatJson(model.cost),
+    imageInputDecoder: model.imageInputDecoder ?? "",
   };
 }
 
@@ -70,10 +129,17 @@ function createModelEditorEntry(): ModelEditorEntry {
     raw: { id: "" },
     id: "",
     name: "",
+    api: "",
     contextWindow: "128000",
     maxTokens: "16384",
     reasoning: false,
     vision: false,
+    headers: "",
+    compat: "",
+    transport: "",
+    remoteCompaction: "",
+    cost: "",
+    imageInputDecoder: "",
   };
 }
 
@@ -98,6 +164,9 @@ function buildModels(entries: ModelEditorEntry[]): OmpModel[] {
     const maxTokens = parseOptionalPositiveInteger(`模型 ${id} 的 Max output`, entry.maxTokens);
     if (maxTokens === undefined) delete model.maxTokens;
     else model.maxTokens = maxTokens;
+    const api = entry.api.trim();
+    if (api) model.api = api;
+    else delete model.api;
     if (entry.reasoning) model.reasoning = true;
     else delete model.reasoning;
     const input = new Set(Array.isArray(model.input) ? model.input : []);
@@ -105,6 +174,24 @@ function buildModels(entries: ModelEditorEntry[]): OmpModel[] {
     if (entry.vision) input.add("image");
     else input.delete("image");
     model.input = Array.from(input);
+    const headers = parseHeaders(entry.headers);
+    if (headers) model.headers = headers;
+    else delete model.headers;
+    const compat = parseObjectJson(`模型 ${id} Compat`, entry.compat);
+    if (compat) model.compat = compat;
+    else delete model.compat;
+    const transport = entry.transport.trim();
+    if (transport) model.transport = transport;
+    else delete model.transport;
+    const remoteCompaction = parseObjectJson(`模型 ${id} Remote compaction`, entry.remoteCompaction);
+    if (remoteCompaction) model.remoteCompaction = remoteCompaction;
+    else delete model.remoteCompaction;
+    const cost = parseCost(entry.cost);
+    if (cost) model.cost = cost;
+    else delete model.cost;
+    const imageInputDecoder = entry.imageInputDecoder.trim();
+    if (imageInputDecoder) model.imageInputDecoder = imageInputDecoder;
+    else delete model.imageInputDecoder;
     return model;
   });
 }
@@ -159,10 +246,32 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     discover: async (): Promise<DiscoveryResult> => ({ endpoint: "https://example.test/v1/models", durationMs: 184, models: [{ id: "demo-fast", name: "Demo Fast" }, { id: "demo-reasoning", name: "Demo Reasoning" }] }),
     secretPut: async (input) => ({ id: input.id ?? "demo-credential", command: "omp-switch --secret-get demo-credential" }),
     secretStatus: async () => ({ exists: true, label: "Demo credential", masked: "••••••••" }),
-    secretDelete: async () => undefined,
+    secretDelete: async () => ({ deleted: true, references: [] }),
+    secretOrphans: async () => [],
     authStatus: async () => ({ ok: true, output: "No active browser session in demo mode" }),
     authLogin: async () => ({ ok: false, output: "", error: "Run the packaged app to invoke omp auth login" }),
     openFolder: async () => "",
+    listCatalog: async () => [],
+    importCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
+    exportCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
+    projectOverlay: async () => ({ root: "D:/demo-project", explicit: false, overlay: null, precedence: [] }),
+    chooseProjectRoot: async () => ({ root: "D:/demo-project", explicit: true, overlay: null, precedence: [] }),
+
+    listSurface: async () => [],
+    readSurface: async () => "",
+    writeSurface: async (_profileId, _kind, name) => ({ id: name, name, path: name, source: "profile" as const, enabled: true }),
+    deleteSurface: async () => undefined,
+    exportSurfaces: async (profileId) => ({ version: 1 as const, profile: profileId, items: [] }),
+    importSurfaces: async () => [],
+    indexSessions: async () => ({ entries: [], invalidLines: 0 }),
+    listSessions: async () => [],
+    readSession: async () => "",
+    listGatewayPools: async () => [],
+    saveGatewayPool: async (pool) => pool,
+    gatewayStatus: async () => ({ running: false, port: null, upstreams: [] }),
+    startGateway: async () => ({ running: true, port: 46831, token: "demo-gateway-token" }),
+    stopGateway: async () => undefined,
+    updateOmp: async () => ({ ok: false, output: "Demo mode" }),
   };
 }
 
@@ -179,6 +288,55 @@ function formatDate(value?: string): string {
 
 function formatJson(value: unknown): string {
   return value && typeof value === "object" ? JSON.stringify(value, null, 2) : "";
+}
+
+function formatEnabledModelRules(value: Array<string | Record<string, unknown>> | undefined): string {
+  return (value ?? []).map((item) => typeof item === "string" ? item : JSON.stringify(item)).join("\n");
+}
+
+/** Provider ids carry no slash, so a bare comma split is unambiguous here. */
+function parseDisabledProviderRules(value: string): Array<string | Record<string, unknown>> {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(trimmed); } catch { throw new Error("禁用 Provider JSON 无效"); }
+    if (!Array.isArray(parsed)) throw new Error("禁用 Provider JSON 必须是数组");
+    return parsed.map((item) => {
+      if (typeof item === "string" && item.trim()) return item.trim();
+      if (item && typeof item === "object" && !Array.isArray(item)) return item as Record<string, unknown>;
+      throw new Error("禁用 Provider 必须是字符串或 JSON mapping");
+    });
+  }
+  return trimmed.split(/[\r\n,]+/).map((item) => item.trim()).filter(Boolean).map((item) => {
+    if (!item.startsWith("{")) return item;
+    let parsed: unknown;
+    try { parsed = JSON.parse(item); } catch { throw new Error("禁用 Provider 中的 JSON 对象无效"); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("禁用 Provider 对象必须是 JSON mapping");
+    return parsed as Record<string, unknown>;
+  });
+}
+
+function parseEnabledModelRules(value: string): Array<string | Record<string, unknown>> {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(trimmed); } catch { throw new Error("启用模型规则 JSON 无效"); }
+    if (!Array.isArray(parsed)) throw new Error("启用模型规则 JSON 必须是数组");
+    return parsed.map((item) => {
+      if (typeof item === "string" && item.trim()) return item.trim();
+      if (item && typeof item === "object" && !Array.isArray(item)) return item as Record<string, unknown>;
+      throw new Error("启用模型规则必须是字符串或 JSON mapping");
+    });
+  }
+  return value.split(/\r?\n|,(?=\s*[A-Za-z0-9_.*-]+\/)/).map((item) => item.trim()).filter(Boolean).map((item) => {
+    if (!item.startsWith("{")) return item;
+    let parsed: unknown;
+    try { parsed = JSON.parse(item); } catch { throw new Error("启用模型规则中的 JSON 对象无效"); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("启用模型规则对象必须是 JSON mapping");
+    return parsed as Record<string, unknown>;
+  });
 }
 
 function parseObjectJson(label: string, value: string): Record<string, unknown> | null {
@@ -209,6 +367,13 @@ function parseModelOverrides(value: string): Record<string, Record<string, unkno
   return parsed as Record<string, Record<string, unknown>>;
 }
 
+function parseCost(value: string): Record<string, number> | null {
+  const parsed = parseObjectJson("Cost", value);
+  if (!parsed) return null;
+  if (Object.values(parsed).some((cost) => typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)) throw new Error("Cost 的值必须是非负数字");
+  return parsed as Record<string, number>;
+}
+
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileRef[]>([]);
   const [profileId, setProfileId] = useState("default");
@@ -221,9 +386,24 @@ export default function App() {
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [modelEntries, setModelEntries] = useState<ModelEditorEntry[]>([]);
-  const [form, setForm] = useState({ id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions", auth: "apiKey", key: "", headers: "", compat: "", overrides: "" });
+  const [form, setForm] = useState<FormState>(blankForm);
   const [roles, setRoles] = useState<Record<string, string>>({});
   const [authResult, setAuthResult] = useState<string>("");
+  const [section, setSection] = useState<"models" | "prompts" | "skills" | "sessions" | "gateway">("models");
+  const [query, setQuery] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
+  const [catalog, setCatalog] = useState<ProviderPreset[]>([]);
+  const [providerOrder, setProviderOrder] = useState("");
+  const [enabledModels, setEnabledModels] = useState("");
+  const [disabledProviders, setDisabledProviders] = useState("");
+  const [defaultThinkingLevel, setDefaultThinkingLevel] = useState<SettingsThinkingLevel>("auto");
+  const [updatingOmp, setUpdatingOmp] = useState(false);
+  const catalogInput = useRef<HTMLInputElement>(null);
 
   const providers = config ? Object.entries(config.models.value.providers) : [];
   const selectedProvider = selectedProviderId ? config?.models.value.providers[selectedProviderId] : undefined;
@@ -237,6 +417,10 @@ export default function App() {
       const next = await api.loadProfile(id);
       setConfig(next);
       setRoles(next.settings.value.modelRoles ?? {});
+      setProviderOrder((next.settings.value.modelProviderOrder ?? []).join(", "));
+      setEnabledModels(formatEnabledModelRules(next.settings.value.enabledModels));
+      setDisabledProviders(formatEnabledModelRules(next.settings.value.disabledProviders));
+      setDefaultThinkingLevel(next.settings.value.defaultThinkingLevel ?? "auto");
       const first = Object.keys(next.models.value.providers)[0] ?? null;
       setSelectedProviderId((current) => (current && next.models.value.providers[current] ? current : first));
     } catch (error) {
@@ -252,12 +436,16 @@ export default function App() {
       setProfiles(items);
       void load(items[0]?.id ?? "default");
     });
+    void api.listCatalog().then((items) => setCatalog(items as ProviderPreset[])).catch(() => undefined);
   }, []);
 
   function beginAdd(): void {
-    setForm({ id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions", auth: "apiKey", key: "", headers: "", compat: "", overrides: "" });
+    setForm(blankForm());
     setModelEntries([]);
     setEditingProviderId(null);
+    setAdvancedOpen(false);
+    setNewMenuOpen(false);
+    setDrawerOpen(true);
     setFormOpen(true);
   }
 
@@ -274,8 +462,16 @@ export default function App() {
       headers: formatJson(provider?.headers),
       compat: formatJson(provider?.compat),
       overrides: formatJson(provider?.modelOverrides),
+      discoveryType: typeof provider?.discovery?.type === "string" ? provider.discovery.type : "",
+      authHeader: provider?.authHeader ?? true,
+      disableStrictTools: Boolean(provider?.disableStrictTools),
+      transport: provider?.transport ?? "",
+       remoteCompaction: formatJson(provider?.remoteCompaction),
+      cost: formatJson(provider?.cost),
     });
     setModelEntries(providerModels(provider).map(toModelEditorEntry));
+    setAdvancedOpen(false);
+    setDrawerOpen(true);
     setFormOpen(true);
   }
 
@@ -296,6 +492,8 @@ export default function App() {
       const headers = parseHeaders(form.headers);
       const compat = parseObjectJson("Compat", form.compat);
       const modelOverrides = parseModelOverrides(form.overrides);
+      const cost = parseCost(form.cost);
+      const remoteCompaction = parseObjectJson("Remote compaction", form.remoteCompaction);
       let apiKeyValue: string | null | undefined = form.auth === "none" ? null : existing?.apiKey;
       let auth = form.auth;
       if (form.key.trim()) {
@@ -305,13 +503,30 @@ export default function App() {
       }
       const models = buildModels(modelEntries).map((model) => ({ ...model, api: model.api ?? form.api }));
       const result = await api.save(profileId, {
-        provider: { id, baseUrl: form.baseUrl.trim(), api: form.api, auth, apiKey: apiKeyValue, headers, compat, modelOverrides, models },
+        provider: {
+          id,
+          baseUrl: form.baseUrl.trim(),
+          api: form.api,
+          auth,
+          apiKey: apiKeyValue,
+          headers,
+          compat,
+          modelOverrides,
+          models,
+          ...(form.discoveryType ? { discovery: { type: form.discoveryType } } : {}),
+          authHeader: form.authHeader,
+          disableStrictTools: form.disableStrictTools,
+          ...(form.transport.trim() ? { transport: form.transport.trim() } : {}),
+           remoteCompaction,
+          cost,
+        },
         confirmLegacyMigration: config.models.legacy,
       });
       setConfig(result.config);
       setSnapshot(result.snapshot);
       setSelectedProviderId(id);
       setFormOpen(false);
+      setDrawerOpen(true);
       setNotice({ tone: "success", text: `已保存 ${id}，快照 ${formatDate(result.snapshot.createdAt)}` });
     } catch (error) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
@@ -332,6 +547,7 @@ export default function App() {
       const result = await api.save(profileId, { removeProviderId: selectedProviderId, confirmLegacyMigration: config.models.legacy });
       setConfig(result.config);
       setSelectedProviderId(Object.keys(result.config.models.value.providers)[0] ?? null);
+      setFormOpen(false);
       setNotice({ tone: "success", text: "供应商已移除，原配置已创建快照" });
     } catch (error) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
@@ -344,7 +560,7 @@ export default function App() {
     if (!form.baseUrl.trim()) return;
     setBusy(true);
     try {
-      const result = await api.discover({ baseUrl: form.baseUrl.trim(), apiKey: form.key.trim() || undefined, headers: parseHeaders(form.headers) ?? undefined });
+      const result = await api.discover({ baseUrl: form.baseUrl.trim(), apiKey: form.key.trim() || undefined, headers: parseHeaders(form.headers) ?? undefined, type: form.discoveryType as "ollama" | "llama.cpp" | "lm-studio" | "openai-models-list" | "proxy" | "litellm" || undefined });
       setModelEntries(result.models.map((model) => toModelEditorEntry({
         id: model.id,
         name: model.name,
@@ -370,7 +586,16 @@ export default function App() {
     if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
     setBusy(true);
     try {
-      const result = await api.save(profileId, { roleAssignments: roles, confirmLegacyMigration: config?.models.legacy });
+      const result = await api.save(profileId, {
+        roleAssignments: roles,
+        settings: {
+          modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+          enabledModels: parseEnabledModelRules(enabledModels),
+          disabledProviders: parseDisabledProviderRules(disabledProviders),
+          defaultThinkingLevel,
+        },
+        confirmLegacyMigration: config?.models.legacy,
+      });
       setConfig(result.config);
       setSnapshot(result.snapshot);
       setNotice({ tone: "success", text: "角色映射已写入 config.yml" });
@@ -422,212 +647,200 @@ export default function App() {
     }
   }
 
-  function choosePreset(label: string): void {
-    const preset = PRESETS.find((item) => item.label === label);
-    if (!preset) return;
-    setForm((current) => ({ ...current, id: preset.id, baseUrl: preset.baseUrl, api: preset.api }));
+  async function updateOmp(): Promise<void> {
+    if (readOnly) {
+      setNotice({ tone: "error", text: readOnlyReason ?? "当前 OMP 为只读" });
+      return;
+    }
+    setUpdatingOmp(true);
+    try {
+      const result = await api.updateOmp(profileId);
+      if (!result.ok) {
+        setNotice({ tone: "error", text: result.output || "OMP 更新失败" });
+        return;
+      }
+      setNotice({ tone: "success", text: `OMP 已更新${result.installation?.version ? ` · ${result.installation.version}` : ""}` });
+      await load(profileId);
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setUpdatingOmp(false);
+    }
   }
+
+  async function importCatalogFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const bundle = JSON.parse(await file.text());
+      const result = await api.importCatalog(bundle);
+      setCatalog(result.entries);
+      setNotice({ tone: "success", text: `已导入 ${result.entries.length} 个预设` });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  async function exportCatalog(): Promise<void> {
+    try {
+      const bundle = await api.exportCatalog();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "omp-switch-catalog.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice({ tone: "success", text: "目录已导出" });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  function choosePreset(id: string): void {
+    const preset = catalog.find((item) => item.id === id) ?? FALLBACK_PRESETS.find((item) => item.id === id || item.label === id);
+    if (!preset) return;
+    setForm((current) => ({ ...current, id: preset.id, baseUrl: preset.baseUrl, api: preset.api, auth: preset.auth ?? current.auth, discoveryType: preset.discovery?.type ?? "" }));
+  }
+
+  function updateModelEntry(index: number, patch: Partial<ModelEditorEntry>): void {
+    setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  const filteredProviders = providers.filter(([id, provider]) => {
+    const text = `${id} ${provider.api ?? ""} ${provider.baseUrl ?? ""} ${providerModels(provider).map((model) => `${model.id} ${model.name ?? ""}`).join(" ")}`.toLowerCase();
+    return text.includes(query.trim().toLowerCase());
+  });
+  const healthLabel = readOnly ? "只读" : errorDiagnostics.length > 0 ? "有问题" : config?.models.exists ? "已连接" : "未配置";
+  const sectionLabels = { models: "模型", prompts: "提示", skills: "技能", sessions: "会话", gateway: "网关" } as const;
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark"><Sparkles size={16} /></div>
-          <div>
-            <div className="brand-name">OMP Switch</div>
-            <div className="brand-caption">model control surface</div>
-          </div>
+          <div className="brand-name">OMP Switch</div>
+        </div>
+        <div className="topbar-center">
+          <button className="profile-chip" title="打开 Profile" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}>
+            <span className="status-led" />{profiles.find((profile) => profile.id === profileId)?.name ?? profileId}<ChevronDown size={14} />
+          </button>
+          <button className={`status-chip ${readOnly ? "warning" : errorDiagnostics.length ? "danger" : "ok"}`} onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}>
+            <ShieldCheck size={14} />{healthLabel}
+          </button>
         </div>
         <div className="topbar-actions">
-          <span className="environment-chip"><ShieldCheck size={14} /> file-authoritative</span>
-          <button className="icon-button" title="刷新当前配置" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button>
+          <button className="icon-button" title="刷新" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button>
           <button className="icon-button" title="创建快照" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button>
+          <button className="primary-button compact" onClick={() => void saveRoles()} disabled={busy || readOnly}><Save size={15} />保存</button>
         </div>
       </header>
 
-      <main className="workspace">
-        <aside className="sidebar">
-          <div className="section-kicker">WORKSPACE</div>
-          <div className="profile-select-wrap">
+      <main className="app-body">
+        <aside className="left-rail">
+          <div className="rail-profile">
+            <span className="rail-label">PROFILE</span>
             <select value={profileId} onChange={(event) => { setProfileId(event.target.value); void load(event.target.value); }} aria-label="选择 Profile">
               {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
             </select>
-            <ChevronDown size={15} aria-hidden="true" />
+            <span className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "读取中"}</span>
           </div>
-          <div className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "正在读取 Profile…"}</div>
-
-          <div className="sidebar-divider" />
-          <div className="section-heading-row"><div className="section-kicker">PROVIDERS</div><span className="count-badge">{providers.length}</span></div>
-          <div className="provider-list">
-            {providers.map(([id, provider]) => {
-              const active = id === selectedProviderId;
-              return <button key={id} className={`provider-row ${active ? "active" : ""}`} onClick={() => { setSelectedProviderId(id); setFormOpen(false); }}>
-                <span className="provider-dot" />
-                <span className="provider-row-copy"><strong>{id}</strong><small>{provider.api ?? "custom"} · {providerModels(provider).length} models</small></span>
-                {active ? <Check size={15} /> : null}
-              </button>;
-            })}
-            {providers.length === 0 ? <div className="empty-sidebar">还没有供应商配置。</div> : null}
-          </div>
-          <button className="add-provider-button" onClick={beginAdd} disabled={readOnly}><Plus size={16} />添加供应商</button>
-
-          <div className="sidebar-footer">
-            <div className="footer-status"><span className="status-led" /> OMP adapter ready</div>
-            <div className="footer-status muted"><Activity size={14} /> {config?.models.exists ? "models.yml detected" : "models.yml will be created"}</div>
+          <nav className="section-nav" aria-label="模块">
+            {(Object.keys(sectionLabels) as Array<keyof typeof sectionLabels>).map((item) => (
+              <button key={item} className={section === item ? "active" : ""} onClick={() => { setSection(item); setFormOpen(false); setDrawerOpen(false); }}>
+                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : <ShieldCheck size={16} />}</span>
+                <span>{sectionLabels[item]}</span>
+                {item === "models" ? <span className="nav-count">{providers.length}</span> : null}
+              </button>
+            ))}
+          </nav>
+          <div className="rail-footer">
+            <button className="rail-action" onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}><CircleAlert size={15} />诊断<span>{errorDiagnostics.length}</span></button>
+            <button className="rail-action" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}><Settings2 size={15} />Profile</button>
           </div>
         </aside>
 
-        <section className="content-area">
-          <div className="content-heading">
-            <div>
-              <div className="eyebrow">ACTIVE PROFILE / {profileId.toUpperCase()}</div>
-              <h1>Provider control</h1>
-              <p>供应商、模型和角色映射都从当前 Profile 的文件层读取。</p>
-            </div>
-            <div className="heading-meta">
-              <span className="file-pill"><FileCheck2 size={14} /> models.yml</span>
-              <span className="file-pill"><FileCheck2 size={14} /> config.yml</span>
-            </div>
-          </div>
-
-          {notice ? <div className={`notice ${notice.tone}`}><span>{notice.tone === "success" ? <Check size={16} /> : <CircleAlert size={16} />}</span><span>{notice.text}</span><button className="notice-close" title="关闭提示" onClick={() => setNotice(null)}><X size={15} /></button></div> : null}
-
-          {readOnlyReason ? <div className="diagnostics-banner"><CircleAlert size={18} /><div><strong>当前配置为只读</strong><span>{readOnlyReason}</span></div></div> : null}
-
-          {errorDiagnostics.length > 0 ? <div className="diagnostics-banner"><CircleAlert size={18} /><div><strong>配置需要处理</strong><span>{errorDiagnostics[0].message}</span></div><button className="text-button" onClick={() => setNotice({ tone: "error", text: errorDiagnostics.map((item) => item.message).join(" · ") })}>查看诊断</button></div> : null}
-
-          <div className="primary-grid">
-            <section className="panel provider-panel">
-              <div className="panel-heading">
-                <div><div className="section-kicker">PROVIDER / MODEL CATALOG</div><h2>{selectedProviderId ?? "选择一个供应商"}</h2></div>
-                <div className="panel-actions">
-                  {selectedProviderId ? <button className="icon-button subtle" title="编辑供应商" onClick={() => editProvider(selectedProviderId)}><Sparkles size={16} /></button> : null}
-                  {selectedProviderId ? <button className="icon-button subtle danger" title="移除供应商" onClick={() => void removeProvider()} disabled={busy || readOnly}><Trash2 size={16} /></button> : null}
-                </div>
-              </div>
-              {selectedProvider ? <>
-                <div className="provider-summary">
-                  <div><span className="label">API</span><strong>{selectedProvider.api ?? "custom"}</strong></div>
-                  <div><span className="label">ENDPOINT</span><strong className="mono">{selectedProvider.baseUrl ?? "—"}</strong></div>
-                  <div><span className="label">AUTH</span><strong><KeyRound size={14} /> {selectedProvider.auth ?? "apiKey"}</strong></div>
-                </div>
-                <div className="model-table-wrap">
-                  <table className="model-table"><thead><tr><th>MODEL</th><th>API</th><th>CONTEXT</th><th>CAPABILITIES</th></tr></thead><tbody>
-                    {selectedModels.map((model) => <tr key={model.id}><td><strong>{model.name ?? model.id}</strong><small>{model.id}</small></td><td>{model.api ?? selectedProvider.api ?? "—"}</td><td>{typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}</td><td><span className={`capability ${model.reasoning ? "on" : ""}`}>{model.reasoning ? "reasoning" : "standard"}</span><span className="capability">{model.input?.includes("image") ? "vision" : "text"}</span></td></tr>)}
-                    {selectedModels.length === 0 ? <tr><td colSpan={4} className="empty-table">该供应商还没有模型。编辑配置或从 endpoint 发现模型。</td></tr> : null}
-                  </tbody></table>
-                </div>
-              </> : <div className="empty-state"><div className="empty-icon"><CloudDownload size={22} /></div><h3>从一个供应商开始</h3><p>添加 OpenAI-compatible endpoint，或者导入已有的 OMP 配置。</p><button className="primary-button" onClick={beginAdd} disabled={readOnly}><Plus size={16} /> 添加供应商</button></div>}
-            </section>
-
-            <section className="panel roles-panel">
-              <div className="panel-heading"><div><div className="section-kicker">MODEL ROLES</div><h2>Runtime assignments</h2></div><span className="role-count">{Object.keys(roles).length}/10</span></div>
-              <div className="role-list">{ROLES.map((role) => <label className="role-row" key={role}><span><strong>{role}</strong><small>{role === "default" ? "主模型" : role === "smol" ? "快速模型" : role === "slow" ? "深度思考" : "运行时角色"}</small></span><input value={roles[role] ?? ""} placeholder={role === "default" ? "provider/model" : "@default"} onChange={(event) => setRoles((current) => ({ ...current, [role]: event.target.value }))} /></label>)}</div>
-              <button className="secondary-button full-width" onClick={() => void saveRoles()} disabled={busy || readOnly}><Save size={16} /> 保存角色映射</button>
-              <div className="role-footnote">写入当前 Profile 的 <span className="mono">config.yml</span>，不会修改项目级覆盖。</div>
-            </section>
-          </div>
-
-          <section className="lower-grid">
-            <div className="panel diagnostics-panel"><div className="panel-heading"><div><div className="section-kicker">DIAGNOSTICS</div><h2>Config health</h2></div><span className={`health-badge ${errorDiagnostics.length ? "warning" : "ok"}`}>{errorDiagnostics.length ? "attention" : "healthy"}</span></div><div className="diagnostic-list">{(config?.diagnostics ?? []).slice(0, 5).map((item, index) => <div className="diagnostic-row" key={`${item.code}-${index}`}><span className={`diag-icon ${item.severity}`}><CircleAlert size={14} /></span><span><strong>{item.code}</strong><small>{item.message}</small></span></div>)}{(config?.diagnostics ?? []).length === 0 ? <div className="empty-inline">未发现诊断信息。</div> : null}</div></div>
-            <div className="panel activity-panel"><div className="panel-heading"><div><div className="section-kicker">LOCAL SAFETY</div><h2>Snapshots & auth</h2></div><ArchiveRestore size={18} /></div><div className="snapshot-line"><div className="snapshot-icon"><ArchiveRestore size={18} /></div><div><strong>{snapshot ? "最新快照已创建" : "写入前自动创建快照"}</strong><small>{snapshot ? `${formatDate(snapshot.createdAt)} · ${snapshot.id}` : "每次保存都会保留可恢复副本"}</small></div></div><div className="snapshot-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={16} /> 创建快照</button><button className="secondary-button" onClick={() => void restoreLatest()} disabled={busy}><ArchiveRestore size={16} /> 恢复最近快照</button></div><div className="auth-bridge"><div className="auth-bridge-heading"><KeyRound size={15} /><strong>OAuth bridge</strong></div><div className="auth-actions"><button className="compact-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex 状态</button><button className="compact-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic 状态</button></div><div className="auth-actions"><button className="text-button" onClick={() => void checkAuth("openai-codex", "login")} disabled={busy}>登录 Codex</button><button className="text-button" onClick={() => void checkAuth("anthropic", "login")} disabled={busy}>登录 Anthropic</button></div>{authResult ? <div className="auth-result">{authResult}</div> : null}</div></div>
-          </section>
-        </section>
-      </main>
-
-      {formOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="provider-dialog-title">
-            <div className="modal-heading">
-              <div>
-                <div className="section-kicker">CONFIGURE PROVIDER</div>
-                <h2 id="provider-dialog-title">添加或编辑供应商</h2>
-              </div>
-              <button className="icon-button" title="关闭" onClick={() => setFormOpen(false)}><X size={18} /></button>
-            </div>
-            <div className="form-grid">
-              <label className="wide">
-                精选预设
-                <select defaultValue="Custom OpenAI-compatible" onChange={(event) => choosePreset(event.target.value)}>
-                  {PRESETS.map((preset) => <option key={preset.label} value={preset.label}>{preset.label}</option>)}
-                </select>
-              </label>
-              <label>
-                Provider ID
-                <input readOnly={Boolean(editingProviderId)} value={form.id} onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))} placeholder="openrouter" />
-              </label>
-              <label>
-                API
-                <input list="omp-api-options" value={form.api} onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))} />
-                <datalist id="omp-api-options">
-                  <option value="openai-completions" />
-                  <option value="openai-responses" />
-                  <option value="anthropic-messages" />
-                  <option value="google-generative-ai" />
-                  <option value="google-vertex" />
-                  <option value="azure-openai-responses" />
-                  <option value="openai-codex-responses" />
-                  <option value="bedrock-converse-stream" />
-                  <option value="google-gemini-cli" />
-                </datalist>
-              </label>
-              <label>
-                Auth
-                <select value={form.auth} onChange={(event) => setForm((current) => ({ ...current, auth: event.target.value }))}>
-                  <option value="apiKey">apiKey</option>
-                  <option value="none">none</option>
-                  <option value="oauth">oauth</option>
-                </select>
-              </label>
-              <label className="wide">
-                Endpoint URL
-                <input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" />
-              </label>
-              <label className="wide">
-                API Key <span className="label-hint">存入系统加密存储</span>
-                <input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空以保留现有引用" />
-              </label>
-              <div className="wide model-editor">
-                <div className="model-editor-heading">
-                  <span>Models</span>
-                  <button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={16} /></button>
-                </div>
-                {modelEntries.length === 0 ? <div className="model-editor-empty">暂无模型</div> : null}
-                {modelEntries.map((entry, index) => (
-                  <div className="model-editor-row" key={`${entry.raw.id}-${index}`}>
-                    <input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, id: event.target.value } : item))} placeholder="Model ID" />
-                    <input aria-label={`模型 ${index + 1} 显示名`} value={entry.name} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder="Display name" />
-                    <input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, contextWindow: event.target.value } : item))} placeholder="Context" />
-                    <input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, maxTokens: event.target.value } : item))} placeholder="Max output" />
-                    <label className="model-toggle"><input type="checkbox" checked={entry.reasoning} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, reasoning: event.target.checked } : item))} />reasoning</label>
-                    <label className="model-toggle"><input type="checkbox" checked={entry.vision} onChange={(event) => setModelEntries((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, vision: event.target.checked } : item))} />vision</label>
-                    <button className="icon-button subtle danger" title={`移除模型 ${entry.id || index + 1}`} onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={16} /></button>
+        <section className="workspace-main">
+          {notice ? <div className={`notice ${notice.tone}`}><span>{notice.tone === "success" ? <Check size={15} /> : <CircleAlert size={15} />}</span><span>{notice.text}</span><button className="icon-button subtle" title="关闭" onClick={() => setNotice(null)}><X size={14} /></button></div> : null}
+          {section === "models" ? (
+            <>
+              <div className="workspace-heading">
+                <div><span className="eyebrow">{profileId}</span><h1>模型</h1></div>
+                <div className="heading-actions">
+                  <div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索" aria-label="搜索供应商和模型" /></div>
+                  <div className="new-wrap">
+                    <button className="primary-button" onClick={() => setNewMenuOpen((value) => !value)} disabled={readOnly}><Plus size={16} />新增</button>
+                    {newMenuOpen ? <div className="new-menu"><button onClick={beginAdd}>自定义</button><button onClick={() => { beginAdd(); setNotice({ tone: "info", text: "选择一个预设" }); }}>预设</button><button onClick={() => catalogInput.current?.click()}>导入目录</button></div> : null}
+                    <input ref={catalogInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void importCatalogFile(event)} />
                   </div>
-                ))}
+                </div>
               </div>
-              <label className="wide">
-                Headers JSON
-                <textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{ "HTTP-Referer": "https://example.com" }' />
-              </label>
-              <label className="wide">
-                Compat JSON
-                <textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} placeholder='{ "supportsReasoning": true }' />
-              </label>
-              <label className="wide">
-                Model overrides JSON
-                <textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} placeholder='{ "gpt-4.1": { "contextWindow": 128000 } }' />
-              </label>
-            </div>
-            <div className="modal-actions">
-              <button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}><CloudDownload size={16} /> 从 endpoint 发现</button>
-              <div className="modal-actions-right">
-                <button className="text-button" onClick={() => setFormOpen(false)}>取消</button>
-                <button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}>{busy ? <LoaderCircle size={16} className="spin" /> : <Save size={16} />} 保存配置</button>
+
+              {readOnlyReason ? <div className="inline-status warning"><CircleAlert size={15} /><span>{readOnlyReason}</span></div> : null}
+              {filteredProviders.length === 0 ? <div className="empty-workspace"><CloudDownload size={24} /><strong>{providers.length ? "没有匹配项" : "还没有供应商"}</strong><button className="primary-button" onClick={beginAdd} disabled={readOnly}><Plus size={15} />新增</button></div> : null}
+              <div className="provider-stack">
+                {filteredProviders.map(([id, provider]) => {
+                  const expanded = expandedProviders[id] ?? id === selectedProviderId;
+                  const active = id === selectedProviderId;
+                  const models = providerModels(provider);
+                  return <article className={`provider-card ${active ? "active" : ""}`} key={id}>
+                    <button className="provider-card-head" onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); setFormOpen(false); setExpandedProviders((current) => ({ ...current, [id]: !expanded })); }}>
+                      <span className="provider-led" />
+                      <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"} · {models.length} 模型</small></span>
+                      <span className="provider-endpoint mono">{provider.baseUrl ?? "—"}</span>
+                      <span className="row-status">{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置" : "未配置"}</span>
+                      {expanded ? <ChevronDown size={16} /> : <ChevronDown size={16} className="rotate-closed" />}
+                    </button>
+                    {expanded ? <div className="model-list">
+                      {models.map((model) => <button className="model-row" key={model.id} onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); }}>
+                        <span className="model-name"><strong>{model.name ?? model.id}</strong><small>{model.id}</small></span>
+                        <span className="model-api">{model.api ?? provider.api ?? "—"}</span>
+                        <span className="model-context">{typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}</span>
+                        <span className="capabilities"><span className={model.reasoning ? "capability on" : "capability"}>{model.reasoning ? "思考" : "标准"}</span><span className="capability">{model.input?.includes("image") ? "视觉" : "文本"}</span></span>
+                      </button>)}
+                      {models.length === 0 ? <div className="model-empty">暂无模型 · 打开抽屉发现</div> : null}
+                    </div> : null}
+                  </article>;
+                })}
               </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
+            </>
+          ) : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={setNotice} />
+            : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={setNotice} />
+              : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={setNotice} />
+                : <GatewayModule api={api} profileId={profileId} readOnly={readOnly} onNotice={setNotice} providers={providers} />}
+        </section>
+
+        {(drawerOpen || formOpen || profileDrawerOpen || diagnosticsOpen) ? <aside className="detail-drawer">
+          <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? "PROFILE" : diagnosticsOpen ? "DIAGNOSTICS" : formOpen ? (editingProviderId ? "编辑" : "新增") : "PROVIDER"}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? "诊断" : formOpen ? (editingProviderId ?? "新供应商") : selectedProviderId ?? "详情"}</h2></div><button className="icon-button" title="关闭" onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
+
+          {profileDrawerOpen ? <div className="drawer-body">
+            <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><span className="status-chip neutral">{Object.keys(roles).length}/10</span></div>{ROLES.map((role) => <label className="role-row compact" key={role}><span>{role}</span><input value={roles[role] ?? ""} placeholder={role === "default" ? "provider/model" : "@default"} onChange={(event) => setRoles((current) => ({ ...current, [role]: event.target.value }))} /></label>)}</div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span><Settings2 size={15} /></div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><select value={defaultThinkingLevel} onChange={(event) => setDefaultThinkingLevel(event.target.value as SettingsThinkingLevel)}>{SETTINGS_THINKING_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label><button className="primary-button full-width" onClick={() => void saveRoles()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={setNotice} /></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建</button><button className="secondary-button" onClick={() => void restoreLatest()} disabled={busy}><RotateCcw size={15} />恢复</button></div><span className="muted-line">{snapshot ? formatDate(snapshot.createdAt) : "写入前自动创建"}</span></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div>
+            <details className="yaml-preview"><summary>原始 YAML</summary><pre className="raw-view">{config?.models.raw || "models.yml 未创建"}{"\n\n"}{config?.settings.raw || "config.yml 未创建"}</pre></details>
+          </div> : null}
+
+          {diagnosticsOpen ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>状态</span><span className={`status-chip ${errorDiagnostics.length ? "danger" : "ok"}`}>{errorDiagnostics.length ? "有问题" : "正常"}</span></div>{(config?.diagnostics ?? []).map((item, index) => <div className="diagnostic-row" key={`${item.code}-${index}`}><span className={`diag-icon ${item.severity}`}><CircleAlert size={14} /></span><span><strong>{item.code}</strong><small>{item.message}</small></span></div>)}{!config?.diagnostics.length ? <span className="muted-line">暂无诊断</span> : null}</div></div> : null}
+
+
+          {!profileDrawerOpen && !diagnosticsOpen && formOpen ? <div className="drawer-body form-drawer">
+            <label>预设<select value={form.id} onChange={(event) => choosePreset(event.target.value)}><option value="">自定义</option>{(catalog.length ? catalog : FALLBACK_PRESETS).map((preset) => <option key={`${preset.id}-${preset.label}`} value={preset.id}>{preset.label}</option>)}</select></label>
+            <div className="form-two"><label>ID<input readOnly={Boolean(editingProviderId)} value={form.id} onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))} placeholder="openrouter" /></label><label>API<input list="omp-api-options" value={form.api} onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))} /><datalist id="omp-api-options"><option value="openai-completions" /><option value="openai-responses" /><option value="anthropic-messages" /><option value="openai-codex-responses" /></datalist></label></div>
+            <label>Endpoint<input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" /></label>
+            <div className="form-two"><label>Auth<select value={form.auth} onChange={(event) => setForm((current) => ({ ...current, auth: event.target.value }))}><option value="apiKey">apiKey</option><option value="none">none</option><option value="oauth">oauth</option></select></label><label>密钥<input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空保留" /></label></div>
+            <div className="model-editor"><div className="drawer-section-title"><span>模型</span><button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={15} /></button></div>{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型</span> : null}</div>
+            <button className="drawer-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label>发现<select value={form.discoveryType} onChange={(event) => setForm((current) => ({ ...current, discoveryType: event.target.value }))}><option value="">手动</option><option value="openai-models-list">OpenAI</option><option value="ollama">Ollama</option><option value="llama.cpp">llama.cpp</option><option value="lm-studio">LM Studio</option><option value="proxy">Proxy</option><option value="litellm">LiteLLM</option></select></label><label>Transport<input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label>Headers<textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label>Overrides<textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label>远程压缩<textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label>Cost<textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
+            <div className="drawer-actions form-submit-actions"><button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}><CloudDownload size={15} />测试并发现</button><button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
+          </div> : null}
+
+
+          {!profileDrawerOpen && !diagnosticsOpen && !formOpen && selectedProvider ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>连接</span><span className="status-chip ok">{selectedProvider.auth === "none" ? "无需密钥" : selectedProvider.apiKey ? "已配置" : "未配置"}</span></div><div className="detail-grid"><span>API</span><strong>{selectedProvider.api ?? "custom"}</strong><span>Endpoint</span><strong className="mono break">{selectedProvider.baseUrl ?? "—"}</strong><span>Auth</span><strong>{selectedProvider.auth ?? "apiKey"}</strong></div><div className="drawer-actions"><button className="primary-button" onClick={() => editProvider(selectedProviderId!)}><Sparkles size={15} />编辑</button><button className="icon-button danger" title="删除供应商" onClick={() => void removeProvider()} disabled={busy || readOnly}><Trash2 size={15} /></button></div></div><div className="drawer-section"><div className="drawer-section-title"><span>模型</span><span className="status-chip neutral">{selectedModels.length}</span></div>{selectedModels.map((model) => <div className="mini-model" key={model.id}><strong>{model.name ?? model.id}</strong><span>{model.id}</span></div>)}</div></div> : null}
+        </aside> : null}
+      </main>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discoverOpenAIModels } from "./discovery";
+import { discoverModels, discoverOpenAIModels } from "./discovery";
 
 describe("OpenAI-compatible model discovery", () => {
   it("parses the standard /models response", async () => {
@@ -31,5 +31,26 @@ describe("OpenAI-compatible model discovery", () => {
         fetchImpl: async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
       }),
     ).rejects.toMatchObject({ code: "discovery.empty" });
+  });
+
+  it("parses Ollama tags without treating the model name as a provider", async () => {
+    const result = await discoverModels({
+      type: "ollama",
+      baseUrl: "http://127.0.0.1:11434/v1",
+      fetchImpl: async (input) => {
+        expect(String(input)).toBe("http://127.0.0.1:11434/api/tags");
+        return new Response(JSON.stringify({ models: [{ name: "qwen3:8b" }] }), { status: 200 });
+      },
+    });
+    expect(result).toMatchObject({ type: "ollama", models: [{ id: "qwen3:8b", name: "qwen3:8b" }] });
+  });
+
+  it("accepts proxy and LiteLLM responses that use a models array", async () => {
+    const result = await discoverModels({
+      type: "proxy",
+      baseUrl: "https://proxy.example/v1",
+      fetchImpl: async () => new Response(JSON.stringify({ models: [{ id: "team/model" }] }), { status: 200 }),
+    });
+    expect(result.models.map((model) => model.id)).toEqual(["team/model"]);
   });
 });
