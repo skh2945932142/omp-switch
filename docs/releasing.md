@@ -19,6 +19,10 @@ This document describes the release process for a supported version, beginning w
 
 The workflow rejects a tag whose name does not match `package.json` and requires a matching `docs/releases/vX.Y.Z.md` file.
 
+`package:win` passes `--publish never`. electron-builder otherwise detects the git tag and publishes
+by itself, which needs a `GH_TOKEN` it is not given and would bypass the draft-and-review gate: the
+workflow uploads the assets and creates the draft in a later step, deliberately. Keep the flag.
+
 ## Review the Draft
 
 The workflow produces only these user-facing assets:

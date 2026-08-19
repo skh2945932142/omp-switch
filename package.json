@@ -38,7 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "electron-vite preview",
-    "package:win": "pnpm build && electron-builder --win nsis zip",
+    "package:win": "pnpm build && electron-builder --win nsis zip --publish never",
     "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
     "build:cli": "vite build --config vite.cli.config.ts",
     "render:packaging": "powershell -ExecutionPolicy Bypass -File scripts/render-packaging.ps1"
