@@ -15,6 +15,11 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    // Several suites do real filesystem work in temp directories rather than mocking fs. That is a
+    // deliberate choice, but it means a slow CI disk can exceed the 5s default and fail a release
+    // build for reasons unrelated to the code under test.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     include: ["electron/**/*.test.ts", "packages/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 });

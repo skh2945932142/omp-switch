@@ -61,13 +61,16 @@ describe.each(["auto", "json"] as const)("MetadataStore (%s backend)", (backend)
     expect(store.getLatestSnapshot("work")).toMatchObject({ id: "c" });
   });
 
+  // 35 sequential awaited writes, and the JSON backend rewrites the whole file each time, so this is
+  // I/O-bound by construction. It finishes in well under a second locally but exceeded vitest's 5s
+  // default on a Windows CI runner and failed a release build, so the budget is explicit.
   it("caps stored snapshots so the metadata never grows without bound", async () => {
     const { store } = await makeStore(backend);
     for (let index = 0; index < 35; index += 1) {
       await store.addSnapshot({ id: `snap-${String(index).padStart(2, "0")}`, profile: "default", createdAt: `2026-08-19T${String(index % 24).padStart(2, "0")}:${String(index).padStart(2, "0")}:00Z` });
     }
     expect(store.listSnapshots("default").length).toBe(30);
-  });
+  }, 30_000);
 
   it("upserts gateway pools and filters them by profile", async () => {
     const { store } = await makeStore(backend);
