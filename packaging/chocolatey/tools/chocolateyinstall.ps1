@@ -6,7 +6,7 @@ $version = "0.2.0"
 $packageArgs = @{
   packageName    = $env:ChocolateyPackageName
   fileType       = "exe"
-  url64bit       = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/OMP.Switch.Setup.$version.exe"
+  url64bit       = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/OMP-Switch-Setup-$version.exe"
   checksum64     = "REPLACE_WITH_SHA256_OF_NSIS_INSTALLER"
   checksumType64 = "sha256"
   # NSIS per-user install. /S is silent; /D sets the directory and must come last, unquoted.

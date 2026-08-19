@@ -74,7 +74,10 @@ jobs:
           $lines = foreach ($asset in $assets) {
             "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant(), $asset.Name
           }
-          [System.IO.File]::WriteAllLines((Join-Path $PWD "dist/SHA256SUMS.txt"), [string[]]$lines, [System.Text.UTF8Encoding]::new($false))
+          # LF and no BOM: WriteAllLines would use CRLF, which makes `sha256sum -c` fail on every
+          # line even when the names and hashes are right.
+          $text = ($lines -join "`n") + "`n"
+          [System.IO.File]::WriteAllText((Join-Path $PWD "dist/SHA256SUMS.txt"), $text, [System.Text.UTF8Encoding]::new($false))
 
       - name: Attest installer provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4

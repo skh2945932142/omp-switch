@@ -47,7 +47,7 @@ try {
   if (-not (Test-Path $unpackedBridge)) { throw "Missing unpacked secret bridge: $unpackedBridge" }
   Invoke-PackagedCli $unpackedCli "unpacked"
 
-  $portableZip = Get-ChildItem -Path (Join-Path $workspaceRoot "dist") -Filter "OMP Switch-*-win.zip" -File | Select-Object -First 1
+  $portableZip = Get-ChildItem -Path (Join-Path $workspaceRoot "dist") -Filter "OMP-Switch-*-win.zip" -File | Select-Object -First 1
   if (-not $portableZip) { throw "Missing portable ZIP" }
   $portableRoot = Join-Path $testRoot "portable"
   Expand-Archive -LiteralPath $portableZip.FullName -DestinationPath $portableRoot -Force
