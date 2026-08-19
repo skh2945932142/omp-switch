@@ -31,14 +31,18 @@ describe("OMP profile paths", () => {
 
   it("honors PI_CONFIG_DIR as both a name under home and an absolute path", () => {
     expect(resolveOmpPaths("C:/Users/test", { PI_CONFIG_DIR: ".omp-alt" }).ompRoot).toBe(path.resolve("C:/Users/test", ".omp-alt"));
-    expect(getProfilePaths("C:/Users/test", "default", { PI_CONFIG_DIR: "D:/omp-root" }).agentDir)
-      .toBe(path.join(path.resolve("D:/omp-root"), "agent"));
+    // Built with path.resolve so the value is genuinely absolute on the host platform: a Windows
+    // drive letter is not an absolute path on Linux, and this suite runs there too.
+    const absoluteRoot = path.resolve("omp-root-elsewhere");
+    expect(getProfilePaths("C:/Users/test", "default", { PI_CONFIG_DIR: absoluteRoot }).agentDir)
+      .toBe(path.join(absoluteRoot, "agent"));
   });
 
   it("applies PI_CODING_AGENT_DIR to the default profile only", () => {
-    expect(getProfilePaths("C:/Users/test", "default", { PI_CODING_AGENT_DIR: "D:/agent" }).agentDir).toBe(path.resolve("D:/agent"));
+    const agentDir = path.resolve("agent-elsewhere");
+    expect(getProfilePaths("C:/Users/test", "default", { PI_CODING_AGENT_DIR: agentDir }).agentDir).toBe(agentDir);
     // A named profile ignores it, exactly as OMP documents.
-    expect(getProfilePaths("C:/Users/test", "work", { PI_CODING_AGENT_DIR: "D:/agent" }).agentDir)
+    expect(getProfilePaths("C:/Users/test", "work", { PI_CODING_AGENT_DIR: agentDir }).agentDir)
       .toBe(path.join("C:/Users/test", ".omp", "profiles", "work", "agent"));
   });
 
@@ -52,7 +56,7 @@ describe("OMP profile paths", () => {
   });
 
   it("reports every override so the UI can explain unexpected paths", () => {
-    const resolution = resolveOmpPaths("C:/Users/test", { PI_CONFIG_DIR: "D:/omp-root", OMP_PROFILE: "work" });
+    const resolution = resolveOmpPaths("C:/Users/test", { PI_CONFIG_DIR: path.resolve("omp-root-elsewhere"), OMP_PROFILE: "work" });
     expect(resolution.overrides.map((override) => override.variable)).toEqual(["PI_CONFIG_DIR", "OMP_PROFILE"]);
     expect(resolveOmpPaths("C:/Users/test", {}).overrides).toEqual([]);
   });
