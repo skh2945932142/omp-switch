@@ -4,6 +4,29 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.3.0 - 2026-08-19
+
+### Changed
+
+- Reissued the supported Windows desktop app and headless JSON CLI as a verified release with
+  installer, portable archive, checksums, and build-provenance attestations.
+- Release automation keeps the GitHub Release assets, GHCR CLI image, and Scoop manifest on the
+  same version and published checksum.
+- Installation documentation now points at the `0.3.0` CLI image and release artifacts.
+
+### Fixed
+
+- Repaired the release tag/version mismatch that previously prevented the `v0.3.0` workflow from
+  building any assets.
+- Rendered Windows package-manager metadata from the exact published installer and portable ZIP,
+  avoiding hashes from a different local build.
+
+### Known Limitations
+
+- The Windows binaries remain unsigned, so SmartScreen may warn on first run.
+- winget and Chocolatey submissions depend on their external validation and moderation queues.
+- A clean-Windows install, upgrade, and uninstall regression is still pending.
+
 ## 0.2.0 - 2026-08-19
 
 ### Added
