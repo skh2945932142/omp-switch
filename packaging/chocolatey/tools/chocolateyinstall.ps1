@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-# Downloads the signed release asset rather than embedding the installer, so the package stays small
+# Downloads the published release asset rather than embedding the installer, so the package stays small
 # and the checksum is verified against the published SHA256SUMS.txt.
 $version = "0.2.0"
 $packageArgs = @{

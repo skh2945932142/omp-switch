@@ -15,8 +15,14 @@ param(
 $ErrorActionPreference = "Stop"
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$sourceDir = [IO.Path]::GetFullPath((Join-Path $projectRoot $Source))
-$outDir = [IO.Path]::GetFullPath((Join-Path $projectRoot $Destination))
+
+function Resolve-ProjectPath([string]$value) {
+  if ([IO.Path]::IsPathRooted($value)) { return [IO.Path]::GetFullPath($value) }
+  return [IO.Path]::GetFullPath((Join-Path $projectRoot $value))
+}
+
+$sourceDir = Resolve-ProjectPath $Source
+$outDir = Resolve-ProjectPath $Destination
 
 if (-not (Test-Path $sourceDir)) { throw "Asset directory not found: $sourceDir. Run pnpm package:win first." }
 
@@ -52,12 +58,15 @@ $replacements = @{
   "REPLACE_WITH_SHA256_OF_PORTABLE_ZIP"   = $portable.Hash
 }
 
+$templateRoot = Join-Path $projectRoot "packaging"
+$committedOutputDir = [IO.Path]::GetFullPath((Join-Path $templateRoot "out"))
+
 if (Test-Path $outDir) { Remove-Item -LiteralPath $outDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-foreach ($template in Get-ChildItem -Path (Join-Path $projectRoot "packaging") -Recurse -File -Include *.yaml, *.json, *.nuspec, *.ps1 |
-  Where-Object { $_.FullName -notlike "$outDir*" }) {
-  $relative = $template.FullName.Substring((Join-Path $projectRoot "packaging").Length).TrimStart([IO.Path]::DirectorySeparatorChar)
+foreach ($template in Get-ChildItem -Path $templateRoot -Recurse -File -Include *.yaml, *.json, *.nuspec, *.ps1 |
+  Where-Object { $_.FullName -notlike "$outDir*" -and $_.FullName -notlike "$committedOutputDir*" }) {
+  $relative = $template.FullName.Substring($templateRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
   $target = Join-Path $outDir $relative
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
 
@@ -78,12 +87,24 @@ if ($stillTemplated) { throw "Unreplaced placeholder remains: $($stillTemplated 
 $bucketPath = Join-Path $projectRoot "bucket/omp-switch.json"
 if (Test-Path $bucketPath) {
   $bucket = Get-Content -Raw -LiteralPath $bucketPath | ConvertFrom-Json
-  $bucket.version = $version
-  $bucket.architecture."64bit".url = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/$portableUrlName"
-  $bucket.architecture."64bit".hash = $portable.Hash
-  $json = ($bucket | ConvertTo-Json -Depth 10)
-  [IO.File]::WriteAllText($bucketPath, ($json -replace "`r`n", "`n") + "`n", [Text.UTF8Encoding]::new($false))
-  Write-Host "updated   : bucket/omp-switch.json (tracked; commit this)"
+  $bucketUrl = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/$portableUrlName"
+  if ($bucket.version -eq $version -and $bucket.architecture."64bit".url -eq $bucketUrl -and $bucket.architecture."64bit".hash -eq $portable.Hash) {
+    Write-Host "unchanged : bucket/omp-switch.json already matches the published asset"
+  } else {
+    $nodeScript = @'
+const fs = require("node:fs");
+const [path, version, url, hash] = process.argv.slice(1);
+const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+manifest.version = version;
+manifest.architecture["64bit"].url = url;
+manifest.architecture["64bit"].hash = hash;
+process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
+'@
+    $json = (& node -e $nodeScript $bucketPath $version $bucketUrl $portable.Hash | Out-String).TrimEnd("`r", "`n")
+    if ($LASTEXITCODE -ne 0) { throw "Failed to render bucket/omp-switch.json" }
+    [IO.File]::WriteAllText($bucketPath, "$json`n", [Text.UTF8Encoding]::new($false))
+    Write-Host "updated   : bucket/omp-switch.json (tracked; commit this)"
+  }
 } else {
   Write-Host "bucket/omp-switch.json not found; skipping the Scoop bucket update." -ForegroundColor Yellow
 }
