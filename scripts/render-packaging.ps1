@@ -73,4 +73,21 @@ foreach ($template in Get-ChildItem -Path (Join-Path $projectRoot "packaging") -
 $stillTemplated = Get-ChildItem -Path $outDir -Recurse -File | Select-String -Pattern "REPLACE_WITH_" -SimpleMatch
 if ($stillTemplated) { throw "Unreplaced placeholder remains: $($stillTemplated -join ', ')" }
 
-Write-Host "`nRendered manifests are in $outDir. Review them before submitting to winget-pkgs, a Scoop bucket, or the Chocolatey feed."
+# The Scoop bucket is served from this repository, so its manifest must carry a real hash in a
+# tracked file rather than a placeholder. Update it in place.
+$bucketPath = Join-Path $projectRoot "bucket/omp-switch.json"
+if (Test-Path $bucketPath) {
+  $bucket = Get-Content -Raw -LiteralPath $bucketPath | ConvertFrom-Json
+  $bucket.version = $version
+  $bucket.architecture."64bit".url = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/$portableUrlName"
+  $bucket.architecture."64bit".hash = $portable.Hash
+  $json = ($bucket | ConvertTo-Json -Depth 10)
+  [IO.File]::WriteAllText($bucketPath, ($json -replace "`r`n", "`n") + "`n", [Text.UTF8Encoding]::new($false))
+  Write-Host "updated   : bucket/omp-switch.json (tracked; commit this)"
+} else {
+  Write-Host "bucket/omp-switch.json not found; skipping the Scoop bucket update." -ForegroundColor Yellow
+}
+
+Write-Host "`nRendered manifests are in $outDir. Review them before submitting to winget-pkgs or the Chocolatey feed."
+Write-Host "The hashes above must come from the PUBLISHED release assets, not a local rebuild: a local"
+Write-Host "build is not byte-identical to the CI build, so its hash would never match what users download."

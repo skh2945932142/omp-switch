@@ -24,11 +24,19 @@ so it manages configuration, not secrets.
 
 ## Windows: desktop app
 
-### winget
+Availability differs per channel, so the table says what actually works today rather than what is
+planned:
 
-```powershell
-winget install skh2945932142.OMPSwitch
-```
+| Channel | Status |
+| --- | --- |
+| Direct download (GitHub Releases) | **Works** |
+| Scoop (bucket hosted in this repository) | **Works** |
+| winget | Manifest prepared; **pending submission** to `microsoft/winget-pkgs` |
+| Chocolatey | Package prepared; **pending submission** and moderation on the community feed |
+
+The winget and Chocolatey manifests live in `packaging/` and are rendered with real release hashes by
+`pnpm render:packaging`. Until those submissions are accepted, `winget install` and `choco install`
+will not find the package — use Scoop or the direct download.
 
 ### Scoop
 
@@ -37,46 +45,22 @@ scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
 scoop install omp-switch
 ```
 
-### Chocolatey
-
-```powershell
-choco install omp-switch
-```
+This installs the portable build and puts `omp-switch-cli.exe` on PATH.
 
 ### Direct download
-
-From the [latest release](https://github.com/skh2945932142/omp-switch/releases/latest):
-
-- `OMP-Switch-Setup-<version>.exe` — NSIS installer, per-user
-- `OMP-Switch-<version>-win.zip` — portable, unzip and run
-- `SHA256SUMS.txt` — verify before running:
-
-```powershell
-# One-shot check of everything listed in the sums file (run from the download directory):
-Get-Content SHA256SUMS.txt | ForEach-Object {
-  $hash, $name = $_ -split "\s+", 2
-  $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $name).Hash.ToLower()
-  "{0}  {1}" -f ($(if ($actual -eq $hash) { "OK  " } else { "FAIL" })), $name
-}
-```
-
-On Linux or in Git Bash, `sha256sum -c SHA256SUMS.txt` works directly.
-
-Releases also carry GitHub build-provenance attestations:
-
-```powershell
-gh attestation verify ".\OMP-Switch-Setup-0.2.0.exe" --repo skh2945932142/omp-switch
-```
-
-> **Installs are per user on purpose.** The credential vault is encrypted with the installing Windows
-> account's DPAPI key. A per-machine install would create a vault the other accounts on the box
-> cannot read, and keys never transfer to another machine.
 
 ---
 
 ## Any platform: headless CLI
 
 ### Docker
+
+```bash
+docker pull ghcr.io/skh2945932142/omp-switch-cli:0.2.0
+docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.2.0 validate --profile default
+```
+
+`:latest` also tracks the newest release. To build it yourself instead:
 
 ```bash
 docker build -t omp-switch-cli .

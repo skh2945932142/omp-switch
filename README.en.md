@@ -34,12 +34,17 @@ The headless CLI has no Electron dependency (`packages/core` is pure Node), so i
 ## Install
 
 ```powershell
-winget install skh2945932142.OMPSwitch     # or scoop / choco, see docs/install.md
+scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
+scoop install omp-switch
 ```
 
+Or download the installer / portable build from
+[Releases](https://github.com/skh2945932142/omp-switch/releases/latest). The winget and Chocolatey
+manifests are prepared but **not yet submitted** — see [docs/install.md](docs/install.md).
+
 ```bash
-docker build -t omp-switch-cli . && \
-docker run --rm -v "$HOME/.omp:/home/node/.omp" omp-switch-cli validate --profile default
+docker run --rm -v "$HOME/.omp:/home/node/.omp" \
+  ghcr.io/skh2945932142/omp-switch-cli:latest validate --profile default
 ```
 
 Every method, including checksum and provenance verification, is in
