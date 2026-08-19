@@ -1,6 +1,6 @@
 {
   "name": "omp-switch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A focused desktop companion for managing Oh My Pi model providers.",
   "author": "OMP Switch contributors",
@@ -28,15 +28,20 @@
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
-    "build:secret-bridge": "dotnet publish native/secret-bridge/OmpSwitch.SecretBridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false -o native/secret-bridge/publish",
-    "predev": "pnpm build:secret-bridge",
+    "build:secret-bridge": "powershell -ExecutionPolicy Bypass -File scripts/build-secret-bridge.ps1",
+    "build:cli-proxy": "dotnet publish native/cli-proxy/OmpSwitch.CliProxy.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false -o native/cli-proxy/publish",
+    "build:native": "pnpm build:secret-bridge && pnpm build:cli-proxy",
+    "predev": "pnpm build:native",
     "dev": "electron-vite dev",
-    "build": "pnpm build:secret-bridge && electron-vite build",
+    "build": "pnpm build:native && pnpm build:cli && electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "electron-vite preview",
-    "package:win": "pnpm build && electron-builder --win nsis portable"
+    "package:win": "pnpm build && electron-builder --win nsis zip",
+    "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
+    "build:cli": "vite build --config vite.cli.config.ts",
+    "render:packaging": "powershell -ExecutionPolicy Bypass -File scripts/render-packaging.ps1"
   },
   "workspaces": [
     "apps/*",
@@ -65,6 +70,7 @@
   "build": {
     "appId": "com.omp.switch",
     "productName": "OMP Switch",
+    "icon": "build/icon.ico",
     "files": [
       "out/**/*",
       "package.json"
@@ -75,8 +81,17 @@
         "to": "secret-bridge/omp-switch-secret.exe"
       }
     ],
+    "extraFiles": [
+      {
+        "from": "native/cli-proxy/publish/omp-switch-cli.exe",
+        "to": "omp-switch-cli.exe"
+      }
+    ],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "zip"
+      ]
     },
     "nsis": {
       "oneClick": false,
