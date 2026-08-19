@@ -24,12 +24,16 @@ headless CLI 完全不依赖 Electron（`packages/core` 是纯 Node），因此�
 ## 安装
 
 ```powershell
-winget install skh2945932142.OMPSwitch     # 或 scoop / choco，见 docs/install.md
+scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
+scoop install omp-switch
 ```
 
+或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载安装包 / 便携版。
+winget 与 Chocolatey 清单已准备好，但**尚未提交上架**，详见 [docs/install.md](docs/install.md)。
+
 ```bash
-docker build -t omp-switch-cli . && \
-docker run --rm -v "$HOME/.omp:/home/node/.omp" omp-switch-cli validate --profile default
+docker run --rm -v "$HOME/.omp:/home/node/.omp" \
+  ghcr.io/skh2945932142/omp-switch-cli:latest validate --profile default
 ```
 
 完整方式（含校验和与 provenance 验证）见 **[docs/install.md](docs/install.md)**。

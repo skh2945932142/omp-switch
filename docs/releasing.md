@@ -35,6 +35,20 @@ It also creates GitHub build-provenance attestations for both assets. Review the
 
 Do not attach `.blockmap` files unless a future updater implementation explicitly consumes them.
 
+## Refresh the package-manager manifests
+
+Run `pnpm render:packaging` **against the published release assets**, not a local rebuild: a local
+build is not byte-identical to the CI build, so its hash would never match what users download.
+
+```powershell
+gh release download vX.Y.Z --dir dist-release
+pnpm render:packaging -Source dist-release
+```
+
+That writes reviewed copies into `packaging/out/` for winget and Chocolatey submission, and updates
+`bucket/omp-switch.json` in place. The Scoop bucket is served from this repository, so that file must
+be committed with a real hash for `scoop install` to work at all.
+
 ## Update Manifest
 
 The future in-app update checker requires a separately signed manifest. Keep the Ed25519 private key outside the repository and store it only in the protected `OMP_SWITCH_UPDATE_SIGNING_KEY` GitHub Environment secret. A release without that secret may still be published; it must not advertise an unsigned update manifest.

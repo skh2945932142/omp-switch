@@ -125,3 +125,47 @@ jobs:
             --verify-tag \
             --title "OMP Switch $TAG_NAME" \
             --notes-file "docs/releases/$TAG_NAME.md"
+
+  publish-cli-image:
+    name: Publish the headless CLI image to GHCR
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Log in to GHCR
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Pushed as :<version> and :latest so `docker pull` is a real install method rather than
+      # "clone the repository and build it yourself".
+      - name: Build, smoke-test and push
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          image="ghcr.io/${OWNER,,}/omp-switch-cli"
+          docker build -t "$image:$version" -t "$image:latest" .
+
+          # Exercise the exact image that is about to be pushed, not a rebuild of it.
+          root="$(mktemp -d)"
+          mkdir -p "$root/.omp/agent"
+          cat > "$root/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          docker run --rm --user "$(id -u):$(id -g)" -v "$root/.omp:/home/node/.omp" \
+            "$image:$version" validate --profile default | tee /dev/stderr | grep -q '"ok":true'
+
+          docker push "$image:$version"
+          docker push "$image:latest"
