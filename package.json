@@ -96,7 +96,9 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    }
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "OMP-Switch-Setup-${version}.${ext}"
+    },
+    "artifactName": "OMP-Switch-${version}-win.${ext}"
   }
 }

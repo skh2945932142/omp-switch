@@ -16,7 +16,7 @@ ReleaseDate: 2026-08-19
 Installers:
   - Architecture: x64
     InstallerType: nullsoft
-    InstallerUrl: https://github.com/skh2945932142/omp-switch/releases/download/v0.2.0/OMP.Switch.Setup.0.2.0.exe
+    InstallerUrl: https://github.com/skh2945932142/omp-switch/releases/download/v0.2.0/OMP-Switch-Setup-0.2.0.exe
     InstallerSha256: REPLACE_WITH_SHA256_OF_NSIS_INSTALLER
     InstallerSwitches:
       Silent: /S

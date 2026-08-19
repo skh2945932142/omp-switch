@@ -47,19 +47,25 @@ choco install omp-switch
 
 From the [latest release](https://github.com/skh2945932142/omp-switch/releases/latest):
 
-- `OMP Switch Setup <version>.exe` — NSIS installer, per-user
-- `OMP Switch-<version>-win.zip` — portable, unzip and run
+- `OMP-Switch-Setup-<version>.exe` — NSIS installer, per-user
+- `OMP-Switch-<version>-win.zip` — portable, unzip and run
 - `SHA256SUMS.txt` — verify before running:
 
 ```powershell
-(Get-FileHash -Algorithm SHA256 ".\OMP Switch Setup 0.2.0.exe").Hash.ToLower()
-# compare against the matching line in SHA256SUMS.txt
+# One-shot check of everything listed in the sums file (run from the download directory):
+Get-Content SHA256SUMS.txt | ForEach-Object {
+  $hash, $name = $_ -split "\s+", 2
+  $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $name).Hash.ToLower()
+  "{0}  {1}" -f ($(if ($actual -eq $hash) { "OK  " } else { "FAIL" })), $name
+}
 ```
+
+On Linux or in Git Bash, `sha256sum -c SHA256SUMS.txt` works directly.
 
 Releases also carry GitHub build-provenance attestations:
 
 ```powershell
-gh attestation verify ".\OMP Switch Setup 0.2.0.exe" --repo skh2945932142/omp-switch
+gh attestation verify ".\OMP-Switch-Setup-0.2.0.exe" --repo skh2945932142/omp-switch
 ```
 
 > **Installs are per user on purpose.** The credential vault is encrypted with the installing Windows

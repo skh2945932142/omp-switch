@@ -42,9 +42,10 @@ Write-Host "version   : $version"
 Write-Host "installer : $($installer.Name)  $($installer.Hash)"
 Write-Host "portable  : $($portable.Name)  $($portable.Hash)"
 
-# URL-encode the asset names once; GitHub replaces spaces with dots in download URLs.
-$installerUrlName = $installer.Name -replace " ", "."
-$portableUrlName = $portable.Name -replace " ", "."
+# Asset names are space-free by construction (see build.artifactName), so the uploaded asset name is
+# exactly the local file name and needs no transformation.
+$installerUrlName = $installer.Name
+$portableUrlName = $portable.Name
 
 $replacements = @{
   "REPLACE_WITH_SHA256_OF_NSIS_INSTALLER" = $installer.Hash
@@ -63,8 +64,8 @@ foreach ($template in Get-ChildItem -Path (Join-Path $projectRoot "packaging") -
   $content = Get-Content -Raw -LiteralPath $template.FullName
   foreach ($key in $replacements.Keys) { $content = $content.Replace($key, $replacements[$key]) }
   $content = $content -replace "0\.2\.0", $version
-  $content = $content.Replace("OMP.Switch.Setup.$version.exe", $installerUrlName)
-  $content = $content.Replace("OMP.Switch-$version-win.zip", $portableUrlName)
+  $content = $content.Replace("OMP-Switch-Setup-$version.exe", $installerUrlName)
+  $content = $content.Replace("OMP-Switch-$version-win.zip", $portableUrlName)
   [IO.File]::WriteAllText($target, $content, [Text.UTF8Encoding]::new($false))
   Write-Host "rendered  : $relative"
 }

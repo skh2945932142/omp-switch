@@ -27,8 +27,8 @@ workflow uploads the assets and creates the draft in a later step, deliberately.
 
 The workflow produces only these user-facing assets:
 
-- NSIS installer (`OMP Switch Setup X.Y.Z.exe`)
-- Portable ZIP (`OMP Switch X.Y.Z-win.zip`)
+- NSIS installer (`OMP-Switch-Setup-X.Y.Z.exe`)
+- Portable ZIP (`OMP-Switch-X.Y.Z-win.zip`)
 - `SHA256SUMS.txt`
 
 It also creates GitHub build-provenance attestations for both assets. Review the artifact names, checksums, release notes, installation behavior, and provenance before publishing the draft.
