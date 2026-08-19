@@ -6,11 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Planned for the first supported release
+### Added
 
-- Versioned provider presets, expanded discovery, and catalog-aware model management.
-- A stable JSON CLI, audited import/export, and stricter migration recovery.
-- Optional local routing, health diagnostics, and redacted usage summaries.
+- `disabledProviders` is now editable, including path-scoped entries, and recognizes OMP's discovery source ids (`native`, `claude`, `codex`, `gemini`, `github`, `opencode`, `cursor`, `agents-md`) alongside model providers.
+- The project root used for `.omp` overlay and prompt/skill lookups is a persisted, user-chosen directory instead of `process.cwd()`, which is arbitrary for a GUI launched from the Start Menu. An unconfirmed root is labelled as a guess.
+- Project overlays now explain how they override the user-level config: which arrays OMP replaces wholesale, and when `modelRoleStorage: "project"` shadows role edits made here.
+- Credentials are reference-counted. Deleting one that a config or gateway pool still uses reports the references instead of breaking that provider silently, and orphaned vault entries left behind by a removed provider can be listed.
+
+### Fixed
+
+- Thinking levels are no longer treated as one set. `defaultThinkingLevel` rejects `off`, and a role suffix accepts only `minimal`/`low`/`medium`/`high`/`xhigh`/`max`, matching OMP. A role ending in `:off` or `:auto` now warns instead of being written as a config OMP rejects.
+- An override-only provider (no `models`) must carry one of `baseUrl`/`apiKey`/`headers`/`compat`/`disableStrictTools`/`modelOverrides`/`discovery`/`remoteCompaction` or `auth: none`, which OMP requires and this app previously skipped entirely.
+- Profile paths follow OMP's own environment overrides (`PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, `PI_CODING_AGENT_DIR`). Previously a user with any of these set had edits written to files OMP never reads, and the app reported success.
+- An unrecognized `api` value is reported as a warning instead of passing unchecked.
+- Project overlay discovery stops at the home directory. It previously walked past the project and reported the user-level `~/.omp` as a project overlay.
+- Path-scoped `enabledModels` and `disabledProviders` entries are validated, so an entry OMP would silently discard is reported instead.
+- Snapshots no longer accumulate without bound: both metadata backends cap at 30 per profile and the snapshot directories on disk are pruned to match. The sqlite backend previously kept every row and neither backend ever deleted a directory.
+- The metadata sqlite handle is closed on quit; it previously kept the database file locked.
+
+### Security
+
+- The loopback gateway requires a bearer token, stored at `userData/gateway/gateway.token` with `0600`. It also rejects non-loopback `Host` headers (421) and any request carrying `Origin` (403), so a local process or a web page can no longer spend the user's credentials by knowing the port. `/healthz` stays unauthenticated.
+- Gateway responses relay only an allowlist of headers; `set-cookie` and framing headers from the upstream are dropped.
+- Gateway upstream requests time out after 255s instead of hanging indefinitely.
+- A plaintext-looking `apiKey` in `models.yml` is now reported (`provider.apiKey-plaintext`). The rule lives in the core validator, so it also covers the JSON CLI, which could previously write a key in plaintext.
+- `restoreSnapshot` verifies each target file still matches the snapshot or the commit it guarded, and refuses to overwrite an external edit unless `force` is passed.
+- Deleting an anchored YAML node, or rewriting an alias, is refused rather than producing a file with dangling aliases. Editing an anchored node in place is still allowed and preserves the anchor.
+
+### Changed
+
+- The secret bridge publishes as Native AOT: 29 ms median cold start versus 148 ms, and 2.4 MB versus 13.5 MB. Building it now needs the Visual Studio "Desktop development with C++" workload; `scripts/build-secret-bridge.ps1` handles `vswhere.exe` discovery.
+- The gateway panel shows the bearer token and per-upstream latency, last status and consecutive failures.
+
+### Release gate
+
+- Clean Windows verification for NSIS, portable, uninstall, upgrade, and real OMP profiles.
+- Maintainer review of the draft release, checksums, and provenance.
+
+## 0.2.0 - Unreleased
+
+### Added
+
+- OMP v16/v17 write support with unknown-major read-only protection.
+- Versioned catalog imports, expanded discovery, compact Provider/Model workbench, Prompts, Skills, Sessions, and Gateway modules.
+- JSON CLI commands, loopback gateway routes, DPAPI secret bridge, snapshots, and OMP update/OAuth controls.
+
+### Changed
+
+- Provider, model, role, and settings validation now follows the documented OMP schema fields.
+
+### Security
+
+- Gateway pool identifiers and secret references are validated before persistence.
+- Session raw content remains outside metadata and default exports.
 
 ## 0.1.0 - Development Snapshot
 
