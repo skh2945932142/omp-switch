@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { SessionIndexEntry } from "./domain";
+import { normalizeUsage } from "./usage";
 
 export interface SessionIndexResult {
   entries: SessionIndexEntry[];
@@ -27,20 +28,34 @@ function firstNumber(record: Record<string, unknown>, keys: string[]): number | 
   return undefined;
 }
 
-function extractUsage(record: Record<string, unknown>): Record<string, number> | undefined {
-  const candidate = asRecord(record.usage) ?? asRecord(asRecord(record.metadata)?.usage);
-  if (!candidate) return undefined;
-  const usage = Object.fromEntries(Object.entries(candidate).filter(([, value]) => typeof value === "number" && Number.isFinite(value))) as Record<string, number>;
-  return Object.keys(usage).length > 0 ? usage : undefined;
-}
-
+/**
+ * OMP records the interesting fields on `message` for assistant turns — `message.usage`,
+ * `message.model`, `message.provider`, `message.stopReason` — not at the top level. The top level
+ * only carries `id`, `timestamp`, `type` and `parentId`. Older and foreign shapes are still read as
+ * a fallback, but the `message` paths are what real session files use.
+ */
 function extractEvent(record: Record<string, unknown>, filePath: string, profile: string, offset: number, length: number): SessionIndexEntry {
+  const message = asRecord(record.message) ?? {};
   const metadata = asRecord(record.metadata) ?? {};
-  const model = firstString(record, ["model", "modelId"]) ?? firstString(metadata, ["model", "modelId"]);
-  const provider = firstString(record, ["provider", "providerId"]) ?? firstString(metadata, ["provider", "providerId"])
+  const sources = [message, record, metadata];
+  const pick = (keys: string[]): string | undefined => {
+    for (const source of sources) {
+      const value = firstString(source, keys);
+      if (value) return value;
+    }
+    return undefined;
+  };
+
+  const model = pick(["model", "modelId"]);
+  const provider = pick(["provider", "providerId"])
     ?? (model?.includes("/") ? model.slice(0, model.indexOf("/")) : undefined);
-  const startedAt = firstString(record, ["timestamp", "createdAt", "time"]) ?? firstString(metadata, ["timestamp", "createdAt"]);
-  const cost = firstNumber(record, ["cost", "totalCost"]) ?? firstNumber(metadata, ["cost", "totalCost"]);
+  const startedAt = firstString(record, ["timestamp", "createdAt", "time"]) ?? pick(["timestamp", "createdAt"]);
+  const rawUsage = asRecord(message.usage) ?? asRecord(record.usage) ?? asRecord(metadata.usage);
+  const { tokens, recordedCost } = normalizeUsage(rawUsage);
+  const cost = recordedCost ?? firstNumber(record, ["cost", "totalCost"]) ?? firstNumber(metadata, ["cost", "totalCost"]);
+  // stopReason is where OMP marks an errored or aborted turn; `type` only says "message".
+  const status = pick(["stopReason", "status", "event"]) ?? firstString(record, ["type"]);
+
   return {
     id: firstString(record, ["id", "eventId", "messageId"]) ?? `${filePath}:${offset}`,
     sourceKey: `${filePath}:${offset}`,
@@ -51,8 +66,8 @@ function extractEvent(record: Record<string, unknown>, filePath: string, profile
     startedAt,
     model,
     provider,
-    status: firstString(record, ["status", "type", "event"]),
-    usage: extractUsage(record),
+    status,
+    usage: rawUsage ? tokens : undefined,
     cost,
   };
 }
@@ -119,16 +134,4 @@ export async function indexSessionDirectory(root: string, profile: string): Prom
     entries: dedupeEntries(results.flatMap((result) => result.entries)).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? "")),
     invalidLines: results.reduce((total, result) => total + result.invalidLines, 0),
   };
-}
-
-export function summarizeSessionUsage(entries: SessionIndexEntry[]): { usage: Record<string, number>; cost: number; failures: number } {
-  const usage: Record<string, number> = {};
-  let cost = 0;
-  let failures = 0;
-  for (const entry of dedupeEntries(entries)) {
-    for (const [key, value] of Object.entries(entry.usage ?? {})) usage[key] = (usage[key] ?? 0) + value;
-    if (typeof entry.cost === "number") cost += entry.cost;
-    if (/error|fail|abort|cancel/i.test(entry.status ?? "")) failures += 1;
-  }
-  return { usage, cost, failures };
 }

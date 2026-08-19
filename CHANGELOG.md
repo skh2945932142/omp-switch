@@ -8,12 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Usage dashboard: spend, requests, tokens, cache and reasoning totals, a per-day trend, and
+  breakdowns by model and provider, with date filtering. Cost is labelled with its provenance, and
+  per-model prices can be entered locally to cross-check what OMP recorded.
+
 - `disabledProviders` is now editable, including path-scoped entries, and recognizes OMP's discovery source ids (`native`, `claude`, `codex`, `gemini`, `github`, `opencode`, `cursor`, `agents-md`) alongside model providers.
 - The project root used for `.omp` overlay and prompt/skill lookups is a persisted, user-chosen directory instead of `process.cwd()`, which is arbitrary for a GUI launched from the Start Menu. An unconfirmed root is labelled as a guess.
 - Project overlays now explain how they override the user-level config: which arrays OMP replaces wholesale, and when `modelRoleStorage: "project"` shadows role edits made here.
 - Credentials are reference-counted. Deleting one that a config or gateway pool still uses reports the references instead of breaking that provider silently, and orphaned vault entries left behind by a removed provider can be listed.
 
 ### Fixed
+
+- Session indexing read `usage`, `cost`, `model` and `provider` from the top level of a session JSONL
+  line, where OMP writes none of them; they live on `message`. Usage and cost were therefore always
+  empty, and failures were never detected because `type` is always `"message"` rather than a status.
 
 - Thinking levels are no longer treated as one set. `defaultThinkingLevel` rejects `off`, and a role suffix accepts only `minimal`/`low`/`medium`/`high`/`xhigh`/`max`, matching OMP. A role ending in `:off` or `:auto` now warns instead of being written as a config OMP rejects.
 - An override-only provider (no `models`) must carry one of `baseUrl`/`apiKey`/`headers`/`compat`/`disableStrictTools`/`modelOverrides`/`discovery`/`remoteCompaction` or `auth: none`, which OMP requires and this app previously skipped entirely.

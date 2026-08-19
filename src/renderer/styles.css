@@ -289,3 +289,135 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: #fff4e0;
   color: #8a5300;
 }
+
+/* Usage dashboard */
+.usage-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 12px;
+  overflow-y: auto;
+}
+
+.usage-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e3e8e4);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.usage-card strong {
+  font-size: 22px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-card small {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.usage-date {
+  width: 132px;
+  font-size: 12px;
+}
+
+.usage-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #e3e8e4);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.usage-trend-col {
+  display: flex;
+  flex: 1 0 22px;
+  /* Without a cap, a range covering one or two days renders as a full-width slab. */
+  max-width: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+
+.usage-trend-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #4c8f6b, #2f6b4c);
+}
+
+.usage-trend-label {
+  font-size: 10px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.usage-breakdowns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.usage-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.usage-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.usage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px 62px 78px 64px 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.usage-row:nth-child(odd) {
+  background: var(--surface-alt, #f6f8f6);
+}
+
+.usage-row-key {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-row-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-pricing-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e3e8e4);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}

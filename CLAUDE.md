@@ -150,6 +150,36 @@ apiKey: '!"...\omp-switch-secret.exe" --secret-get "credential-id" --data-dir ".
 Per-attempt latency, last status and consecutive-failure counts are recorded in `GatewayServer.getStats()` and returned by `gateway:status`. This is passive observation only — there is no active health probe or circuit breaker yet.
 
 
+### Usage accounting reads what OMP actually writes
+
+The session indexer once looked for `usage`, `cost`, `model` and `provider` at the top level of a
+session JSONL line. None of those live there. Verified against real files, an assistant turn looks
+like this, and everything interesting is on `message`:
+
+```jsonc
+{ "type": "message", "id": "…", "timestamp": "…", "parentId": "…",
+  "message": { "role": "assistant", "provider": "…", "model": "…", "api": "…",
+    "stopReason": "toolUse" | "stop" | "error" | "aborted",
+    "usage": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0,
+               "reasoningTokens": 0,
+               "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 } } } }
+```
+
+Consequences that shape `usage.ts`:
+
+- **OMP already computes cost per turn**, broken down and totalled, so `recordedCost` is
+  authoritative. Local pricing from `models.yml` is a cross-check, not the primary source — on a real
+  machine `models.yml` frequently carries no `cost:` at all, and a dashboard that trusted only local
+  pricing reported **$0.00 against $407.78 of actual spend**. `UsageBucket` therefore carries
+  `recordedCost`, `computedCost` and `pricedRequests` so the UI can state which number it is showing,
+  and `UsageReport.unpriced` names what could not be priced.
+- Token counter names (`input`, `output`, `cacheRead`, `cacheWrite`) are **identical to the price keys
+  in `models.yml`**, so usage and pricing line up key for key. Prices are per `PRICE_UNIT_TOKENS`
+  (1,000,000) — confirmed arithmetically against a real turn.
+- Failures come from `message.stopReason`, not `type`, which is always `"message"`.
+- Only entries carrying tokens count as requests, so tool results and mode changes do not inflate
+  counts. On this machine 22,683 indexed events yield 5,528 requests.
+
 ### Metadata store has two backends
 
 `MetadataStore` prefers `node:sqlite` and silently degrades to a JSON file (`metadata.sqlite.json`) when the builtin is unavailable. Every method implements both branches — new persistence needs both, or it will vanish on machines using the fallback. `new MetadataStore(dir, { backend: "json" })` forces the fallback, which is how `metadata-store.test.ts` runs the whole suite against both; without that seam the JSON branch would never execute in CI. `close()` releases the sqlite handle, and must be called before deleting the file on Windows (the app calls it on `will-quit`).

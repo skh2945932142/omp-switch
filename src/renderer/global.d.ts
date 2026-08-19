@@ -1,4 +1,4 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ProfileRef, ProjectContext, ProviderPreset, SessionIndexEntry, Snapshot, SurfaceBundle } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionIndexEntry, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
@@ -24,6 +24,14 @@ export interface OmpSwitchApi {
   indexSessions(profileId: string): Promise<{ entries: SessionIndexEntry[]; invalidLines: number }>;
   listSessions(profileId: string): Promise<SessionIndexEntry[]>;
   readSession(profileId: string, id: string): Promise<string>;
+  usageSummary(profileId?: string, options?: { from?: string; to?: string; reindex?: boolean }): Promise<{
+    report: UsageReport;
+    indexedEntries: number;
+    invalidLines: number;
+    pricedModels: number;
+    overrides: PricingTable;
+  }>;
+  setUsagePrice(key: string, price: ModelPrice | null): Promise<PricingTable>;
   listGatewayPools(profileId?: string): Promise<GatewayPool[]>;
   saveGatewayPool(pool: GatewayPool): Promise<GatewayPool>;
   gatewayStatus(): Promise<{ running: boolean; port: number | null; upstreams: GatewayUpstreamStat[] }>;

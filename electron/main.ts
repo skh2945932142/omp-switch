@@ -14,8 +14,10 @@ import {
   OmpSurfaceAdapter,
   OmpInstallation,
   OmpFilesystemAdapter,
+  PricingTable,
   ProjectContext,
   Snapshot,
+  buildPricingTable,
   collectReferencedCredentialIds,
   detectOmpInstallation,
   describeOverlayPrecedence,
@@ -24,6 +26,7 @@ import {
   generateGatewayToken,
   getProfilePaths,
   indexSessionDirectory,
+  summarizeUsage,
   listProviderPresets,
   mergeCatalogBundle,
   parseJsonCliArguments,
@@ -175,6 +178,44 @@ function registerIpc(): void {
     if (!entry) throw new Error("Session event was not found");
     const source = await readFile(entry.filePath);
     return source.subarray(entry.offset, entry.offset + entry.length).toString("utf8");
+  });
+  ipcMain.handle("usage:summary", async (_event, profileId: string = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => {
+    const profile = adapterProfile(profileId);
+    let entries = metadata.listSessionIndex(profileId);
+    let invalidLines = 0;
+    // Index on demand: a dashboard that shows nothing until the user finds the Sessions tab and
+    // presses refresh is not a dashboard.
+    if (options.reindex || entries.length === 0) {
+      const scanned = await indexSessionDirectory(path.join(profile.agentDir, "sessions"), profileId);
+      await metadata.replaceSessionIndex(profileId, scanned.entries);
+      entries = scanned.entries;
+      invalidLines = scanned.invalidLines;
+    }
+    const config = await adapter.loadProfile(profile);
+    const overrides = metadata.getPreference<PricingTable>("usage.pricing") ?? {};
+    const pricing = buildPricingTable(config.models.value, overrides);
+    return {
+      report: summarizeUsage(entries, { pricing, from: options.from, to: options.to }),
+      indexedEntries: entries.length,
+      invalidLines,
+      pricedModels: Object.keys(pricing).length,
+      overrides,
+    };
+  });
+  ipcMain.handle("usage:set-price", async (_event, key: string, price: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\/[^\s]{1,160}$/.test(key)) throw new Error("Pricing key must be provider/model");
+    const overrides = { ...(metadata.getPreference<PricingTable>("usage.pricing") ?? {}) };
+    if (price === null) delete overrides[key];
+    else {
+      for (const value of Object.values(price)) {
+        if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+          throw new Error("Prices must be finite non-negative numbers per million tokens");
+        }
+      }
+      overrides[key] = price;
+    }
+    await metadata.setPreference("usage.pricing", overrides);
+    return overrides;
   });
   ipcMain.handle("gateway:list", (_event, profileId?: string) => metadata.listGatewayPools(profileId));
   ipcMain.handle("gateway:save", async (_event, pool: GatewayPool) => {
