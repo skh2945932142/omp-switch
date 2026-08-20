@@ -9,7 +9,7 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.3.2` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> `v0.3.3` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
 > binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
 > build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
@@ -46,7 +46,7 @@ manifests are prepared but **not yet submitted** — see [docs/install.md](docs/
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.3.2 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.3.3 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
@@ -96,6 +96,13 @@ Every method, including checksum and provenance verification, is in
   falls back to solid surfaces automatically).
 - Context-scoped saves (roles and settings commit independently) with pending-change dots and
   `Ctrl+S`; switching profiles confirms before discarding unsaved edits.
+- **Preview-before-write**: every commit shows a line-level diff of what `models.yml` /
+  `config.yml` will receive before anything touches disk; a snapshot timeline browses and restores
+  history; external-edit conflicts surface as a dialog with one-click reload.
+- **Command palette** (`Ctrl+K`) over sections, profiles, providers, and actions; `Ctrl+1…7`
+  section switching; `?` for the shortcut reference.
+- Provider cards and the role picker flag `enabledModels` coverage, warning when a picked model
+  would be filtered out of OMP's catalog.
 
 ## Security boundaries
 

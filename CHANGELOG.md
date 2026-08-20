@@ -4,6 +4,33 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.3.3 - 2026-08-21
+
+### Added
+
+- Two-step saves with a diff preview: every commit (roles, settings, providers, deletions) first
+  shows a line-level diff of the exact text `models.yml` and `config.yml` would receive, produced
+  by a new `previewPatch` core path with no filesystem effects; the commit re-guards on
+  confirmation.
+- Snapshot timeline: the Profile drawer lists retained snapshots (up to 30 per profile) and any
+  entry can be restored under the existing external-edit guard.
+- Conflict-resolution dialog with one-click reload when the hash guard fires; all `window.confirm`
+  prompts replaced by in-app dialogs.
+- Command palette (`Ctrl+K`) for sections, profiles, providers, and frequent actions; `Ctrl+1…7`
+  section switching; `?` shortcut reference.
+- enabledModels coverage signals: provider chips, filtered-model marks in the role picker, and a
+  roles-page warning when an assigned model is filtered out of OMP's catalog.
+- Save toasts name the written file; loading skeletons for sessions/usage; usage range presets
+  (7/30/90/all) as a segmented control; `prefers-reduced-motion` respected globally.
+
+### Fixed
+
+- An explicitly `null` `headers`, `compat`, or `modelOverrides` now fails validation: OMP rejects
+  the whole `models.yml` for these and silently disables every custom provider. `headers` slipped
+  past a falsy check and the other two were unchecked.
+- An `apiKey` command reference into `node_modules` or with a relative `"."` app argument warns
+  (`provider.apiKey-fragile-command`) — it only resolves inside the dev checkout that wrote it.
+
 ## 0.3.2 - 2026-08-21
 
 ### Added
