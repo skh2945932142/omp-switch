@@ -9,7 +9,7 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.3.0` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> `v0.3.1` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
 > binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
 > build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
@@ -44,7 +44,7 @@ manifests are prepared but **not yet submitted** — see [docs/install.md](docs/
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.3.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.3.1 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a

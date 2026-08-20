@@ -4,6 +4,51 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.3.1 - 2026-08-20
+
+### Added
+
+- Sessions page now lists one entry per primary OMP session — title, latest model/provider/status,
+  message and request counts, aggregated tokens and cost — with pagination, a distinct empty state
+  per failure mode (missing root, unrecognized layout, initial indexing, unreadable files), and a
+  visible refresh-statistics line.
+- Message viewer pages through session history: 50 messages per page, newest first, 4 KiB text
+  previews, with a "load earlier" continuation cursor.
+- Explicit "rebuild index" action for a forced full re-index; normal refresh stays incremental.
+
+### Changed
+
+- Session scanning is bounded: only files matching the verified OMP primary-session naming at the
+  sessions root and in one-level project group directories are indexed. Ancillary per-session
+  directories are never parsed; unrecognized layouts surface a diagnostic instead of triggering a
+  broad recursive scan.
+- Refresh runs in two phases: quick discovery (stat + head hash + first chunk) returns a usable
+  list in tens of milliseconds, while full aggregation streams the rest in the background with at
+  most two concurrent file readers. Concurrent refreshes for the same profile are coalesced into
+  one main-process task.
+- Unchanged session files are reused without reads, appended files are parsed tail-only, and a
+  shrink or head change rebuilds that one file. Failed reads keep the previous cache, marked stale.
+- Usage accounting consumes compressed per-session records instead of event rows; totals match the
+  previous event-level index exactly on the reference archive (5,528 requests, $402.22 recorded).
+- The sqlite metadata backend stores session summaries and usage in `session_cache`/`session_usage`
+  applied as a transactional per-file diff and drops the legacy event-level `session_index` table;
+  the JSON fallback upgrades to schema v3 and writes atomically via temp file + rename.
+
+### Security
+
+- The renderer no longer receives absolute session file paths or byte offsets. List and message
+  cursors are opaque, HMAC-signed, and bound to the session file's fingerprint; message reads
+  re-validate that the file still lives inside the current profile's sessions root and still
+  matches the indexed fingerprint, before and after reading.
+- Removed the unused `app:open-folder` IPC (`shell.openPath` with a renderer-supplied path).
+- The packaged build always loads the local renderer; `ELECTRON_RENDERER_URL` is honored only when
+  unpackaged and must be a loopback http URL. Window navigation and `window.open` are denied.
+
+### Known Limitations
+
+- Session layouts outside the verified primary-session naming are reported rather than scanned.
+- Message previews are capped at 4 KiB per message.
+
 ## 0.3.0 - 2026-08-19
 
 ### Changed
