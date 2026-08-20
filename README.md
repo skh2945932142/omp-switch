@@ -6,9 +6,11 @@
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
 
-> `v0.3.1` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
+> `v0.3.2` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
 
-![OMP Switch 供应商工作区](docs/images/provider-workspace.png)
+![OMP Switch 模型工作区](docs/images/provider-workspace.png)
+
+![角色页（暗色主题）](docs/images/roles-dark.png)
 
 ## 两种交付形态
 
@@ -33,7 +35,7 @@ winget 与 Chocolatey 清单已准备好，但**尚未提交上架**，详见 [d
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.3.1 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.3.2 validate --profile default
 ```
 
 > 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
@@ -43,14 +45,31 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
 
 ## 已实现
 
+**配置编辑**
+
 - OMP `16.x` / `17.x` 可写，未知未来主版本只读。
 - 默认和命名 Profile、`models.yml` / `config.yml`、旧 `models.json` 迁移保护；遵循 OMP 自己的 `PI_CONFIG_DIR` / `OMP_PROFILE` / `PI_PROFILE` / `PI_CODING_AGENT_DIR` 路径覆盖。
-- Provider / Model / Roles / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking 设置。
+- Provider / Model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking 设置。
 - YAML AST 局部修改、外部变更保护、原子写入、快照与恢复（恢复同样拒绝覆盖外部改动）。
 - 54 个版本化预设；OpenAI、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM discovery。
-- Prompts、Skills、Sessions 索引与按需原文读取。
+
+**模型角色**
+
+- 独立「角色」页：每个角色一行——中文说明、解析链（`@default → provider/model = 实际模型`）、能力标签，`@引用` 循环、非法选择器、`:off`/`:auto` 误用就地警示；config.yml 里的自定义角色同样可见可编辑。
+- 可搜索模型选择器：按供应商分组、即时过滤、置顶 `@default`/`*`/清除、思考等级分段控件（仅含 OMP 接受的六级）、完整键盘导航；网关上游同样使用。
+- 模型行悬停即可一键分配到任意角色（保留原思考后缀）。
+
+**其余模块**
+
+- Prompts、Skills、Sessions 索引与按需原文读取；用量仪表盘（花费/请求/tokens/趋势/按模型与供应商分组，成本带来源标注）。
 - Loopback Gateway：`/healthz`、`/v1/models`、Chat、Responses 与流式前故障转移；强制 Bearer token、校验 Host、拒绝跨源请求。
 - Windows DPAPI 密钥桥、OMP OAuth 状态/登录入口、稳定 JSON CLI。
+
+**界面**
+
+- 「Quiet Instrument」视觉语言：无彩中性色、teal 仅作选中/焦点信号色、主按钮墨底白字反转、状态以圆点 + 弱文字呈现。
+- 跟随系统的暗色主题；Windows 11 22H2+ 上启用 Mica 窗口材质（其余环境自动回退实色）。
+- 保存语义按上下文拆分（角色 / 设置独立提交），未保存改动有导航圆点与 `Ctrl+S`；切换 Profile 前确认丢弃。
 
 ## 安全边界
 
@@ -105,6 +124,7 @@ pnpm render:packaging   # 用真实 release 哈希渲染 winget / Scoop / Chocol
 - [docs/install.md](docs/install.md) — 所有安装方式与平台限制
 - [docs/security.md](docs/security.md) — 威胁模型与凭据处理
 - [docs/releasing.md](docs/releasing.md) — 发布流程
+- [CHANGELOG.md](CHANGELOG.md) — 版本变更记录
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 贡献流程
 
 ## 许可证

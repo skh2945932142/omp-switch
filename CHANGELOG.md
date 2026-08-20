@@ -4,6 +4,47 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.3.2 - 2026-08-21
+
+### Added
+
+- Dedicated Roles page: every OMP role shows its resolved selector chain (`@default →
+  provider/model`), capability chips, and in-place warnings for `@role` cycles, unparseable
+  selectors, and `:off`/`:auto` misuse. Custom roles present in `config.yml` beyond the ten
+  documented ones are listed and editable instead of invisible.
+- Searchable model picker shared by the Roles page and gateway upstreams: provider-grouped list
+  with capability chips and context windows, instant search, pinned `@default`/`*`/clear values, a
+  segmented thinking-level control limited to the six levels OMP accepts as a role suffix, and
+  keyboard navigation.
+- Quick-assign action on model rows: assign any provider/model to a role in one click, preserving
+  the role's existing thinking suffix.
+- Split save semantics with dirty tracking: independent role and settings commits, pending-change
+  dots in navigation, `Ctrl+S`, and a discard prompt when switching profiles (section switches keep
+  edits in memory and never prompt).
+- Dark theme following the OS (`prefers-color-scheme`), and a Mica window material on Windows 11
+  22H2+ with automatic solid fallback.
+- Toast queue replacing the single notice banner.
+
+### Changed
+
+- Visual language redesigned end to end: untinted zinc neutrals; teal demoted to a signal color
+  used only for selection, focus, and switch state; primary buttons use ink/paper inversion;
+  status pills became dot + quiet text; tone and soft shadows replace border-on-everything.
+- Left navigation became a source list; provider cards became borderless inset groups with
+  internal hairlines; checkboxes became switches; body type is 14px Segoe UI Variable; monospace
+  is Cascadia Mono.
+- The roles editor moved out of the Profile drawer, which now holds settings, snapshot, OAuth, and
+  raw YAML only.
+
+### Fixed
+
+- The "new provider" dropdown menu closes on outside click and Escape (previously it stayed open).
+
+### Known Limitations
+
+- The theme follows the OS with no in-app light/dark toggle yet; Mica requires Windows 11 22H2+.
+- The binaries remain unsigned; winget and Chocolatey submissions remain pending.
+
 ## 0.3.1 - 2026-08-20
 
 ### Added

@@ -9,11 +9,13 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.3.1` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> `v0.3.2` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
 > binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
 > build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
 ![OMP Switch provider workspace](docs/images/provider-workspace.png)
+
+![Roles page, dark theme](docs/images/roles-dark.png)
 
 ## Two artifacts
 
@@ -44,7 +46,7 @@ manifests are prepared but **not yet submitted** — see [docs/install.md](docs/
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.3.1 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.3.2 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
@@ -56,17 +58,44 @@ Every method, including checksum and provenance verification, is in
 
 ## Implemented
 
+**Configuration editing**
+
 - OMP `16.x` / `17.x` writable; unknown future majors read-only.
 - Default and named profiles, `models.yml` / `config.yml`, legacy `models.json` migration guard, and
   OMP's own path overrides (`PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, `PI_CODING_AGENT_DIR`).
-- Provider / model / roles / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking
+- Provider / model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking
   settings.
 - YAML AST patching, external-edit protection, atomic writes, snapshots and guarded restore.
 - 54 versioned presets; OpenAI, Ollama, llama.cpp, LM Studio, proxy and LiteLLM discovery.
-- Prompts, skills and session indexing with on-demand raw reads.
+
+**Model roles**
+
+- A dedicated Roles page: each role shows a one-line gloss, its resolved selector chain
+  (`@default → provider/model`), capability chips, and in-place warnings for `@role` cycles,
+  unparseable selectors, and `:off`/`:auto` misuse. Custom roles from `config.yml` are listed and
+  editable instead of invisible.
+- A searchable model picker: provider-grouped results with instant filtering, pinned
+  `@default`/`*`/clear values, a segmented thinking-level control (only the six levels OMP accepts
+  as a role suffix), full keyboard navigation — shared with gateway upstream rows.
+- Quick-assign from any model row: one click assigns a provider/model to a role, preserving that
+  role's thinking suffix.
+
+**Other modules**
+
+- Prompts, skills, and session indexing with on-demand raw reads; a usage dashboard (spend,
+  requests, tokens, per-day trend, per-model/per-provider breakdowns, cost labelled by provenance).
 - Loopback gateway: `/healthz`, `/v1/models`, chat, responses, pre-stream failover, mandatory bearer
   token, `Host` validation and cross-origin refusal.
 - Windows DPAPI secret bridge, OMP OAuth status/login entry points, stable JSON CLI.
+
+**Interface**
+
+- A "Quiet Instrument" visual language: untinted zinc neutrals, teal reserved as a signal color for
+  selection and focus, ink/paper inversion for primary actions, status as a dot plus quiet text.
+- A dark theme that follows the OS, and a Mica window material on Windows 11 22H2+ (everything else
+  falls back to solid surfaces automatically).
+- Context-scoped saves (roles and settings commit independently) with pending-change dots and
+  `Ctrl+S`; switching profiles confirms before discarding unsaved edits.
 
 ## Security boundaries
 
@@ -124,6 +153,7 @@ it was loaded, the app stops and asks for a reload instead of overwriting it.
 - [docs/install.md](docs/install.md) — every install method and the platform limits
 - [docs/security.md](docs/security.md) — threat model and credential handling
 - [docs/releasing.md](docs/releasing.md) — release process
+- [CHANGELOG.md](CHANGELOG.md) — version history
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 
 ## License
