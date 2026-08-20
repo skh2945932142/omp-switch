@@ -180,12 +180,16 @@ async function loadGatewayToken(): Promise<string> {
 }
 
 async function createWindow(): Promise<void> {
+  // Mica (Win11 22H2+) is the Windows parallel of Apple's sidebar vibrancy: the desktop
+  // material shows through the chrome while panels stay opaque. An opaque backgroundColor
+  // would paint over it, so the two options are mutually exclusive.
+  const micaSupported = process.platform === "win32" && Number.parseInt(os.release().split(".")[2] ?? "0", 10) >= 22621;
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1080,
     minHeight: 680,
-    backgroundColor: "#f3f6f4",
+    ...(micaSupported ? { backgroundMaterial: "mica" as const } : { backgroundColor: "#fafafa" }),
     title: "OMP Switch",
     webPreferences: {
       preload: path.join(currentDir, "../preload/preload.cjs"),
@@ -198,6 +202,11 @@ async function createWindow(): Promise<void> {
   // cannot win a race during startup.
   mainWindow.webContents.on("will-navigate", blockRendererNavigation);
   mainWindow.webContents.setWindowOpenHandler(denyRendererWindowOpen);
+  // The renderer opts into transparent chrome via this class; without it (older Windows,
+  // browser preview) every surface stays solid and Mica never enters the picture.
+  if (micaSupported) mainWindow.webContents.once("did-finish-load", () => {
+    mainWindow?.webContents.executeJavaScript('document.documentElement.classList.add("mica")', true).catch(() => undefined);
+  });
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (mayUseDevRenderer(app.isPackaged, rendererUrl)) await mainWindow.loadURL(rendererUrl as string);
   else await mainWindow.loadFile(path.join(currentDir, "../renderer/index.html"));

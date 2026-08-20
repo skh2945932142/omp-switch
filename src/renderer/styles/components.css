@@ -1,0 +1,219 @@
+/*
+ * Shared components: Radix popover/dropdown surfaces, ModelPicker (A2), quick-assign (A3),
+ * roles spec sheet (B2), Sonner toasts. Menus highlight with the signal tint because a
+ * highlighted menu item is a selection state.
+ */
+
+/* ---- Radix surfaces ---- */
+
+.mp-popover, .dd-menu {
+  z-index: 20;
+  min-width: 220px;
+  padding: 5px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-m);
+  background: var(--panel);
+  box-shadow: var(--shadow-float);
+}
+.mp-popover[data-state="open"], .dd-menu[data-state="open"] { animation: surface-in 110ms ease; }
+@keyframes surface-in { from { opacity: 0; transform: translateY(-3px); } }
+
+.dd-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-small);
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+}
+.dd-item[data-highlighted] { background: var(--signal-soft); color: var(--ink); }
+.dd-item.danger[data-highlighted] { background: var(--danger-soft); color: var(--danger); }
+.dd-separator { height: 1px; margin: 5px 6px; background: var(--hairline); }
+.dd-label { padding: 5px 10px 3px; color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.dd-check { display: inline-grid; place-items: center; width: 14px; color: var(--signal); }
+
+/* The gateway upstream grid packs rows tighter than the default trigger height. */
+.upstream-row .mp-trigger { min-height: 30px; }
+
+/* ---- ModelPicker (A2) ---- */
+
+.mp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--sunken);
+  text-align: left;
+  font-size: var(--fs-small);
+}
+.mp-trigger:hover { border-color: var(--line); }
+.mp-trigger[data-state="open"] { border-color: var(--signal); background: var(--panel); box-shadow: 0 0 0 3px var(--signal-soft); }
+.mp-trigger .mp-plain { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-trigger .mp-placeholder { color: var(--muted); }
+.mp-trigger > .chevron { margin-left: auto; flex: 0 0 auto; color: var(--muted); }
+
+/* Provider and level are information, not state — neutral chips, never the signal. */
+.mp-provider-chip {
+  flex: 0 0 auto;
+  max-width: 110px;
+  overflow: hidden;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--ink-soft);
+  background: var(--selected);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-level-chip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--ink-soft);
+  background: var(--selected);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+
+.mp-popover { width: min(380px, 92vw); padding: 0; }
+.mp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--muted);
+}
+.mp-search input { width: 100%; min-width: 0; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: var(--fs-small); }
+.mp-special { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 9px 10px 7px; border-bottom: 1px solid var(--hairline); }
+.mp-special button {
+  min-height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+.mp-special button:hover { background: var(--hover); border-color: var(--line); }
+.mp-special button[data-active="true"] { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
+.mp-list { max-height: 300px; overflow-y: auto; padding: 5px 5px 6px; }
+.mp-group-title { display: flex; align-items: center; gap: 6px; padding: 8px 7px 3px; color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.mp-group-title small { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0; text-transform: none; }
+.mp-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+.mp-option[data-active="true"] { background: var(--selected); }
+.mp-option-main { display: grid; gap: 2px; min-width: 0; }
+.mp-option-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small); font-weight: 600; }
+.mp-option-main small { overflow: hidden; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.mp-option-side { display: flex; align-items: center; gap: 4px; }
+.mp-empty { padding: 18px 10px; color: var(--muted); font-size: var(--fs-small); text-align: center; }
+
+/* Thinking level = segmented control, not a row of pills. */
+.mp-level {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--hairline);
+}
+.mp-level-label { margin-right: 3px; color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.04em; }
+.mp-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--sunken); }
+.mp-seg button {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+.mp-seg button:hover { color: var(--ink); }
+.mp-seg button[data-active="true"] { color: var(--ink); background: var(--panel); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+
+/* ---- Quick-assign on model rows (A3) ---- */
+
+.qa-trigger {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.model-row:hover .qa-trigger, .model-row:focus-within .qa-trigger, .qa-trigger[data-state="open"], .qa-trigger:focus-visible { opacity: 1; }
+.qa-trigger:hover { background: var(--selected); color: var(--ink); }
+.qa-role-hint { color: var(--muted); font-size: var(--fs-micro); }
+
+/* ---- Roles spec sheet (B2) ---- */
+
+.roles-list { display: grid; gap: 10px; max-width: 880px; }
+.role-card { display: grid; grid-template-columns: 156px minmax(0, 1fr) minmax(230px, 300px); gap: 16px; align-items: center; padding: 15px 18px; border: 0; border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow-card); }
+.role-card.changed { box-shadow: var(--shadow-card), inset 3px 0 0 var(--signal); }
+.role-id { display: grid; gap: 3px; min-width: 0; }
+.role-id strong { font-family: var(--font-mono); font-size: var(--fs-strong); font-weight: 600; }
+.role-id small { color: var(--muted); font-size: var(--fs-micro); }
+.role-meta { display: grid; gap: 5px; min-width: 0; }
+.role-resolved { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-mono); }
+.role-resolved .arrow { color: var(--muted); }
+.role-resolved .final { color: var(--ink); font-family: var(--font-sans); font-weight: 600; font-size: var(--fs-small); }
+.role-warning { display: inline-flex; align-items: center; gap: 5px; color: var(--warn); font-family: var(--font-sans); font-size: var(--fs-micro); }
+.role-picker-cell { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .role-card { grid-template-columns: 136px minmax(0, 1fr); }
+  .role-picker-cell { grid-column: 1 / -1; }
+}
+
+/* ---- Sonner toasts: neutral surface, icon carries the tone ---- */
+
+[data-sonner-toaster] {
+  --normal-bg: var(--panel);
+  --normal-text: var(--ink);
+  --normal-border: var(--hairline);
+  --success-bg: var(--panel);
+  --success-text: var(--ink);
+  --success-border: var(--hairline);
+  --error-bg: var(--panel);
+  --error-text: var(--danger);
+  --error-border: var(--hairline);
+  --border-radius: 12px;
+}
+.toast-info { background: var(--panel) !important; border-color: var(--hairline) !important; color: var(--ink) !important; }

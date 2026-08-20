@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Toaster, toast } from "sonner";
 import {
   Activity,
   ArchiveRestore,
-  Check,
   ChevronDown,
   CircleAlert,
   CloudDownload,
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Trash2,
   RotateCcw,
+  Users,
   X,
 } from "lucide-react";
 import type {
@@ -35,11 +37,12 @@ import type {
   SettingsThinkingLevel,
   Snapshot,
 } from "@omp-switch/core";
-import { SETTINGS_THINKING_LEVELS } from "@omp-switch/core/validation";
+import { SETTINGS_THINKING_LEVELS, parseRoleSelector } from "@omp-switch/core/validation";
 import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
 import { UsageModule } from "./usage-module";
+import { KNOWN_ROLES, RolesModule } from "./roles-module";
+import { QuickAssign } from "./components/quick-assign";
 
-const ROLES = ["default", "smol", "slow", "vision", "plan", "designer", "commit", "tiny", "task", "advisor"];
 const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
   { label: "Custom OpenAI-compatible", id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions" },
   { label: "OpenAI", id: "openai", baseUrl: "https://api.openai.com/v1", api: "openai-responses" },
@@ -240,6 +243,13 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
         }
         config.settings.value.modelRoles = nextRoles;
       }
+      if (patch.settings) {
+        const settings = config.settings.value;
+        if (patch.settings.modelProviderOrder) settings.modelProviderOrder = patch.settings.modelProviderOrder;
+        if (patch.settings.enabledModels) settings.enabledModels = patch.settings.enabledModels;
+        if (patch.settings.disabledProviders) settings.disabledProviders = patch.settings.disabledProviders;
+        if (patch.settings.defaultThinkingLevel) settings.defaultThinkingLevel = patch.settings.defaultThinkingLevel;
+      }
       return { snapshot: { id: "demo-snapshot", profile: id, createdAt: new Date().toISOString(), modelsPath: config.models.path, settingsPath: config.settings.path }, config };
     },
     snapshot: async (id: string) => ({ id: "demo-snapshot", profile: id, createdAt: new Date().toISOString(), modelsPath: get(id).models.path, settingsPath: get(id).settings.path }),
@@ -307,6 +317,15 @@ function formatJson(value: unknown): string {
 
 function formatEnabledModelRules(value: Array<string | Record<string, unknown>> | undefined): string {
   return (value ?? []).map((item) => typeof item === "string" ? item : JSON.stringify(item)).join("\n");
+}
+
+/** Dirty-check baselines. Key order must not matter, so sort before comparing. */
+function rolesSignature(value: Record<string, string>): string {
+  return JSON.stringify(Object.keys(value).sort().map((key) => `${key}=${value[key] ?? ""}`));
+}
+
+function settingsSignature(order: string, enabled: string, disabled: string, level: SettingsThinkingLevel): string {
+  return JSON.stringify([order, enabled, disabled, level]);
 }
 
 /** Provider ids carry no slash, so a bare comma split is unambiguous here. */
@@ -398,19 +417,19 @@ export default function App() {
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [modelEntries, setModelEntries] = useState<ModelEditorEntry[]>([]);
   const [form, setForm] = useState<FormState>(blankForm);
   const [roles, setRoles] = useState<Record<string, string>>({});
+  const [savedRoles, setSavedRoles] = useState<Record<string, string>>({});
+  const [savedSettings, setSavedSettings] = useState("");
   const [authResult, setAuthResult] = useState<string>("");
-  const [section, setSection] = useState<"models" | "prompts" | "skills" | "sessions" | "usage" | "gateway">("models");
+  const [section, setSection] = useState<"models" | "roles" | "prompts" | "skills" | "sessions" | "usage" | "gateway">("models");
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [catalog, setCatalog] = useState<ProviderPreset[]>([]);
   const [providerOrder, setProviderOrder] = useState("");
@@ -425,21 +444,47 @@ export default function App() {
   const selectedModels = useMemo(() => providerModels(selectedProvider), [selectedProvider]);
   const errorDiagnostics = config?.diagnostics.filter((item) => item.severity === "error") ?? [];
   const readOnly = Boolean(readOnlyReason);
+  const providerIds = providers.map(([id]) => id);
+  const roleIds = useMemo(() => {
+    const extra = Object.keys(roles).filter((id) => !KNOWN_ROLES.some(([known]) => known === id)).map((id) => [id, ""] as [string, string]);
+    return [...KNOWN_ROLES.map(([id, label]) => [id, label] as [string, string]), ...extra];
+  }, [roles]);
+  const rolesDirty = useMemo(() => rolesSignature(roles) !== rolesSignature(savedRoles), [roles, savedRoles]);
+  const settingsDirty = settingsSignature(providerOrder, enabledModels, disabledProviders, defaultThinkingLevel) !== savedSettings;
+
+  const notify = useCallback((next: { tone: "success" | "error" | "info"; text: string }) => {
+    if (next.tone === "success") toast.success(next.text);
+    else if (next.tone === "error") toast.error(next.text, { duration: 8000 });
+    else toast.info(next.text);
+  }, []);
+
+  /** Single place that mirrors a freshly loaded config into editor state and resets dirty baselines. */
+  function applyConfig(next: EffectiveConfig): void {
+    const nextRoles = next.settings.value.modelRoles ?? {};
+    setConfig(next);
+    setRoles(nextRoles);
+    setSavedRoles(nextRoles);
+    setProviderOrder((next.settings.value.modelProviderOrder ?? []).join(", "));
+    setEnabledModels(formatEnabledModelRules(next.settings.value.enabledModels));
+    setDisabledProviders(formatEnabledModelRules(next.settings.value.disabledProviders));
+    setDefaultThinkingLevel(next.settings.value.defaultThinkingLevel ?? "auto");
+    setSavedSettings(settingsSignature(
+      (next.settings.value.modelProviderOrder ?? []).join(", "),
+      formatEnabledModelRules(next.settings.value.enabledModels),
+      formatEnabledModelRules(next.settings.value.disabledProviders),
+      next.settings.value.defaultThinkingLevel ?? "auto",
+    ));
+  }
 
   async function load(id: string): Promise<void> {
     setBusy(true);
     try {
       const next = await api.loadProfile(id);
-      setConfig(next);
-      setRoles(next.settings.value.modelRoles ?? {});
-      setProviderOrder((next.settings.value.modelProviderOrder ?? []).join(", "));
-      setEnabledModels(formatEnabledModelRules(next.settings.value.enabledModels));
-      setDisabledProviders(formatEnabledModelRules(next.settings.value.disabledProviders));
-      setDefaultThinkingLevel(next.settings.value.defaultThinkingLevel ?? "auto");
+      applyConfig(next);
       const first = Object.keys(next.models.value.providers)[0] ?? null;
       setSelectedProviderId((current) => (current && next.models.value.providers[current] ? current : first));
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -454,12 +499,22 @@ export default function App() {
     void api.listCatalog().then((items) => setCatalog(items as ProviderPreset[])).catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (rolesDirty || settingsDirty) void saveDirty();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
   function beginAdd(): void {
     setForm(blankForm());
     setModelEntries([]);
     setEditingProviderId(null);
     setAdvancedOpen(false);
-    setNewMenuOpen(false);
     setDrawerOpen(true);
     setFormOpen(true);
   }
@@ -492,11 +547,11 @@ export default function App() {
 
   async function saveProvider(): Promise<void> {
     if (readOnly) {
-      setNotice({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
+      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
       return;
     }
     if (!config || !form.id.trim() || !form.baseUrl.trim()) {
-      setNotice({ tone: "error", text: "Provider ID 和 Endpoint URL 都不能为空" });
+      notify({ tone: "error", text: "Provider ID 和 Endpoint URL 都不能为空" });
       return;
     }
     if (config.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
@@ -542,9 +597,9 @@ export default function App() {
       setSelectedProviderId(id);
       setFormOpen(false);
       setDrawerOpen(true);
-      setNotice({ tone: "success", text: `已保存 ${id}，快照 ${formatDate(result.snapshot.createdAt)}` });
+      notify({ tone: "success", text: `已保存 ${id}，快照 ${formatDate(result.snapshot.createdAt)}` });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -553,7 +608,7 @@ export default function App() {
   async function removeProvider(): Promise<void> {
     if (!config || !selectedProviderId) return;
     if (readOnly) {
-      setNotice({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
+      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
       return;
     }
     if (config.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
@@ -563,9 +618,9 @@ export default function App() {
       setConfig(result.config);
       setSelectedProviderId(Object.keys(result.config.models.value.providers)[0] ?? null);
       setFormOpen(false);
-      setNotice({ tone: "success", text: "供应商已移除，原配置已创建快照" });
+      notify({ tone: "success", text: "供应商已移除，原配置已创建快照" });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -585,9 +640,9 @@ export default function App() {
         contextWindow: 128000,
         maxTokens: 16384,
       })));
-      setNotice({ tone: "success", text: `发现 ${result.models.length} 个模型，耗时 ${result.durationMs}ms` });
+      notify({ tone: "success", text: `发现 ${result.models.length} 个模型，耗时 ${result.durationMs}ms` });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -595,14 +650,32 @@ export default function App() {
 
   async function saveRoles(): Promise<void> {
     if (readOnly) {
-      setNotice({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
+      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
+      return;
+    }
+    if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
+    setBusy(true);
+    try {
+      const result = await api.save(profileId, { roleAssignments: roles, confirmLegacyMigration: config?.models.legacy });
+      applyConfig(result.config);
+      setSnapshot(result.snapshot);
+      notify({ tone: "success", text: "角色映射已写入 config.yml" });
+    } catch (error) {
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveSettings(): Promise<void> {
+    if (readOnly) {
+      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
       return;
     }
     if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
     setBusy(true);
     try {
       const result = await api.save(profileId, {
-        roleAssignments: roles,
         settings: {
           modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
           enabledModels: parseEnabledModelRules(enabledModels),
@@ -611,14 +684,77 @@ export default function App() {
         },
         confirmLegacyMigration: config?.models.legacy,
       });
-      setConfig(result.config);
+      applyConfig(result.config);
       setSnapshot(result.snapshot);
-      setNotice({ tone: "success", text: "角色映射已写入 config.yml" });
+      notify({ tone: "success", text: "设置已写入 config.yml" });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
+  }
+
+  /** One commit when both areas are dirty, otherwise whichever is — this is what Ctrl+S runs. */
+  async function saveDirty(): Promise<void> {
+    if (readOnly || busy) return;
+    if (rolesDirty && settingsDirty) {
+      if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
+      setBusy(true);
+      try {
+        const result = await api.save(profileId, {
+          roleAssignments: roles,
+          settings: {
+            modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+            enabledModels: parseEnabledModelRules(enabledModels),
+            disabledProviders: parseDisabledProviderRules(disabledProviders),
+            defaultThinkingLevel,
+          },
+          confirmLegacyMigration: config?.models.legacy,
+        });
+        applyConfig(result.config);
+        setSnapshot(result.snapshot);
+        notify({ tone: "success", text: "角色与设置已写入 config.yml" });
+      } catch (error) {
+        notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (rolesDirty) await saveRoles();
+    else if (settingsDirty) await saveSettings();
+  }
+
+  /**
+   * Only switching profile actually loses edits (load() overwrites editor state); switching
+   * sections keeps them in memory, so no guard there — the confirm would be both naggy and wrong.
+   */
+  function confirmDiscard(): boolean {
+    if (!rolesDirty && !settingsDirty) return true;
+    return window.confirm("有未保存的角色或设置改动，切换 Profile 将丢失这些改动。仍要继续？");
+  }
+
+  /** Quick-assign keeps the role's existing thinking suffix and only swaps the provider/model. */
+  function assignModelToRole(roleId: string, providerId: string, modelId: string): void {
+    if (readOnly) {
+      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
+      return;
+    }
+    const existing = (roles[roleId] ?? "").trim();
+    const parsed = existing ? parseRoleSelector(existing, providerIds) : null;
+    const suffix = parsed?.thinking ? `:${parsed.thinking}` : "";
+    setRoles((current) => ({ ...current, [roleId]: `${providerId}/${modelId}${suffix}` }));
+    notify({ tone: "info", text: `已将 ${providerId}/${modelId} 设为 ${roleId} · 角色页保存后生效` });
+  }
+
+  /** "" (clear) removes the key entirely, matching how config.yml represents an unset role. */
+  function setRoleValue(role: string, value: string): void {
+    setRoles((current) => {
+      const next = { ...current };
+      if (value === "") delete next[role];
+      else next[role] = value;
+      return next;
+    });
   }
 
   async function createSnapshot(): Promise<void> {
@@ -626,9 +762,9 @@ export default function App() {
     try {
       const next = await api.snapshot(profileId);
       setSnapshot(next);
-      setNotice({ tone: "success", text: `已创建本机快照 ${formatDate(next.createdAt)}` });
+      notify({ tone: "success", text: `已创建本机快照 ${formatDate(next.createdAt)}` });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -638,13 +774,12 @@ export default function App() {
     setBusy(true);
     try {
       const result = await api.restoreLatest(profileId);
-      setConfig(result.config);
+      applyConfig(result.config);
       setSnapshot(result.snapshot);
-      setRoles(result.config.settings.value.modelRoles ?? {});
       setSelectedProviderId(Object.keys(result.config.models.value.providers)[0] ?? null);
-      setNotice({ tone: "success", text: "已恢复最近快照" });
+      notify({ tone: "success", text: "已恢复最近快照" });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
@@ -664,20 +799,20 @@ export default function App() {
 
   async function updateOmp(): Promise<void> {
     if (readOnly) {
-      setNotice({ tone: "error", text: readOnlyReason ?? "当前 OMP 为只读" });
+      notify({ tone: "error", text: readOnlyReason ?? "当前 OMP 为只读" });
       return;
     }
     setUpdatingOmp(true);
     try {
       const result = await api.updateOmp(profileId);
       if (!result.ok) {
-        setNotice({ tone: "error", text: result.output || "OMP 更新失败" });
+        notify({ tone: "error", text: result.output || "OMP 更新失败" });
         return;
       }
-      setNotice({ tone: "success", text: `OMP 已更新${result.installation?.version ? ` · ${result.installation.version}` : ""}` });
+      notify({ tone: "success", text: `OMP 已更新${result.installation?.version ? ` · ${result.installation.version}` : ""}` });
       await load(profileId);
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setUpdatingOmp(false);
     }
@@ -691,9 +826,9 @@ export default function App() {
       const bundle = JSON.parse(await file.text());
       const result = await api.importCatalog(bundle);
       setCatalog(result.entries);
-      setNotice({ tone: "success", text: `已导入 ${result.entries.length} 个预设` });
+      notify({ tone: "success", text: `已导入 ${result.entries.length} 个预设` });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -707,9 +842,9 @@ export default function App() {
       link.download = "omp-switch-catalog.json";
       link.click();
       URL.revokeObjectURL(url);
-      setNotice({ tone: "success", text: "目录已导出" });
+      notify({ tone: "success", text: "目录已导出" });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -728,7 +863,7 @@ export default function App() {
     return text.includes(query.trim().toLowerCase());
   });
   const healthLabel = readOnly ? "只读" : errorDiagnostics.length > 0 ? "有问题" : config?.models.exists ? "已连接" : "未配置";
-  const sectionLabels = { models: "模型", prompts: "提示", skills: "技能", sessions: "会话", usage: "用量", gateway: "网关" } as const;
+  const sectionLabels = { models: "模型", roles: "角色", prompts: "提示", skills: "技能", sessions: "会话", usage: "用量", gateway: "网关" } as const;
 
   return (
     <div className="app-shell">
@@ -748,7 +883,7 @@ export default function App() {
         <div className="topbar-actions">
           <button className="icon-button" title="刷新" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button>
           <button className="icon-button" title="创建快照" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button>
-          <button className="primary-button compact" onClick={() => void saveRoles()} disabled={busy || readOnly}><Save size={15} />保存</button>
+          <button className="primary-button compact" title="保存全部未保存改动 (Ctrl+S)" onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={15} />保存</button>
         </div>
       </header>
 
@@ -756,7 +891,7 @@ export default function App() {
         <aside className="left-rail">
           <div className="rail-profile">
             <span className="rail-label">PROFILE</span>
-            <select value={profileId} onChange={(event) => { setProfileId(event.target.value); void load(event.target.value); }} aria-label="选择 Profile">
+            <select value={profileId} onChange={(event) => { if (!confirmDiscard()) return; setProfileId(event.target.value); void load(event.target.value); }} aria-label="选择 Profile">
               {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
             </select>
             <span className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "读取中"}</span>
@@ -764,20 +899,20 @@ export default function App() {
           <nav className="section-nav" aria-label="模块">
             {(Object.keys(sectionLabels) as Array<keyof typeof sectionLabels>).map((item) => (
               <button key={item} className={section === item ? "active" : ""} onClick={() => { setSection(item); setFormOpen(false); setDrawerOpen(false); }}>
-                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : item === "usage" ? <Coins size={16} /> : <ShieldCheck size={16} />}</span>
+                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "roles" ? <Users size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : item === "usage" ? <Coins size={16} /> : <ShieldCheck size={16} />}</span>
                 <span>{sectionLabels[item]}</span>
                 {item === "models" ? <span className="nav-count">{providers.length}</span> : null}
+                {item === "roles" && rolesDirty ? <span className="nav-dot" title="有未保存的角色改动" /> : null}
               </button>
             ))}
           </nav>
           <div className="rail-footer">
             <button className="rail-action" onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}><CircleAlert size={15} />诊断<span>{errorDiagnostics.length}</span></button>
-            <button className="rail-action" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}><Settings2 size={15} />Profile</button>
+            <button className="rail-action" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}><Settings2 size={15} />Profile{settingsDirty ? <span className="nav-dot" title="设置有未保存改动" /> : null}</button>
           </div>
         </aside>
 
         <section className="workspace-main">
-          {notice ? <div className={`notice ${notice.tone}`}><span>{notice.tone === "success" ? <Check size={15} /> : <CircleAlert size={15} />}</span><span>{notice.text}</span><button className="icon-button subtle" title="关闭" onClick={() => setNotice(null)}><X size={14} /></button></div> : null}
           {section === "models" ? (
             <>
               <div className="workspace-heading">
@@ -785,8 +920,18 @@ export default function App() {
                 <div className="heading-actions">
                   <div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索" aria-label="搜索供应商和模型" /></div>
                   <div className="new-wrap">
-                    <button className="primary-button" onClick={() => setNewMenuOpen((value) => !value)} disabled={readOnly}><Plus size={16} />新增</button>
-                    {newMenuOpen ? <div className="new-menu"><button onClick={beginAdd}>自定义</button><button onClick={() => { beginAdd(); setNotice({ tone: "info", text: "选择一个预设" }); }}>预设</button><button onClick={() => catalogInput.current?.click()}>导入目录</button></div> : null}
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <button className="primary-button" disabled={readOnly}><Plus size={16} />新增</button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content className="dd-menu" align="end" sideOffset={6} collisionPadding={10}>
+                          <DropdownMenu.Item className="dd-item" onSelect={() => beginAdd()}>自定义</DropdownMenu.Item>
+                          <DropdownMenu.Item className="dd-item" onSelect={() => { beginAdd(); notify({ tone: "info", text: "在表单顶部的「预设」中选择" }); }}>预设</DropdownMenu.Item>
+                          <DropdownMenu.Item className="dd-item" onSelect={() => catalogInput.current?.click()}>导入目录</DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                     <input ref={catalogInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void importCatalogFile(event)} />
                   </div>
                 </div>
@@ -808,32 +953,41 @@ export default function App() {
                       {expanded ? <ChevronDown size={16} /> : <ChevronDown size={16} className="rotate-closed" />}
                     </button>
                     {expanded ? <div className="model-list">
-                      {models.map((model) => <button className="model-row" key={model.id} onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); }}>
+                      {models.map((model) => <div
+                        className="model-row"
+                        key={model.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); }}
+                        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedProviderId(id); setDrawerOpen(true); } }}
+                      >
                         <span className="model-name"><strong>{model.name ?? model.id}</strong><small>{model.id}</small></span>
                         <span className="model-api">{model.api ?? provider.api ?? "—"}</span>
                         <span className="model-context">{typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}</span>
-                        <span className="capabilities"><span className={model.reasoning ? "capability on" : "capability"}>{model.reasoning ? "思考" : "标准"}</span><span className="capability">{model.input?.includes("image") ? "视觉" : "文本"}</span></span>
-                      </button>)}
+                        <span className="capabilities"><span className={model.reasoning ? "capability on" : "capability"}>{model.reasoning ? "思考" : "标准" }</span><span className="capability">{model.input?.includes("image") ? "视觉" : "文本"}</span></span>
+                        <QuickAssign roles={roleIds} assignments={roles} providerId={id} modelId={model.id ?? ""} providerIds={providerIds} onAssign={(roleId) => assignModelToRole(roleId, id, model.id ?? "")} onOpenRoles={() => { setSection("roles"); setFormOpen(false); setDrawerOpen(false); }} />
+                      </div>)}
                       {models.length === 0 ? <div className="model-empty">暂无模型 · 打开抽屉发现</div> : null}
                     </div> : null}
                   </article>;
                 })}
               </div>
             </>
-          ) : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={setNotice} />
-            : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={setNotice} />
-              : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={setNotice} />
-              : section === "usage" ? <UsageModule api={api} profileId={profileId} onNotice={setNotice} />
-                : <GatewayModule api={api} profileId={profileId} readOnly={readOnly} onNotice={setNotice} providers={providers} />}
+          ) : section === "roles" ? <RolesModule providers={providers} roleIds={roleIds} roles={roles} baseline={savedRoles} readOnly={readOnly} busy={busy} onRoleChange={setRoleValue} onSave={() => void saveDirty()} />
+            : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={notify} />
+            : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={notify} />
+              : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={notify} />
+              : section === "usage" ? <UsageModule api={api} profileId={profileId} onNotice={notify} />
+                : <GatewayModule api={api} profileId={profileId} readOnly={readOnly} onNotice={notify} providers={providers} />}
         </section>
 
         {(drawerOpen || formOpen || profileDrawerOpen || diagnosticsOpen) ? <aside className="detail-drawer">
           <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? "PROFILE" : diagnosticsOpen ? "DIAGNOSTICS" : formOpen ? (editingProviderId ? "编辑" : "新增") : "PROVIDER"}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? "诊断" : formOpen ? (editingProviderId ?? "新供应商") : selectedProviderId ?? "详情"}</h2></div><button className="icon-button" title="关闭" onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
 
           {profileDrawerOpen ? <div className="drawer-body">
-            <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><span className="status-chip neutral">{Object.keys(roles).length}/10</span></div>{ROLES.map((role) => <label className="role-row compact" key={role}><span>{role}</span><input value={roles[role] ?? ""} placeholder={role === "default" ? "provider/model" : "@default"} onChange={(event) => setRoles((current) => ({ ...current, [role]: event.target.value }))} /></label>)}</div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span><Settings2 size={15} /></div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><select value={defaultThinkingLevel} onChange={(event) => setDefaultThinkingLevel(event.target.value as SettingsThinkingLevel)}>{SETTINGS_THINKING_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label><button className="primary-button full-width" onClick={() => void saveRoles()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={setNotice} /></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><select value={defaultThinkingLevel} onChange={(event) => setDefaultThinkingLevel(event.target.value as SettingsThinkingLevel)}>{SETTINGS_THINKING_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建</button><button className="secondary-button" onClick={() => void restoreLatest()} disabled={busy}><RotateCcw size={15} />恢复</button></div><span className="muted-line">{snapshot ? formatDate(snapshot.createdAt) : "写入前自动创建"}</span></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div>
@@ -857,6 +1011,7 @@ export default function App() {
           {!profileDrawerOpen && !diagnosticsOpen && !formOpen && selectedProvider ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>连接</span><span className="status-chip ok">{selectedProvider.auth === "none" ? "无需密钥" : selectedProvider.apiKey ? "已配置" : "未配置"}</span></div><div className="detail-grid"><span>API</span><strong>{selectedProvider.api ?? "custom"}</strong><span>Endpoint</span><strong className="mono break">{selectedProvider.baseUrl ?? "—"}</strong><span>Auth</span><strong>{selectedProvider.auth ?? "apiKey"}</strong></div><div className="drawer-actions"><button className="primary-button" onClick={() => editProvider(selectedProviderId!)}><Sparkles size={15} />编辑</button><button className="icon-button danger" title="删除供应商" onClick={() => void removeProvider()} disabled={busy || readOnly}><Trash2 size={15} /></button></div></div><div className="drawer-section"><div className="drawer-section-title"><span>模型</span><span className="status-chip neutral">{selectedModels.length}</span></div>{selectedModels.map((model) => <div className="mini-model" key={model.id}><strong>{model.name ?? model.id}</strong><span>{model.id}</span></div>)}</div></div> : null}
         </aside> : null}
       </main>
+      <Toaster position="bottom-right" theme="system" closeButton toastOptions={{ classNames: { info: "toast-info" } }} />
     </div>
   );
 }

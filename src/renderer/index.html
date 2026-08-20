@@ -3,9 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f3f6f4" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafafa" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101013" />
     <link rel="icon" href="data:," />
     <title>OMP Switch</title>
+    <style>
+      /* Pre-paint background so a dark OS theme never flashes white before the bundle loads. */
+      html { background: #fafafa; }
+      @media (prefers-color-scheme: dark) { html { background: #101013; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>

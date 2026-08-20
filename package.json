@@ -1,6 +1,6 @@
 {
   "name": "omp-switch",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "A focused desktop companion for managing Oh My Pi model providers.",
   "author": "OMP Switch contributors",
@@ -48,9 +48,12 @@
     "packages/*"
   ],
   "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@radix-ui/react-popover": "^1.1.23",
     "lucide-react": "^0.511.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "sonner": "^2.0.8",
     "yaml": "^2.8.0",
     "zod": "^4.4.3"
   },

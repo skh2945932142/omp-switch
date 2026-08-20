@@ -1,0 +1,133 @@
+/*
+ * Design tokens — "Quiet Instrument".
+ *
+ * Untinted zinc neutrals carry the chrome. Teal (--signal) is reserved for selection,
+ * focus, and links — never buttons, chips, or icons. Primary actions use ink/paper
+ * inversion. State is a colored dot plus quiet text, not a filled pill.
+ *
+ * Light on :root, dark via prefers-color-scheme. A hex outside this file is a bug.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular", monospace;
+
+  /* Type scale. Body is 14px; micro is reserved for eyebrows, chips, and mono captions. */
+  --fs-micro: 11px;
+  --fs-small: 13px;
+  --fs-body: 14px;
+  --fs-strong: 15px;
+  --fs-title: 16px;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+
+  /* Surfaces */
+  --paper: #fafafa;
+  --panel: #ffffff;
+  --sunken: #f4f4f5;
+  --hover: #f4f4f5;
+  --selected: #ededf0;
+  --rail: #f6f6f7;
+  --topbar: rgba(250, 250, 250, 0.85);
+  --veil: rgba(255, 255, 255, 0.6);
+
+  /* Ink */
+  --ink: #18181b;
+  --ink-soft: #3f3f46;
+  --muted: #71717a;
+
+  /* Lines. Hairlines live inside lists; an outer border is rare and uses --line. */
+  --hairline: #e4e4e7;
+  --line: #d4d4d8;
+
+  /* Signal: selection, focus, links. Nothing else. */
+  --signal: #0f766e;
+  --signal-soft: rgba(15, 118, 110, 0.1);
+
+  /* Primary action = ink/paper inversion. */
+  --invert-bg: #18181b;
+  --invert-bg-hover: #2c2c31;
+  --invert-ink: #fafafa;
+
+  /* Semantic state, used as dots and quiet text. */
+  --ok: #16a34a;
+  --danger: #dc2626;
+  --warn: #c77d10;
+  --ok-soft: rgba(22, 163, 74, 0.1);
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --warn-soft: rgba(199, 125, 16, 0.12);
+
+  /* Usage trend */
+  --trend-top: #4c8f6b;
+  --trend-bottom: #2f6b4c;
+
+  /* Elevation: separation comes from tone plus these, not from borders. */
+  --shadow-card: 0 1px 2px rgba(24, 24, 27, 0.05);
+  --shadow-float: 0 8px 30px rgba(24, 24, 27, 0.12), 0 1px 3px rgba(24, 24, 27, 0.06);
+  --shadow-lift: -8px 0 30px rgba(24, 24, 27, 0.07);
+  --shadow-overlay: -14px 0 40px rgba(24, 24, 27, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #101013;
+    --panel: #1a1a1e;
+    --sunken: #222227;
+    --hover: #242429;
+    --selected: #2b2b32;
+    --rail: #141417;
+    --topbar: rgba(16, 16, 19, 0.85);
+    --veil: rgba(26, 26, 30, 0.6);
+
+    --ink: #f4f4f5;
+    --ink-soft: #d4d4d8;
+    --muted: #96969e;
+
+    --hairline: #2a2a30;
+    --line: #3a3a41;
+
+    --signal: #43b8aa;
+    --signal-soft: rgba(67, 184, 170, 0.14);
+
+    --invert-bg: #fafafa;
+    --invert-bg-hover: #d4d4d8;
+    --invert-ink: #18181b;
+
+    --ok: #35b871;
+    --danger: #ee6f62;
+    --warn: #dda23c;
+    --ok-soft: rgba(53, 184, 113, 0.12);
+    --danger-soft: rgba(238, 111, 98, 0.12);
+    --warn-soft: rgba(221, 162, 60, 0.14);
+
+    --trend-top: #4f9d74;
+    --trend-bottom: #37775a;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 8px 30px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-lift: -8px 0 30px rgba(0, 0, 0, 0.35);
+    --shadow-overlay: -14px 0 40px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/*
+ * Mica experiment (Windows 11 22H2+). electron/main.ts sets backgroundMaterial and adds
+ * `mica` to <html> once the window finishes loading. Chrome regions go transparent so the
+ * desktop material shows through; panels stay opaque for readability. Without the class
+ * (older Windows, browser preview) everything renders solid and nothing changes.
+ */
+:root.mica { background: transparent; }
+:root.mica body,
+:root.mica .app-shell { background: transparent; }
+:root.mica .workspace-main { background: transparent; }
+:root.mica .topbar { background: rgba(250, 250, 250, 0.72); }
+:root.mica .left-rail { background: rgba(255, 255, 255, 0.42); }
+@media (prefers-color-scheme: dark) {
+  :root.mica .topbar { background: rgba(16, 16, 19, 0.72); }
+  :root.mica .left-rail { background: rgba(20, 20, 23, 0.48); }
+}
