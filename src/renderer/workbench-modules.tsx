@@ -24,7 +24,9 @@ import type {
   GatewayUpstreamStat,
   ManagedSurfaceEntry,
   OmpProvider,
-  SessionIndexEntry,
+  SessionMessagePreview,
+  SessionSummary,
+  SessionRefreshStats,
   SurfaceBundle,
 } from "@omp-switch/core";
 
@@ -199,54 +201,135 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
 }
 
 export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "readOnly">): ReactElement {
-  const [entries, setEntries] = useState<SessionIndexEntry[]>([]);
-  const [selected, setSelected] = useState<SessionIndexEntry | null>(null);
-  const [raw, setRaw] = useState("");
+  const [entries, setEntries] = useState<SessionSummary[]>([]);
+  const [listCursor, setListCursor] = useState<string | undefined>();
+  const [selected, setSelected] = useState<SessionSummary | null>(null);
+  const [messages, setMessages] = useState<SessionMessagePreview[]>([]);
+  const [messageCursor, setMessageCursor] = useState<string | undefined>();
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [invalidLines, setInvalidLines] = useState(0);
+  const [refreshStats, setRefreshStats] = useState<SessionRefreshStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const requestSequence = useRef(0);
 
-  async function refresh(): Promise<void> {
+  function isCurrent(sequence: number): boolean {
+    return sequence === requestSequence.current;
+  }
+
+  async function refresh(rebuild = false): Promise<void> {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     try {
-      const result = await api.indexSessions(profileId);
+      const cached = await api.listSessions(profileId);
+      if (!isCurrent(sequence)) return;
+      setEntries(cached.sessions);
+      setListCursor(cached.nextCursor);
+      const result = await api.refreshSessions(profileId, { rebuild });
+      if (!isCurrent(sequence)) return;
+      setRefreshStats(result);
       setInvalidLines(result.invalidLines);
-      setEntries(await api.listSessions(profileId));
-      setSelected(null);
-      setRaw("");
+      const updated = await api.listSessions(profileId);
+      if (!isCurrent(sequence)) return;
+      setEntries(updated.sessions);
+      setListCursor(updated.nextCursor);
+      if (!rebuild && result.phase === "quick") {
+        const complete = await api.refreshSessions(profileId);
+        if (!isCurrent(sequence)) return;
+        setRefreshStats(complete);
+        setInvalidLines(complete.invalidLines);
+        const finalPage = await api.listSessions(profileId);
+        if (!isCurrent(sequence)) return;
+        setEntries(finalPage.sessions);
+        setListCursor(finalPage.nextCursor);
+      }
     } catch (error) {
+      if (!isCurrent(sequence)) return;
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
-      setLoading(false);
+      if (isCurrent(sequence)) setLoading(false);
     }
   }
 
-  useEffect(() => { void refresh(); }, [profileId]);
+  async function loadMoreSessions(): Promise<void> {
+    if (!listCursor || loading) return;
+    const sequence = requestSequence.current;
+    setLoading(true);
+    try {
+      const page = await api.listSessions(profileId, { cursor: listCursor });
+      if (!isCurrent(sequence)) return;
+      setEntries((current) => [...current, ...page.sessions]);
+      setListCursor(page.nextCursor);
+    } catch (error) {
+      if (!isCurrent(sequence)) return;
+      onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      if (isCurrent(sequence)) setLoading(false);
+    }
+  }
 
-  async function openEntry(entry: SessionIndexEntry): Promise<void> {
+  useEffect(() => {
+    requestSequence.current += 1;
+    setSelected(null);
+    setMessages([]);
+    setMessageCursor(undefined);
+    setHasMoreMessages(false);
+    void refresh();
+  }, [profileId]);
+
+  async function openEntry(entry: SessionSummary): Promise<void> {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     try {
       setSelected(entry);
-      setRaw(await api.readSession(profileId, entry.sourceKey ?? entry.id));
+      setMessages([]);
+      setMessageCursor(undefined);
+      setHasMoreMessages(false);
+      const page = await api.readSessionMessages(profileId, entry.id);
+      if (!isCurrent(sequence)) return;
+      setMessages(page.messages);
+      setMessageCursor(page.nextCursor);
+      setHasMoreMessages(page.hasMore);
     } catch (error) {
+      if (!isCurrent(sequence)) return;
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
-      setLoading(false);
+      if (isCurrent(sequence)) setLoading(false);
+    }
+  }
+
+  async function loadEarlier(): Promise<void> {
+    if (!selected || !messageCursor) return;
+    const sequence = requestSequence.current;
+    const selectedId = selected.id;
+    setLoading(true);
+    try {
+      const page = await api.readSessionMessages(profileId, selectedId, { cursor: messageCursor });
+      if (!isCurrent(sequence) || selected?.id !== selectedId) return;
+      setMessages((current) => [...current, ...page.messages]);
+      setMessageCursor(page.nextCursor);
+      setHasMoreMessages(page.hasMore);
+    } catch (error) {
+      if (!isCurrent(sequence)) return;
+      onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      if (isCurrent(sequence)) setLoading(false);
     }
   }
 
   const summary = useMemo(() => entries.reduce((result, entry) => {
-    for (const [key, value] of Object.entries(entry.usage ?? {})) result.tokens[key] = (result.tokens[key] ?? 0) + value;
-    result.cost += entry.cost ?? 0;
-    if (/error|fail|abort|cancel/i.test(entry.status ?? "")) result.failures += 1;
+    for (const [key, value] of Object.entries(entry.tokens)) result.tokens[key] = (result.tokens[key] ?? 0) + value;
+    result.cost += entry.cost;
+    result.failures += entry.failures;
     return result;
   }, { tokens: {} as Record<string, number>, cost: 0, failures: 0 }), [entries]);
 
   return <section className="module-view module-shell">
-    <ModuleHeading title="会话" count={entries.length}><button className="icon-button" title="重新索引" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button></ModuleHeading>
-    <div className="metric-strip"><span><strong>{entries.length}</strong>事件</span><span><strong>{Object.values(summary.tokens).reduce((a, b) => a + b, 0).toLocaleString()}</strong>tokens</span><span><strong>${summary.cost.toFixed(4)}</strong>成本</span><span className={summary.failures ? "metric-danger" : ""}><strong>{summary.failures}</strong>失败</span>{invalidLines ? <span className="metric-warning"><strong>{invalidLines}</strong>无效行</span> : null}</div>
+    <ModuleHeading title="会话" count={entries.length}><button className="icon-button" title="刷新索引" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><button className="secondary-button" onClick={() => void refresh(true)} disabled={loading}>重建索引</button></ModuleHeading>
+    <div className="metric-strip"><span><strong>{entries.length}</strong>会话</span><span><strong>{Object.values(summary.tokens).reduce((a, b) => a + b, 0).toLocaleString()}</strong>tokens</span><span><strong>${summary.cost.toFixed(4)}</strong>成本</span><span className={summary.failures ? "metric-danger" : ""}><strong>{summary.failures}</strong>失败</span>{invalidLines ? <span className="metric-warning"><strong>{invalidLines}</strong>无效行</span> : null}{refreshStats?.errors ? <span className="metric-warning"><strong>{refreshStats.errors}</strong>文件异常</span> : null}</div>
+    {refreshStats ? <span className="muted-line">识别 {refreshStats.discovered} · 跳过 {refreshStats.skipped} · 复用 {refreshStats.reused} · 变化 {refreshStats.changed} · 重建 {refreshStats.rebuilt} · 扫描 {formatBytes(refreshStats.scannedBytes)}{refreshStats.diagnostics?.[0] ? ` · ${refreshStats.diagnostics[0].message}` : ""}</span> : null}
     <div className="module-columns sessions-columns">
-      <div className="module-list-panel session-list">{entries.length === 0 ? <div className="module-empty compact-empty"><Archive size={22} /><strong>暂无会话索引</strong><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />扫描</button></div> : entries.map((entry) => <button key={entry.sourceKey ?? entry.id} className={`module-list-row session-row ${selected?.sourceKey === entry.sourceKey ? "active" : ""}`} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.model ?? "未知模型"}</strong><small>{entry.provider ?? "—"} · {formatDate(entry.startedAt)}</small></span><span className={`status-chip ${/error|fail|abort|cancel/i.test(entry.status ?? "") ? "danger" : "neutral"}`}>{/error|fail|abort|cancel/i.test(entry.status ?? "") ? "失败" : "敏感"}</span></button>)}</div>
-      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">敏感</span><strong>{selected.model ?? "会话事件"}</strong></div><span className="muted-line">{formatBytes(selected.length)} · {formatDate(selected.startedAt)}</span></div><pre className="raw-view">{raw || "读取中"}</pre></> : <div className="module-empty compact-empty"><CircleAlert size={22} /><strong>选择一条事件</strong><span>原文按需读取，不写入元数据</span></div>}</div>
+      <div className="module-list-panel session-list">{entries.length === 0 ? <div className="module-empty compact-empty"><Archive size={22} /><strong>{refreshStats?.rootMissing ? "会话目录不存在" : refreshStats?.phase === "quick" ? "正在建立初始索引" : refreshStats?.errors ? "部分文件无法读取" : "暂无可识别主会话"}</strong><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />扫描</button></div> : <>{entries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? "未命名会话"}</strong><small>{entry.provider ?? "—"} · {formatDate(entry.lastActiveAt ?? entry.startedAt)} · {entry.messageCount} 条消息</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? "缓存过期" : entry.failures ? entry.failures + " 失败" : "已索引"}</span></button>)}{listCursor ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>加载更多会话</button> : null}</>}</div>
+      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">SESSION</span><strong>{selected.title ?? selected.model ?? "会话"}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDate(selected.lastActiveAt ?? selected.startedAt)}</span></div>{hasMoreMessages ? <button className="secondary-button" onClick={() => void loadEarlier()} disabled={loading}>加载更早消息</button> : null}<pre className="raw-view">{messages.length ? messages.map((message) => message.role + ": " + message.text).join("\n\n") : "读取中"}</pre></> : <div className="module-empty compact-empty"><CircleAlert size={22} /><strong>选择一个会话</strong><span>消息按需分页读取，不写入索引缓存</span></div>}</div>
     </div>
   </section>;
 }

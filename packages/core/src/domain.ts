@@ -288,6 +288,10 @@ export interface ManagedSurfaceEntry {
   updatedAt?: string;
 }
 
+/**
+ * Legacy event-level index entry. Kept for migration/tests only; renderer APIs must use
+ * SessionSummary so absolute filesystem paths never cross the Electron boundary.
+ */
 export interface SessionIndexEntry {
   id: string;
   /** Stable local lookup key; keeps duplicate event IDs from different JSONL files distinct. */
@@ -302,6 +306,100 @@ export interface SessionIndexEntry {
   status?: string;
   usage?: Record<string, number>;
   cost?: number;
+}
+
+/** Aggregated, renderer-safe representation of one OMP session file. */
+export interface SessionSummary {
+  id: string;
+  profile: string;
+  title?: string;
+  startedAt?: string;
+  lastActiveAt?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+  messageCount: number;
+  requestCount: number;
+  failures: number;
+  tokens: Record<string, number>;
+  cost: number;
+  fileSize: number;
+  indexedAt?: string;
+  stale?: boolean;
+  indexStatus?: "ready" | "stale" | "partial" | "error";
+}
+
+/** Internal usage row retained per assistant request so usage reports remain exact. */
+export interface SessionUsageRecord {
+  id: string;
+  sessionId: string;
+  profile: string;
+  startedAt?: string;
+  firstAt?: string;
+  lastAt?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+  tokens: Record<string, number>;
+  cost?: number;
+  requestCount: number;
+  failures: number;
+  sourceKey?: string;
+}
+
+export interface SessionMessagePreview {
+  id: string;
+  role: string;
+  timestamp?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+  text: string;
+  truncated?: boolean;
+}
+
+export interface SessionMessagePage {
+  messages: SessionMessagePreview[];
+  nextCursor?: string;
+  hasMore: boolean;
+}
+
+/** Private cache shape: persisted by the main process, never passed to the renderer. */
+export interface SessionFileCache {
+  id: string;
+  profile: string;
+  relativePath: string;
+  fileSize: number;
+  mtimeMs: number;
+  headHash: string;
+  completeBytes: number;
+  invalidLines: number;
+  summary: SessionSummary;
+  usage: SessionUsageRecord[];
+}
+
+export interface SessionRefreshStats {
+  phase?: "quick" | "complete";
+  discovered: number;
+  skipped: number;
+  reused: number;
+  changed: number;
+  rebuilt: number;
+  scannedBytes: number;
+  invalidLines: number;
+  errors: number;
+  rootMissing?: boolean;
+  diagnostics?: Diagnostic[];
+}
+
+export interface SessionRefreshResult {
+  caches: SessionFileCache[];
+  stats: SessionRefreshStats;
+}
+
+export interface SessionListPage {
+  sessions: SessionSummary[];
+  nextCursor?: string;
 }
 
 export interface GatewayUpstream {

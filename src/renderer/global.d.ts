@@ -1,4 +1,4 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionIndexEntry, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
@@ -21,9 +21,9 @@ export interface OmpSwitchApi {
   deleteSurface(profileId: string, kind: "prompt" | "skill", name: string): Promise<void>;
   exportSurfaces(profileId: string): Promise<SurfaceBundle>;
   importSurfaces(profileId: string, bundle: SurfaceBundle): Promise<ManagedSurfaceEntry[]>;
-  indexSessions(profileId: string): Promise<{ entries: SessionIndexEntry[]; invalidLines: number }>;
-  listSessions(profileId: string): Promise<SessionIndexEntry[]>;
-  readSession(profileId: string, id: string): Promise<string>;
+  refreshSessions(profileId: string, options?: { rebuild?: boolean }): Promise<SessionRefreshStats>;
+  listSessions(profileId: string, options?: { limit?: number; cursor?: string }): Promise<SessionListPage>;
+  readSessionMessages(profileId: string, id: string, options?: { cursor?: string }): Promise<SessionMessagePage>;
   usageSummary(profileId?: string, options?: { from?: string; to?: string; reindex?: boolean }): Promise<{
     report: UsageReport;
     indexedEntries: number;
@@ -45,7 +45,6 @@ export interface OmpSwitchApi {
 
   authStatus(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
   authLogin(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
-  openFolder(folder: string): Promise<string>;
 }
 
 declare global {

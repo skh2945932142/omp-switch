@@ -1,4 +1,4 @@
-import type { ModelsDocument, SessionIndexEntry } from "./domain";
+import type { ModelsDocument, SessionIndexEntry, SessionUsageRecord } from "./domain";
 
 /**
  * Canonical token counters. These names are taken from what OMP actually writes to session JSONL
@@ -176,26 +176,51 @@ function emptyBucket(key: string): UsageBucket {
   return { key, requests: 0, failures: 0, tokens: emptyTokens(), recordedCost: 0, computedCost: 0, pricedRequests: 0 };
 }
 
-function addTo(bucket: UsageBucket, tokens: UsageTokens, recorded: number, computed: number | undefined, failed: boolean, at?: string): void {
-  bucket.requests += 1;
-  if (failed) bucket.failures += 1;
+function addTo(
+  bucket: UsageBucket,
+  tokens: UsageTokens,
+  recorded: number,
+  computed: number | undefined,
+  requests: number,
+  failures: number,
+  firstAt?: string,
+  lastAt?: string,
+): void {
+  bucket.requests += requests;
+  bucket.failures += failures;
   for (const key of Object.keys(tokens) as Array<keyof UsageTokens>) bucket.tokens[key] += tokens[key];
   bucket.recordedCost += recorded;
   if (computed !== undefined) {
     bucket.computedCost += computed;
-    bucket.pricedRequests += 1;
+    bucket.pricedRequests += requests;
   }
-  if (at) {
-    if (!bucket.firstAt || at < bucket.firstAt) bucket.firstAt = at;
-    if (!bucket.lastAt || at > bucket.lastAt) bucket.lastAt = at;
+  if (firstAt) {
+    if (!bucket.firstAt || firstAt < bucket.firstAt) bucket.firstAt = firstAt;
   }
+  if (lastAt) {
+    if (!bucket.lastAt || lastAt > bucket.lastAt) bucket.lastAt = lastAt;
+  }
+}
+
+export type UsageInput = SessionIndexEntry | SessionUsageRecord;
+
+function isSessionIndexEntry(entry: UsageInput): entry is SessionIndexEntry {
+  return "filePath" in entry;
+}
+
+/**
+ * The new session cache stores assistant usage privately as SessionUsageRecord. Keep the legacy
+ * event shape accepted during migration so old callers and tests do not lose their reports.
+ */
+export function summarizeUsage(entries: UsageInput[], options: SummarizeUsageOptions = {}): UsageReport {
+  return summarizeUsageInputs(entries, options);
 }
 
 /**
  * Aggregates indexed session entries. Only entries that actually carry tokens count as requests, so
  * the non-assistant events in a session file (tool results, mode changes) do not inflate the counts.
  */
-export function summarizeUsage(entries: SessionIndexEntry[], options: SummarizeUsageOptions = {}): UsageReport {
+function summarizeUsageInputs(entries: UsageInput[], options: SummarizeUsageOptions = {}): UsageReport {
   const pricing = options.pricing ?? {};
   const totals = emptyBucket("total");
   const byModel = new Map<string, UsageBucket>();
@@ -205,29 +230,41 @@ export function summarizeUsage(entries: SessionIndexEntry[], options: SummarizeU
   const seen = new Set<string>();
 
   for (const entry of entries) {
-    const dedupeKey = `${entry.filePath}:${entry.sourceKey ?? entry.id}`;
+    const legacy = isSessionIndexEntry(entry) ? entry : undefined;
+    const compressed = legacy ? undefined : (entry as SessionUsageRecord);
+    const dedupeKey = legacy
+      ? legacy.filePath + ":" + (legacy.sourceKey ?? legacy.id)
+      : compressed!.sessionId + ":" + (compressed!.sourceKey ?? compressed!.id);
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
 
-    const { tokens } = normalizeUsage(entry.usage);
+    const { tokens } = normalizeUsage(legacy?.usage ?? compressed?.tokens);
     if (tokens.total === 0) continue;
 
-    const day = entry.startedAt?.slice(0, 10);
+    const startedAt = legacy?.startedAt ?? compressed?.startedAt ?? compressed?.firstAt;
+    const model = legacy?.model ?? compressed?.model;
+    const provider = legacy?.provider ?? compressed?.provider;
+    const status = legacy?.status ?? compressed?.status;
+    const cost = legacy?.cost ?? compressed?.cost;
+    const requestCount = compressed?.requestCount ?? 1;
+    const failures = compressed?.failures ?? (FAILURE_STATUS.test(status ?? "") ? 1 : 0);
+    const firstAt = legacy?.startedAt ?? compressed?.firstAt ?? startedAt;
+    const lastAt = legacy?.startedAt ?? compressed?.lastAt ?? startedAt;
+    const day = startedAt?.slice(0, 10);
     if (options.from && (!day || day < options.from)) continue;
     if (options.to && (!day || day > options.to)) continue;
 
-    const price = findPrice(pricing, entry.provider, entry.model);
+    const price = findPrice(pricing, provider, model);
     const computed = computeCost(tokens, price);
-    const recorded = typeof entry.cost === "number" && Number.isFinite(entry.cost) ? entry.cost : 0;
-    const failed = FAILURE_STATUS.test(entry.status ?? "");
-    const modelKey = entry.provider && entry.model ? `${entry.provider}/${entry.model}` : entry.model ?? "unknown";
+    const recorded = typeof cost === "number" && Number.isFinite(cost) ? cost : 0;
+    const modelKey = provider && model ? provider + "/" + model : model ?? "unknown";
 
-    if (computed === undefined && entry.model) unpriced.add(modelKey);
+    if (computed === undefined && model) unpriced.add(modelKey);
 
-    addTo(totals, tokens, recorded, computed, failed, entry.startedAt);
-    for (const [map, key] of [[byModel, modelKey], [byProvider, entry.provider ?? "unknown"], [byDay, day ?? "unknown"]] as const) {
+    addTo(totals, tokens, recorded, computed, requestCount, failures, firstAt, lastAt);
+    for (const [map, key] of [[byModel, modelKey], [byProvider, provider ?? "unknown"], [byDay, day ?? "unknown"]] as const) {
       const bucket = map.get(key) ?? emptyBucket(key);
-      addTo(bucket, tokens, recorded, computed, failed, entry.startedAt);
+      addTo(bucket, tokens, recorded, computed, requestCount, failures, firstAt, lastAt);
       map.set(key, bucket);
     }
   }

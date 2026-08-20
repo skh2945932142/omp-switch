@@ -1,13 +1,14 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { GatewayPool, SessionIndexEntry, Snapshot } from "@omp-switch/core";
+import type { GatewayPool, SessionFileCache, SessionSummary, SessionUsageRecord, Snapshot } from "@omp-switch/core";
 
 interface MetadataState {
-  version: 2;
+  version: 3;
   providerLabels: Record<string, string>;
   snapshots: Array<Record<string, unknown>>;
   gatewayPools: GatewayPool[];
-  sessionIndex: SessionIndexEntry[];
+  sessionCaches: SessionFileCache[];
   preferences: Record<string, unknown>;
 }
 
@@ -18,29 +19,66 @@ type SqliteDb = {
 };
 
 export interface MetadataStoreOptions {
-  /**
-   * `auto` prefers `node:sqlite` and silently degrades to JSON when the builtin is unavailable.
-   * `json` forces the fallback, which is how the fallback branch gets exercised in tests — it is a
-   * whole second implementation of every method and would otherwise never run in CI.
-   */
   backend?: "auto" | "json";
 }
 
-/** Snapshot rows kept per profile, matching the adapter's on-disk retention. */
 const SNAPSHOT_RETENTION = 30;
+
+function emptyState(): MetadataState {
+  return { version: 3, providerLabels: {}, snapshots: [], gatewayPools: [], sessionCaches: [], preferences: {} };
+}
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function asStringRecord(value: unknown): Record<string, string> {
+  const record = asObject(value);
+  if (!record) return {};
+  return Object.fromEntries(Object.entries(record).filter((item): item is [string, string] => typeof item[1] === "string"));
+}
+
+type LegacySessionCache = SessionFileCache & { messageOffsets?: unknown };
+
+function stripLegacyCacheFields(cache: SessionFileCache): Omit<LegacySessionCache, "usage" | "messageOffsets"> & { usage: SessionUsageRecord[] } {
+  const { messageOffsets: _messageOffsets, ...clean } = cache as LegacySessionCache;
+  return clean;
+}
+
+function cachePayload(cache: SessionFileCache): Omit<SessionFileCache, "usage"> {
+  const { usage: _usage, ...payload } = stripLegacyCacheFields(cache);
+  return payload;
+}
+
+function cloneUsage(usage: SessionUsageRecord[]): SessionUsageRecord[] {
+  return usage.map((record) => ({ ...record, tokens: { ...record.tokens } }));
+}
+
+function cloneCache(cache: SessionFileCache): SessionFileCache {
+  const clean = stripLegacyCacheFields(cache);
+  return {
+    ...clean,
+    summary: { ...clean.summary, tokens: { ...clean.summary.tokens } },
+    usage: cloneUsage(clean.usage),
+  };
+}
+
+function sortCaches(caches: SessionFileCache[]): SessionFileCache[] {
+  return caches.sort((left, right) =>
+    (right.summary.lastActiveAt ?? right.summary.startedAt ?? "").localeCompare(left.summary.lastActiveAt ?? left.summary.startedAt ?? ""));
+}
 
 export class MetadataStore {
   private readonly filePath: string;
   private readonly backend: "auto" | "json";
   private sqlite: SqliteDb | null = null;
-  private fallback: MetadataState = { version: 2, providerLabels: {}, snapshots: [], gatewayPools: [], sessionIndex: [], preferences: {} };
+  private fallback: MetadataState = emptyState();
 
   constructor(userDataDir: string, options: MetadataStoreOptions = {}) {
     this.filePath = path.join(userDataDir, "metadata.sqlite");
     this.backend = options.backend ?? "auto";
   }
 
-  /** Which implementation actually loaded; tests and diagnostics need to know. */
   get activeBackend(): "sqlite" | "json" {
     return this.sqlite ? "sqlite" : "json";
   }
@@ -54,15 +92,22 @@ export class MetadataStore {
       const sqlite = await import("node:sqlite");
       this.sqlite = new sqlite.DatabaseSync(this.filePath) as unknown as SqliteDb;
       this.sqlite.exec(
-        "CREATE TABLE IF NOT EXISTS provider_meta (provider_id TEXT PRIMARY KEY, label TEXT NOT NULL); CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, profile TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS gateway_pools (id TEXT PRIMARY KEY, profile TEXT NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS session_index (id TEXT PRIMARY KEY, profile TEXT NOT NULL, file_path TEXT NOT NULL, offset INTEGER NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, payload TEXT NOT NULL);",
+        "CREATE TABLE IF NOT EXISTS provider_meta (provider_id TEXT PRIMARY KEY, label TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, profile TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS gateway_pools (id TEXT PRIMARY KEY, profile TEXT NOT NULL, payload TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, payload TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS session_cache (id TEXT PRIMARY KEY, profile TEXT NOT NULL, relative_path TEXT NOT NULL, payload TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS session_usage (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, profile TEXT NOT NULL, payload TEXT NOT NULL);"
+        + "DROP TABLE IF EXISTS session_index;",
       );
+      this.removeLegacySessionOffsets();
     } catch {
+      this.sqlite?.close();
       this.sqlite = null;
       await this.loadFallback();
     }
   }
 
-  /** Releases the sqlite handle. On Windows the database file stays locked until this runs. */
   close(): void {
     if (!this.sqlite) return;
     try {
@@ -72,10 +117,48 @@ export class MetadataStore {
     }
   }
 
-  private async loadFallback(): Promise<void> {
-    const empty: MetadataState = { version: 2, providerLabels: {}, snapshots: [], gatewayPools: [], sessionIndex: [], preferences: {} };
+  private removeLegacySessionOffsets(): void {
+    if (!this.sqlite) return;
+    const rows = this.sqlite.prepare("SELECT id, payload FROM session_cache").all() as Array<{ id: string; payload: string }>;
+    const updates: Array<{ id: string; payload: string }> = [];
+    for (const row of rows) {
+      try {
+        const payload = asObject(JSON.parse(row.payload));
+        if (!payload || !("messageOffsets" in payload)) continue;
+        delete payload.messageOffsets;
+        updates.push({ id: row.id, payload: JSON.stringify(payload) });
+      } catch {
+        // Leave malformed legacy rows untouched; a later refresh can replace them safely.
+      }
+    }
+    if (updates.length === 0) return;
+    this.sqlite.exec("BEGIN IMMEDIATE");
     try {
-      this.fallback = { ...empty, ...JSON.parse(await fs.readFile(`${this.filePath}.json`, "utf8")) as Partial<MetadataState> };
+      const update = this.sqlite.prepare("UPDATE session_cache SET payload = ? WHERE id = ?");
+      for (const item of updates) update.run(item.payload, item.id);
+      this.sqlite.exec("COMMIT");
+    } catch (error) {
+      this.sqlite.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  private async loadFallback(): Promise<void> {
+    const empty = emptyState();
+    try {
+      const parsed = JSON.parse(await fs.readFile(this.filePath + ".json", "utf8")) as Record<string, unknown>;
+      const isCurrent = parsed.version === 3 && Array.isArray(parsed.sessionCaches);
+      const rawCaches = Array.isArray(parsed.sessionCaches) ? parsed.sessionCaches : [];
+      const hasLegacyCacheFields = rawCaches.some((cache) => Boolean(asObject(cache)?.messageOffsets));
+      this.fallback = {
+        version: 3,
+        providerLabels: asStringRecord(parsed.providerLabels),
+        snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots.filter(asObject) : [],
+        gatewayPools: Array.isArray(parsed.gatewayPools) ? parsed.gatewayPools as GatewayPool[] : [],
+        sessionCaches: isCurrent ? (rawCaches as SessionFileCache[]).map(cloneCache) : [],
+        preferences: asObject(parsed.preferences) ?? {},
+      };
+      if (!isCurrent || "sessionIndex" in parsed || hasLegacyCacheFields) await this.persistFallback();
     } catch {
       this.fallback = empty;
     }
@@ -101,7 +184,6 @@ export class MetadataStore {
   async addSnapshot(snapshot: Record<string, unknown>): Promise<void> {
     if (this.sqlite) {
       this.sqlite.prepare("INSERT OR REPLACE INTO snapshots(id, profile, created_at, payload) VALUES(?, ?, ?, ?)").run(snapshot.id, snapshot.profile, snapshot.createdAt, JSON.stringify(snapshot));
-      // The sqlite branch previously kept every row forever while the JSON branch capped at 30.
       this.sqlite.prepare(
         "DELETE FROM snapshots WHERE profile = ? AND id NOT IN (SELECT id FROM snapshots WHERE profile = ? ORDER BY created_at DESC LIMIT ?)",
       ).run(snapshot.profile, snapshot.profile, SNAPSHOT_RETENTION);
@@ -121,8 +203,8 @@ export class MetadataStore {
 
   getLatestSnapshot(profile: string): Snapshot | null {
     if (this.sqlite) {
-      const rows = this.sqlite.prepare("SELECT payload FROM snapshots WHERE profile = ? ORDER BY created_at DESC LIMIT 1").all(profile) as Array<{ payload: string }>;
-      return rows[0] ? JSON.parse(rows[0].payload) as Snapshot : null;
+      const row = this.sqlite.prepare("SELECT payload FROM snapshots WHERE profile = ? ORDER BY created_at DESC LIMIT 1").get(profile) as { payload: string } | undefined;
+      return row ? JSON.parse(row.payload) as Snapshot : null;
     }
     const item = this.fallback.snapshots.find((snapshot) => snapshot.profile === profile);
     return item ? item as unknown as Snapshot : null;
@@ -146,30 +228,75 @@ export class MetadataStore {
     return this.fallback.gatewayPools.filter((pool) => !profile || pool.profile === profile);
   }
 
-  async replaceSessionIndex(profile: string, entries: SessionIndexEntry[]): Promise<void> {
-    if (this.sqlite) {
-      this.sqlite.prepare("DELETE FROM session_index WHERE profile = ?").run(profile);
-      const insert = this.sqlite.prepare("INSERT INTO session_index(id, profile, file_path, offset, payload) VALUES(?, ?, ?, ?, ?)");
-      for (const entry of entries) {
-        const sourceKey = entry.sourceKey ?? `${entry.filePath}:${entry.offset}`;
-        insert.run(sourceKey, entry.profile, entry.filePath, entry.offset, JSON.stringify({ ...entry, sourceKey }));
-      }
+  async replaceSessionCaches(profile: string, caches: SessionFileCache[]): Promise<void> {
+    const next = caches.filter((cache) => cache.profile === profile).map(cloneCache);
+    if (!this.sqlite) {
+      this.fallback.sessionCaches = [
+        ...this.fallback.sessionCaches.filter((cache) => cache.profile !== profile),
+        ...next,
+      ];
+      await this.persistFallback();
       return;
     }
-    this.fallback.sessionIndex = [...this.fallback.sessionIndex.filter((entry) => entry.profile !== profile), ...entries.map((entry) => ({ ...entry, sourceKey: entry.sourceKey ?? `${entry.filePath}:${entry.offset}` }))];
-    await this.persistFallback();
+
+    const current = this.listSessionCaches(profile);
+    const currentById = new Map(current.map((cache) => [cache.id, cache]));
+    const nextById = new Map(next.map((cache) => [cache.id, cache]));
+    this.sqlite.exec("BEGIN IMMEDIATE");
+    try {
+      const upsertCache = this.sqlite.prepare("INSERT INTO session_cache(id, profile, relative_path, payload) VALUES(?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET profile=excluded.profile, relative_path=excluded.relative_path, payload=excluded.payload");
+      const deleteUsage = this.sqlite.prepare("DELETE FROM session_usage WHERE session_id = ?");
+      const insertUsage = this.sqlite.prepare("INSERT INTO session_usage(id, session_id, profile, payload) VALUES(?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET session_id=excluded.session_id, profile=excluded.profile, payload=excluded.payload");
+      const deleteCache = this.sqlite.prepare("DELETE FROM session_cache WHERE id = ?");
+      for (const cache of next) {
+        const before = currentById.get(cache.id);
+        const changed = !before || JSON.stringify(cachePayload(before)) !== JSON.stringify(cachePayload(cache)) || JSON.stringify(before.usage) !== JSON.stringify(cache.usage);
+        if (!changed) continue;
+        upsertCache.run(cache.id, profile, cache.relativePath, JSON.stringify(cachePayload(cache)));
+        deleteUsage.run(cache.id);
+        for (const usage of cache.usage) insertUsage.run(usage.id, cache.id, profile, JSON.stringify(usage));
+      }
+      for (const cache of current) {
+        if (!nextById.has(cache.id)) {
+          deleteUsage.run(cache.id);
+          deleteCache.run(cache.id);
+        }
+      }
+      this.sqlite.exec("COMMIT");
+    } catch (error) {
+      this.sqlite.exec("ROLLBACK");
+      throw error;
+    }
   }
 
-  listSessionIndex(profile: string): SessionIndexEntry[] {
-    if (this.sqlite) {
-      const rows = this.sqlite.prepare("SELECT payload FROM session_index WHERE profile = ?").all(profile) as Array<{ payload: string }>;
-      return rows
-        .map((row) => JSON.parse(row.payload) as SessionIndexEntry)
-        .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
+  listSessionCaches(profile: string): SessionFileCache[] {
+    if (!this.sqlite) {
+      return sortCaches(this.fallback.sessionCaches.filter((cache) => cache.profile === profile).map(cloneCache));
     }
-    return this.fallback.sessionIndex
-      .filter((entry) => entry.profile === profile)
-      .sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""));
+    const cacheRows = this.sqlite.prepare("SELECT payload FROM session_cache WHERE profile = ?").all(profile) as Array<{ payload: string }>;
+    const usages = this.sqlite.prepare("SELECT session_id, payload FROM session_usage WHERE profile = ?").all(profile) as Array<{ session_id: string; payload: string }>;
+    const usageBySession = new Map<string, SessionUsageRecord[]>();
+    for (const row of usages) {
+      const list = usageBySession.get(row.session_id) ?? [];
+      list.push(JSON.parse(row.payload) as SessionUsageRecord);
+      usageBySession.set(row.session_id, list);
+    }
+    return sortCaches(cacheRows.map((row) => {
+      const payload = JSON.parse(row.payload) as Omit<SessionFileCache, "usage">;
+      return cloneCache({ ...payload, usage: cloneUsage(usageBySession.get(payload.id) ?? []) });
+    }));
+  }
+
+  getSessionCache(profile: string, id: string): SessionFileCache | undefined {
+    return this.listSessionCaches(profile).find((cache) => cache.id === id);
+  }
+
+  listSessionSummaries(profile: string): SessionSummary[] {
+    return this.listSessionCaches(profile).map((cache) => ({ ...cache.summary, tokens: { ...cache.summary.tokens } }));
+  }
+
+  listSessionUsage(profile: string): SessionUsageRecord[] {
+    return this.listSessionCaches(profile).flatMap((cache) => cloneUsage(cache.usage));
   }
 
   async setPreference(key: string, value: unknown): Promise<void> {
@@ -190,7 +317,14 @@ export class MetadataStore {
   }
 
   private async persistFallback(): Promise<void> {
-    await fs.mkdir(path.dirname(`${this.filePath}.json`), { recursive: true });
-    await fs.writeFile(`${this.filePath}.json`, JSON.stringify(this.fallback, null, 2), "utf8");
+    const target = this.filePath + ".json";
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    const temporary = target + "." + randomUUID() + ".tmp";
+    try {
+      await fs.writeFile(temporary, JSON.stringify(this.fallback, null, 2), "utf8");
+      await fs.rename(temporary, target);
+    } finally {
+      await fs.rm(temporary, { force: true }).catch(() => undefined);
+    }
   }
 }

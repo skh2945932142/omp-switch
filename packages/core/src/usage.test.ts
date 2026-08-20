@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SessionIndexEntry } from "./domain";
+import type { SessionIndexEntry, SessionUsageRecord } from "./domain";
 import { buildPricingTable, computeCost, findPrice, normalizeUsage, PRICE_UNIT_TOKENS, summarizeUsage } from "./usage";
 
 function entry(overrides: Partial<SessionIndexEntry> = {}): SessionIndexEntry {
@@ -161,5 +161,24 @@ describe("usage aggregation", () => {
     ], { pricing });
     expect(report.totals.firstAt).toBe("2026-08-18T08:00:00Z");
     expect(report.totals.lastAt).toBe("2026-08-18T20:00:00Z");
+  });
+
+  it("keeps the same report when fed compressed session usage records", () => {
+    const legacy = entry({ id: "compressed", sourceKey: "session:0" });
+    const compressed: SessionUsageRecord = {
+      id: "compressed",
+      sessionId: "s_fixture",
+      profile: "default",
+      sourceKey: "session:0",
+      startedAt: legacy.startedAt,
+      model: legacy.model,
+      provider: legacy.provider,
+      status: legacy.status,
+      tokens: legacy.usage ?? {},
+      cost: legacy.cost,
+      requestCount: 1,
+      failures: 0,
+    };
+    expect(summarizeUsage([compressed], { pricing }).totals).toEqual(summarizeUsage([legacy], { pricing }).totals);
   });
 });

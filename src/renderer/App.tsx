@@ -252,7 +252,6 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     secretOrphans: async () => [],
     authStatus: async () => ({ ok: true, output: "No active browser session in demo mode" }),
     authLogin: async () => ({ ok: false, output: "", error: "Run the packaged app to invoke omp auth login" }),
-    openFolder: async () => "",
     listCatalog: async () => [],
     importCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
     exportCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
@@ -265,9 +264,9 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     deleteSurface: async () => undefined,
     exportSurfaces: async (profileId) => ({ version: 1 as const, profile: profileId, items: [] }),
     importSurfaces: async () => [],
-    indexSessions: async () => ({ entries: [], invalidLines: 0 }),
-    listSessions: async () => [],
-    readSession: async () => "",
+    refreshSessions: async () => ({ discovered: 0, skipped: 0, reused: 0, changed: 0, rebuilt: 0, scannedBytes: 0, invalidLines: 0, errors: 0 }),
+    listSessions: async () => ({ sessions: [], nextCursor: undefined }),
+    readSessionMessages: async () => ({ messages: [], hasMore: false, nextCursor: undefined }),
     usageSummary: async () => ({
       report: {
         totals: { key: "total", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0, firstAt: "2026-08-18T10:00:00Z", lastAt: "2026-08-18T12:00:00Z" },

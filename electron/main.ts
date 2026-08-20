@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -25,7 +25,10 @@ import {
   findProjectOverlay,
   generateGatewayToken,
   getProfilePaths,
-  indexSessionDirectory,
+  readSessionMessages,
+  quickDiscoverSessionDirectory,
+  refreshSessionDirectory,
+  SessionRefreshResult,
   summarizeUsage,
   listProviderPresets,
   mergeCatalogBundle,
@@ -35,8 +38,10 @@ import {
   validateCatalogBundle,
 } from "@omp-switch/core";
 import { MetadataStore } from "./metadata-store";
+import { blockRendererNavigation, denyRendererWindowOpen, mayUseDevRenderer } from "./renderer-security";
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
 import { SecretStoreService } from "./secret-store";
+import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
 
 const execFileAsync = promisify(execFile);
 let mainWindow: BrowserWindow | null = null;
@@ -50,7 +55,101 @@ let projectRoot = process.cwd();
 let projectRootExplicit = false;
 const currentDir = import.meta.dirname;
 const configuredUserDataDir = process.env.OMP_SWITCH_DATA_DIR?.trim();
+const sessionRefreshTasks = new SessionRefreshCoordinator<SessionRefreshResult>();
+const sessionListCursors = new Map<string, { profile: string; index: number }>();
+const sessionMessageCursors = new Map<string, { profile: string; sessionId: string; cursor: string }>();
 if (configuredUserDataDir) app.setPath("userData", path.resolve(configuredUserDataDir));
+
+function safeSessionProfileId(value: unknown): string {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value)) {
+    throw new Error("Invalid session profile");
+  }
+  return value;
+}
+
+function safeSessionId(value: unknown): string {
+  if (typeof value !== "string" || !/^s_[a-f0-9]{24}$/.test(value)) throw new Error("Invalid session ID");
+  return value;
+}
+
+function listLimit(value: unknown): number {
+  if (value === undefined) return 100;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100) {
+    throw new Error("Session list limit must be between 1 and 100");
+  }
+  return value;
+}
+
+function rememberListCursor(profile: string, index: number): string {
+  if (sessionListCursors.size > 2000) sessionListCursors.clear();
+  const token = "sl_" + crypto.randomUUID();
+  sessionListCursors.set(token, { profile, index });
+  return token;
+}
+
+function consumeListCursor(profile: string, cursor: unknown): number {
+  if (cursor === undefined) return 0;
+  if (typeof cursor !== "string") throw new Error("Invalid session list cursor");
+  const item = sessionListCursors.get(cursor);
+  sessionListCursors.delete(cursor);
+  if (!item || item.profile !== profile) throw new Error("Session list cursor is expired");
+  return item.index;
+}
+
+function rememberMessageCursor(profile: string, sessionId: string, cursor: string): string {
+  if (sessionMessageCursors.size > 2000) sessionMessageCursors.clear();
+  const token = "sm_" + crypto.randomUUID();
+  sessionMessageCursors.set(token, { profile, sessionId, cursor });
+  return token;
+}
+
+function consumeMessageCursor(profile: string, sessionId: string, cursor: unknown): string | undefined {
+  if (cursor === undefined) return undefined;
+  if (typeof cursor !== "string") throw new Error("Invalid session message cursor");
+  const item = sessionMessageCursors.get(cursor);
+  sessionMessageCursors.delete(cursor);
+  if (!item || item.profile !== profile || item.sessionId !== sessionId) throw new Error("Session message cursor is expired");
+  return item.cursor;
+}
+
+async function refreshProfileSessions(profileId: string, force = false): Promise<SessionRefreshResult> {
+  const profile = safeSessionProfileId(profileId);
+  return sessionRefreshTasks.run(profile, force, (requestedForce) => startProfileSessionRefresh(profile, requestedForce));
+}
+
+function startProfileSessionRefresh(profile: string, force: boolean): RefreshExecution<SessionRefreshResult> {
+  const ref = adapterProfile(profile);
+  const root = path.join(ref.agentDir, "sessions");
+  const existing = metadata.listSessionCaches(profile);
+  if (!force && existing.length === 0) {
+    let resolveQuick!: (value: SessionRefreshResult) => void;
+    let rejectQuick!: (reason?: unknown) => void;
+    const quick = new Promise<SessionRefreshResult>((resolve, reject) => {
+      resolveQuick = resolve;
+      rejectQuick = reject;
+    });
+    const complete = (async () => {
+      try {
+        const discovered = await quickDiscoverSessionDirectory(root, profile, existing);
+        await metadata.replaceSessionCaches(profile, discovered.caches);
+        resolveQuick(discovered);
+        const indexed = await refreshSessionDirectory(root, profile, discovered.caches, { force: true });
+        await metadata.replaceSessionCaches(profile, indexed.caches);
+        return indexed;
+      } catch (error) {
+        rejectQuick(error);
+        throw error;
+      }
+    })();
+    return { response: quick, complete, completeIsForced: true };
+  }
+  const task = (async () => {
+    const result = await refreshSessionDirectory(root, profile, existing, { force });
+    await metadata.replaceSessionCaches(profile, result.caches);
+    return result;
+  })();
+  return { response: task, complete: task, completeIsForced: force };
+}
 
 function makeAdapter(): void {
   adapter = new OmpFilesystemAdapter({
@@ -95,8 +194,12 @@ async function createWindow(): Promise<void> {
       sandbox: true,
     },
   });
+  // Install the navigation boundary before the first document load so a hostile renderer URL
+  // cannot win a race during startup.
+  mainWindow.webContents.on("will-navigate", blockRendererNavigation);
+  mainWindow.webContents.setWindowOpenHandler(denyRendererWindowOpen);
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  if (rendererUrl) await mainWindow.loadURL(rendererUrl);
+  if (mayUseDevRenderer(app.isPackaged, rendererUrl)) await mainWindow.loadURL(rendererUrl as string);
   else await mainWindow.loadFile(path.join(currentDir, "../renderer/index.html"));
   mainWindow.on("closed", () => { mainWindow = null; });
 }
@@ -166,40 +269,55 @@ function registerIpc(): void {
   ipcMain.handle("surface:delete", (_event, profileId: string, kind: "prompt" | "skill", name: string) => surfaces.remove(adapterProfile(profileId), kind, name));
   ipcMain.handle("surface:export", (_event, profileId: string) => surfaces.exportBundle(adapterProfile(profileId)));
   ipcMain.handle("surface:import", (_event, profileId: string, bundle) => surfaces.importBundle(adapterProfile(profileId), bundle));
-  ipcMain.handle("session:index", async (_event, profileId: string) => {
-    const profile = adapterProfile(profileId);
-    const result = await indexSessionDirectory(path.join(profile.agentDir, "sessions"), profile.id);
-    await metadata.replaceSessionIndex(profile.id, result.entries);
-    return result;
+  ipcMain.handle("session:refresh", async (_event, profileId: string, options: { rebuild?: boolean } = {}) => {
+    return (await refreshProfileSessions(safeSessionProfileId(profileId), Boolean(options?.rebuild))).stats;
   });
-  ipcMain.handle("session:list", (_event, profileId: string) => metadata.listSessionIndex(profileId));
-  ipcMain.handle("session:raw", async (_event, profileId: string, id: string) => {
-    const entry = metadata.listSessionIndex(profileId).find((candidate) => (candidate.sourceKey ?? candidate.id) === id || candidate.id === id);
-    if (!entry) throw new Error("Session event was not found");
-    const source = await readFile(entry.filePath);
-    return source.subarray(entry.offset, entry.offset + entry.length).toString("utf8");
+  ipcMain.handle("session:list", (_event, profileId: string, options: { limit?: number; cursor?: string } = {}) => {
+    const profile = safeSessionProfileId(profileId);
+    const sessions = metadata.listSessionSummaries(profile);
+    const start = consumeListCursor(profile, options?.cursor);
+    const limit = listLimit(options?.limit);
+    const page = sessions.slice(start, start + limit);
+    const nextIndex = start + page.length;
+    return {
+      sessions: page,
+      nextCursor: nextIndex < sessions.length ? rememberListCursor(profile, nextIndex) : undefined,
+    };
+  });
+  ipcMain.handle("session:messages", async (_event, profileId: string, sessionId: string, options: { limit?: number; cursor?: string } = {}) => {
+    const profile = safeSessionProfileId(profileId);
+    const id = safeSessionId(sessionId);
+    const cache = metadata.getSessionCache(profile, id);
+    if (!cache) throw new Error("Session was not found");
+    const ref = adapterProfile(profile);
+    const cursor = consumeMessageCursor(profile, id, options?.cursor);
+    const page = await readSessionMessages(path.join(ref.agentDir, "sessions"), cache, { limit: 50, cursor });
+    return {
+      messages: page.messages,
+      hasMore: page.hasMore,
+      nextCursor: page.nextCursor ? rememberMessageCursor(profile, id, page.nextCursor) : undefined,
+    };
   });
   ipcMain.handle("usage:summary", async (_event, profileId: string = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => {
-    const profile = adapterProfile(profileId);
-    let entries = metadata.listSessionIndex(profileId);
-    let invalidLines = 0;
-    // Index on demand: a dashboard that shows nothing until the user finds the Sessions tab and
-    // presses refresh is not a dashboard.
-    if (options.reindex || entries.length === 0) {
-      const scanned = await indexSessionDirectory(path.join(profile.agentDir, "sessions"), profileId);
-      await metadata.replaceSessionIndex(profileId, scanned.entries);
-      entries = scanned.entries;
-      invalidLines = scanned.invalidLines;
+    const profile = safeSessionProfileId(profileId);
+    let caches = metadata.listSessionCaches(profile);
+    let refresh;
+    if (Boolean(options?.reindex) || caches.length === 0) {
+      const refreshed = await refreshProfileSessions(profile, Boolean(options?.reindex));
+      caches = refreshed.caches;
+      refresh = refreshed.stats;
     }
-    const config = await adapter.loadProfile(profile);
+    const config = await adapter.loadProfile(adapterProfile(profile));
     const overrides = metadata.getPreference<PricingTable>("usage.pricing") ?? {};
     const pricing = buildPricingTable(config.models.value, overrides);
+    const usage = metadata.listSessionUsage(profile);
     return {
-      report: summarizeUsage(entries, { pricing, from: options.from, to: options.to }),
-      indexedEntries: entries.length,
-      invalidLines,
+      report: summarizeUsage(usage, { pricing, from: options?.from, to: options?.to }),
+      indexedEntries: usage.length,
+      invalidLines: caches.reduce((total, cache) => total + cache.invalidLines, 0),
       pricedModels: Object.keys(pricing).length,
       overrides,
+      refresh,
     };
   });
   ipcMain.handle("usage:set-price", async (_event, key: string, price: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null) => {
@@ -255,7 +373,6 @@ function registerIpc(): void {
 
   ipcMain.handle("omp:auth-status", async (_event, provider: string) => runOmpAuth(provider, "status"));
   ipcMain.handle("omp:auth-login", async (_event, provider: string) => runOmpAuth(provider, "login"));
-  ipcMain.handle("app:open-folder", (_event, folder: string) => shell.openPath(folder));
 }
 
 async function getOmpGatewayToken(): Promise<string> {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, ManagedSurfaceEntry, ProfileRef, SessionIndexEntry, Snapshot, SurfaceBundle } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle } from "@omp-switch/core";
 
 const api = {
   getInfo: () => ipcRenderer.invoke("app:info"),
@@ -22,9 +22,9 @@ const api = {
   deleteSurface: (profileId: string, kind: "prompt" | "skill", name: string): Promise<void> => ipcRenderer.invoke("surface:delete", profileId, kind, name),
   exportSurfaces: (profileId: string): Promise<SurfaceBundle> => ipcRenderer.invoke("surface:export", profileId),
   importSurfaces: (profileId: string, bundle: SurfaceBundle): Promise<ManagedSurfaceEntry[]> => ipcRenderer.invoke("surface:import", profileId, bundle),
-  indexSessions: (profileId: string) => ipcRenderer.invoke("session:index", profileId),
-  listSessions: (profileId: string): Promise<SessionIndexEntry[]> => ipcRenderer.invoke("session:list", profileId),
-  readSession: (profileId: string, id: string): Promise<string> => ipcRenderer.invoke("session:raw", profileId, id),
+  refreshSessions: (profileId: string, options: { rebuild?: boolean } = {}): Promise<SessionRefreshStats> => ipcRenderer.invoke("session:refresh", profileId, options),
+  listSessions: (profileId: string, options: { limit?: number; cursor?: string } = {}): Promise<SessionListPage> => ipcRenderer.invoke("session:list", profileId, options),
+  readSessionMessages: (profileId: string, id: string, options: { cursor?: string } = {}): Promise<SessionMessagePage> => ipcRenderer.invoke("session:messages", profileId, id, options),
   usageSummary: (profileId = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => ipcRenderer.invoke("usage:summary", profileId, options),
   setUsagePrice: (key: string, price: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null) => ipcRenderer.invoke("usage:set-price", key, price),
   listGatewayPools: (profileId?: string): Promise<GatewayPool[]> => ipcRenderer.invoke("gateway:list", profileId),
@@ -40,7 +40,6 @@ const api = {
 
   authStatus: (provider: string) => ipcRenderer.invoke("omp:auth-status", provider),
   authLogin: (provider: string) => ipcRenderer.invoke("omp:auth-login", provider),
-  openFolder: (folder: string) => ipcRenderer.invoke("app:open-folder", folder),
 };
 
 contextBridge.exposeInMainWorld("ompSwitch", api);

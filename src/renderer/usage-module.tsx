@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Coins, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import type { ModelPrice, UsageBucket } from "@omp-switch/core";
@@ -86,19 +86,38 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [pricing, setPricing] = useState<{ key: string; input: string; output: string; cacheRead: string; cacheWrite: string } | null>(null);
+  const requestSequence = useRef(0);
+
+  function isCurrent(sequence: number): boolean {
+    return sequence === requestSequence.current;
+  }
 
   async function load(reindex = false): Promise<void> {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     try {
-      setData(await api.usageSummary(profileId, { from: from || undefined, to: to || undefined, reindex }));
+      const options = { from: from || undefined, to: to || undefined, reindex };
+      const cached = await api.usageSummary(profileId, options);
+      if (!isCurrent(sequence)) return;
+      setData(cached);
+      if (!reindex) {
+        await api.refreshSessions(profileId);
+        const updated = await api.usageSummary(profileId, options);
+        if (!isCurrent(sequence)) return;
+        setData(updated);
+      }
     } catch (error) {
+      if (!isCurrent(sequence)) return;
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
-      setLoading(false);
+      if (isCurrent(sequence)) setLoading(false);
     }
   }
 
-  useEffect(() => { void load(); }, [profileId]);
+  useEffect(() => {
+    requestSequence.current += 1;
+    void load();
+  }, [profileId]);
 
   function openPricing(key: string): void {
     const current = data?.overrides[key] ?? {};
