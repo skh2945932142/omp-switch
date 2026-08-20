@@ -1,10 +1,12 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
   listProfiles(): Promise<ProfileRef[]>;
   loadProfile(profileId: string): Promise<EffectiveConfig>;
   save(profileId: string, patch: ConfigPatch): Promise<{ snapshot: Snapshot; config: EffectiveConfig }>;
+  preview(profileId: string, patch: ConfigPatch): Promise<{ preview: PatchPreview; modelsText: string; settingsText: string }>;
+  listSnapshots(profileId: string): Promise<Snapshot[]>;
   snapshot(profileId: string): Promise<Snapshot>;
   restore(snapshot: Snapshot): Promise<EffectiveConfig>;
   restoreLatest(profileId: string): Promise<{ snapshot: Snapshot; config: EffectiveConfig }>;

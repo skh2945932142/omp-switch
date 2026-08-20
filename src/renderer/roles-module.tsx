@@ -56,9 +56,11 @@ export interface RolesModuleProps {
   busy: boolean;
   onRoleChange: (role: string, value: string) => void;
   onSave: () => void;
+  /** enabledModels coverage — a role pointing at a filtered model silently no-ops in OMP. */
+  isEnabled?: (providerId: string, modelId: string) => boolean;
 }
 
-export function RolesModule({ providers, roleIds, roles, baseline, readOnly, busy, onRoleChange, onSave }: RolesModuleProps): ReactElement {
+export function RolesModule({ providers, roleIds, roles, baseline, readOnly, busy, onRoleChange, onSave, isEnabled }: RolesModuleProps): ReactElement {
   const providerIds = useMemo(() => providers.map(([id]) => id), [providers]);
   const pending = useMemo(() => roleIds.filter(([id]) => (roles[id] ?? "") !== (baseline[id] ?? "")).length, [roleIds, roles, baseline]);
 
@@ -83,6 +85,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
         const invalid = Boolean(value.trim()) && parseRoleSelector(value, providerIds) === null;
         const resolution = resolveChain(roles, role, providerIds);
         const finalModel = resolution.final?.kind === "model" ? modelLabel(providers, resolution.final.provider, resolution.final.model) : undefined;
+        const filtered = Boolean(isEnabled && resolution.final?.kind === "model" && !isEnabled(resolution.final.provider, resolution.final.model));
         return <div className={`role-card ${changed ? "changed" : ""}`} key={role}>
           <div className="role-id">
             <strong>{role}</strong>
@@ -101,6 +104,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
             {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />@引用出现循环</span> : null}
             {invalid ? <span className="role-warning"><CircleAlert size={13} />无法解析的选择器</span> : null}
             {misused ? <span className="role-warning"><CircleAlert size={13} />`:{misused}` 不是角色思考等级（OMP 不会剥离它），请改用 minimal–max</span> : null}
+            {filtered ? <span className="role-warning"><CircleAlert size={13} />enabledModels 未覆盖此模型，OMP 会将其过滤出目录（选择器中有标记）</span> : null}
           </div>
           <div className="role-picker-cell">
             <ModelPicker
@@ -109,6 +113,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
               onValueChange={(next) => onRoleChange(role, next)}
               allowSpecial
               allowLevel
+              isEnabled={isEnabled}
               ariaLabel={`${role} 角色的模型`}
             />
           </div>

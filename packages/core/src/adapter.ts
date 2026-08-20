@@ -49,6 +49,7 @@ export interface OmpAdapter {
   loadProfile(profile: ProfileRef): Promise<EffectiveConfig>;
   validate(config: EffectiveConfig): Diagnostic[];
   planPatch(config: EffectiveConfig, patch: ConfigPatch): PatchPreview;
+  previewPatch(config: EffectiveConfig, patch: ConfigPatch): { preview: PatchPreview; modelsText: string; settingsText: string };
   commitPatch(config: EffectiveConfig, preview: PatchPreview): Promise<CommitResult>;
   createSnapshot(config: EffectiveConfig): Promise<Snapshot>;
 }
@@ -157,6 +158,32 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       expectedModelsHash: config.models.hash,
       expectedSettingsHash: config.settings.hash,
       legacyMigrationApproved: Boolean(patch.confirmLegacyMigration),
+    };
+  }
+
+  /**
+   * Runs the same plan→YAML pipeline `commitPatch` uses but stops before any filesystem
+   * effect, returning the exact text each file would receive. The renderer's two-step save
+   * shows this as a diff; `commitPatch` re-plans and re-guards at confirm time, so a file
+   * that changes between preview and confirm still fails safely instead of overwriting.
+   */
+  previewPatch(config: EffectiveConfig, patch: ConfigPatch): { preview: PatchPreview; modelsText: string; settingsText: string } {
+    const preview = this.planPatch(config, patch);
+    // Surface the same refusals commitPatch would, so the caller can explain them in the dialog.
+    if (!this.installation.supported) {
+      throw new ConfigValidationError([{ severity: "error", code: "omp.version", message: this.installation.reason ?? "Unsupported Oh My Pi version" }]);
+    }
+    if (config.models.legacy && !preview.legacyMigrationApproved) {
+      throw new ConfigValidationError([{ severity: "error", code: "models.legacy-confirmation", message: "Confirm migration before replacing legacy models.json with models.yml" }]);
+    }
+    const sourceErrors = [...config.models.diagnostics, ...config.settings.diagnostics].filter((item) => item.severity === "error");
+    if (sourceErrors.length > 0) throw new ConfigValidationError(sourceErrors);
+    const errors = preview.diagnostics.filter((item) => item.severity === "error");
+    if (errors.length > 0) throw new ConfigValidationError(errors);
+    return {
+      preview,
+      modelsText: patchModelsYaml(config.models.raw, config.models.value, preview.models),
+      settingsText: patchSettingsYaml(config.settings.raw, config.settings.value, preview.settings),
     };
   }
 

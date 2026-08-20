@@ -225,6 +225,11 @@ function registerIpc(): void {
     await metadata.addSnapshot(result.snapshot as unknown as Record<string, unknown>);
     return result;
   });
+  ipcMain.handle("omp:preview", async (_event, profileId: string, patch: ConfigPatch) => {
+    const current = await adapter.loadProfile(adapterProfile(profileId));
+    return adapter.previewPatch(current, patch);
+  });
+  ipcMain.handle("omp:list-snapshots", (_event, profileId: string) => metadata.listSnapshots(profileId) as unknown as Snapshot[]);
   ipcMain.handle("omp:snapshot", async (_event, profileId: string) => {
     const profile = adapterProfile(profileId);
     const snapshot = await adapter.createSnapshot(await adapter.loadProfile(profile));

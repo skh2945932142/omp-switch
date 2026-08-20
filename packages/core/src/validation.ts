@@ -110,6 +110,21 @@ export function looksLikePlaintextSecret(value: string): boolean {
 
 function validateProviderCredential(providerId: string, provider: OmpProvider, diagnostics: Diagnostic[]): void {
   if (typeof provider.apiKey !== "string" || !provider.apiKey.trim()) return;
+  if (provider.apiKey.startsWith("!")) {
+    // A dev-session bridge reference (`electron.exe "." --secret-get …`) only works from the
+    // checkout it was written from: OMP spawns it from an arbitrary cwd, it fails or burns the
+    // whole 10s budget, and the key is silently dropped — the provider just disappears from the
+    // catalog. Warn so the owner re-vaults the key from a packaged build.
+    if (provider.apiKey.includes("node_modules") || /"\s*\.\s*"/.test(provider.apiKey)) {
+      diagnostics.push({
+        severity: "warning",
+        code: "provider.apiKey-fragile-command",
+        path: `providers.${providerId}.apiKey`,
+        message: `Provider ${providerId} uses a command reference that only works inside a dev checkout (node_modules path or relative app argument). OMP runs it from an arbitrary working directory, so the key silently fails — re-save the provider from an installed OMP Switch to rewrite the reference`,
+      });
+    }
+    return;
+  }
   if (!looksLikePlaintextSecret(provider.apiKey)) return;
   diagnostics.push({
     severity: "warning",
@@ -167,8 +182,17 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     if (provider.discovery?.timeoutMs !== undefined && (!Number.isFinite(provider.discovery.timeoutMs) || provider.discovery.timeoutMs <= 0)) {
       diagnostics.push({ severity: "error", code: "provider.discovery-timeout", path: `providers.${providerId}.discovery.timeoutMs`, message: "Discovery timeout must be positive" });
     }
-    if (provider.headers && !isRecord(provider.headers)) {
-      diagnostics.push({ severity: "error", code: "provider.headers", path: `providers.${providerId}.headers`, message: "Provider headers must be a mapping" });
+    // OMP's schema is all-or-nothing: an explicitly null object field makes it reject the whole
+    // models.yml and silently fall back to the built-in catalog. The `!== undefined` form (not a
+    // truthiness check) is what catches null — a null headers previously slipped past validation.
+    if (provider.headers !== undefined && !isRecord(provider.headers)) {
+      diagnostics.push({ severity: "error", code: "provider.headers", path: `providers.${providerId}.headers`, message: `Provider headers must be a mapping${provider.headers === null ? " (currently null — OMP rejects the whole models.yml and disables every custom provider)" : ""}` });
+    }
+    if (provider.compat !== undefined && !isRecord(provider.compat)) {
+      diagnostics.push({ severity: "error", code: "provider.compat", path: `providers.${providerId}.compat`, message: `Provider compat must be a mapping${provider.compat === null ? " (currently null — OMP rejects the whole models.yml and disables every custom provider)" : ""}` });
+    }
+    if (provider.modelOverrides !== undefined && (!isRecord(provider.modelOverrides) || Object.values(provider.modelOverrides).some((override) => !isRecord(override)))) {
+      diagnostics.push({ severity: "error", code: "provider.modelOverrides", path: `providers.${providerId}.modelOverrides`, message: `Provider modelOverrides must be a mapping of mappings${provider.modelOverrides === null ? " (currently null — OMP rejects the whole models.yml and disables every custom provider)" : ""}` });
     }
     if (provider.authHeader !== undefined && typeof provider.authHeader !== "boolean") {
       diagnostics.push({ severity: "error", code: "provider.authHeader", path: `providers.${providerId}.authHeader`, message: "authHeader must be boolean" });

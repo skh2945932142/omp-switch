@@ -20,6 +20,45 @@ afterEach(async () => {
 });
 
 describe("OmpFilesystemAdapter", () => {
+  it("previewPatch returns the exact text a commit would write, without touching the disk", async () => {
+    const { root, adapter } = await makeAdapter();
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    const patch: Parameters<OmpFilesystemAdapter["planPatch"]>[1] = {
+      provider: {
+        id: "demo",
+        baseUrl: "https://api.example.test/v1",
+        api: "openai-completions",
+        auth: "none",
+        models: [{ id: "demo-1", api: "openai-completions" }],
+      },
+      roleAssignments: { default: "demo/demo-1" },
+    };
+    const before = await fs.readFile((current as { models: { path: string } }).models.path, "utf8").catch(() => "");
+
+    const preview = adapter.previewPatch(current, patch);
+
+    expect(preview.modelsText).toContain("demo:");
+    expect(preview.settingsText).toContain("default: demo/demo-1");
+    // Nothing was written: the file on disk is unchanged (still absent in this fresh home) and no
+    // snapshot directory exists.
+    const after = await fs.readFile((current as { models: { path: string } }).models.path, "utf8").catch(() => "");
+    expect(after).toBe(before);
+    await expect(fs.readdir(path.join(root, "snapshots"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    // And committing the same patch produces byte-identical text.
+    const result = await adapter.commitPatch(current, adapter.planPatch(current, patch));
+    await expect(fs.readFile(result.config.models.path, "utf8")).resolves.toBe(preview.modelsText);
+    await expect(fs.readFile(result.config.settings.path, "utf8")).resolves.toBe(preview.settingsText);
+  });
+
+  it("previewPatch refuses the same invalid patches commitPatch refuses", async () => {
+    const { adapter } = await makeAdapter();
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    expect(() => adapter.previewPatch(current, { provider: { id: "x" } as never })).toThrow(ConfigValidationError);
+  });
+
   it("creates missing models.yml and config.yml from a validated patch", async () => {
     const { adapter } = await makeAdapter();
     const profile = (await adapter.listProfiles())[0];

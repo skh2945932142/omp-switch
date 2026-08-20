@@ -134,6 +134,43 @@ describe("OMP configuration validation", () => {
       .toContain("settings.enabledModels-values");
   });
 
+  it("rejects explicitly null object fields because OMP rejects the whole document for them", () => {
+    const diagnostics = validateModelsDocument({
+      providers: {
+        demo: { baseUrl: "https://api.example.com/v1", api: "openai-completions", apiKey: "X", headers: null, modelOverrides: null, compat: null, models: [{ id: "m" }] },
+      },
+    });
+    const codes = diagnostics.map((item) => item.code);
+    expect(codes).toEqual(expect.arrayContaining(["provider.headers", "provider.modelOverrides", "provider.compat"]));
+    expect(diagnostics.find((item) => item.code === "provider.headers")?.message).toContain("null");
+  });
+
+  it("rejects a modelOverrides value that is not a mapping of mappings", () => {
+    const diagnostics = validateModelsDocument({
+      providers: {
+        demo: { baseUrl: "https://api.example.com/v1", api: "openai-completions", apiKey: "X", modelOverrides: { "m": "not-an-object" }, models: [{ id: "m" }] },
+      },
+    });
+    expect(diagnostics.some((item) => item.code === "provider.modelOverrides")).toBe(true);
+  });
+
+  it("accepts properly shaped object fields", () => {
+    const diagnostics = validateModelsDocument({
+      providers: {
+        demo: { baseUrl: "https://api.example.com/v1", api: "openai-completions", apiKey: "X", headers: { "X-Client": "omp-switch" }, modelOverrides: { "m": { transport: "pi-native" } }, compat: { toolCall: true }, models: [{ id: "m" }] },
+      },
+    });
+    expect(diagnostics.filter((item) => item.code.startsWith("provider."))).toEqual([]);
+  });
+
+  it("warns about a bridge command reference that only works inside a dev checkout", () => {
+    const devRef = '!"D:\\repo\\node_modules\\electron\\dist\\electron.exe" "." --secret-get "credential-x"';
+    const diagnostics = validateModelsDocument({
+      providers: { devish: { baseUrl: "https://api.example/v1", api: "openai-completions", apiKey: devRef, models: [{ id: "m" }] } },
+    });
+    expect(diagnostics).toEqual([expect.objectContaining({ severity: "warning", code: "provider.apiKey-fragile-command", path: "providers.devish.apiKey" })]);
+  });
+
   it("flags a plaintext credential sitting in models.yml", () => {
     expect(looksLikePlaintextSecret("!\"C:\\omp-switch-secret.exe\" --secret-get \"cred\"")).toBe(false);
     expect(looksLikePlaintextSecret("OPENAI_API_KEY")).toBe(false);

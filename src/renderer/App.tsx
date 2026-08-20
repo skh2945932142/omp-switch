@@ -42,6 +42,9 @@ import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } fro
 import { UsageModule } from "./usage-module";
 import { KNOWN_ROLES, RolesModule } from "./roles-module";
 import { QuickAssign } from "./components/quick-assign";
+import { CommandPalette } from "./components/command-palette";
+import { SnapshotTimeline } from "./components/snapshot-timeline";
+import { ConflictDialog, ConfirmDialog, SavePreviewDialog, ShortcutsDialog, type PendingSave } from "./components/save-flow";
 
 const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
   { label: "Custom OpenAI-compatible", id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions" },
@@ -211,8 +214,8 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
       modelsCandidates: [],
       settingsCandidates: [],
     },
-    models: { value: { providers: { openrouter: { baseUrl: "https://openrouter.ai/api/v1", api: "openai-completions", auth: "apiKey", apiKey: "OPENROUTER_API_KEY", models: [{ id: "openai/gpt-4.1", name: "GPT-4.1", reasoning: true, contextWindow: 128000, maxTokens: 16384 }] } } }, raw: "", path: "~/.omp/agent/models.yml", hash: "demo", exists: true, legacy: false, diagnostics: [] },
-    settings: { value: { modelRoles: { default: "openrouter/openai/gpt-4.1", slow: "@default" } }, raw: "", path: "~/.omp/agent/config.yml", hash: "demo-settings", exists: true, legacy: false, diagnostics: [] },
+    models: { value: { providers: { openrouter: { baseUrl: "https://openrouter.ai/api/v1", api: "openai-completions", auth: "apiKey", apiKey: "OPENROUTER_API_KEY", models: [{ id: "openai/gpt-4.1", name: "GPT-4.1", reasoning: true, contextWindow: 128000, maxTokens: 16384 }] } } }, raw: "providers:\n  openrouter:\n    baseUrl: https://openrouter.ai/api/v1\n    api: openai-completions\n", path: "~/.omp/agent/models.yml", hash: "demo", exists: true, legacy: false, diagnostics: [] },
+    settings: { value: { modelRoles: { default: "openrouter/openai/gpt-4.1", slow: "@default" } }, raw: "modelRoles:\n  default: openrouter/openai/gpt-4.1\n  slow: \"@default\"\n", path: "~/.omp/agent/config.yml", hash: "demo-settings", exists: true, legacy: false, diagnostics: [] },
     diagnostics: [{ severity: "info", code: "demo", message: "浏览器预览模式：当前数据为示例配置" }],
   });
   const get = (id: string) => (memory[id] ??= makeConfig(id));
@@ -220,6 +223,40 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     getInfo: async () => ({ version: "0.1.0-demo", platform: "browser", installation: { executable: "omp", version: "demo", supported: true } }),
     listProfiles: async () => [get("default").profile, { id: "work", name: "work", kind: "named", agentDir: "~/.omp/profiles/work/agent" }],
     loadProfile: async (id: string) => get(id),
+    preview: async (id: string, patch: ConfigPatch) => {
+      // The mock has no YAML writer; re-applying the patch to a clone and rendering both sides as
+      // JSON is enough to exercise the diff dialog in the browser preview.
+      const before = get(id);
+      const after = JSON.parse(JSON.stringify(before)) as EffectiveConfig;
+      if (patch.provider) {
+        const existing = after.models.value.providers[patch.provider.id] ?? {};
+        after.models.value.providers[patch.provider.id] = { ...existing, baseUrl: patch.provider.baseUrl, api: patch.provider.api, models: patch.provider.models };
+      }
+      if (patch.roleAssignments) {
+        const nextRoles: Record<string, string> = { ...(after.settings.value.modelRoles ?? {}) };
+        for (const [role, selector] of Object.entries(patch.roleAssignments)) {
+          if (selector === null || selector === "") delete nextRoles[role];
+          else nextRoles[role] = selector;
+        }
+        after.settings.value.modelRoles = nextRoles;
+      }
+      if (patch.settings) {
+        const s = after.settings.value;
+        if (patch.settings.modelProviderOrder) s.modelProviderOrder = patch.settings.modelProviderOrder;
+        if (patch.settings.enabledModels) s.enabledModels = patch.settings.enabledModels;
+        if (patch.settings.disabledProviders) s.disabledProviders = patch.settings.disabledProviders;
+        if (patch.settings.defaultThinkingLevel) s.defaultThinkingLevel = patch.settings.defaultThinkingLevel;
+      }
+      return {
+        preview: { profile: before.profile, models: after.models.value, settings: after.settings.value, diagnostics: [], expectedModelsHash: before.models.hash, expectedSettingsHash: before.settings.hash, legacyMigrationApproved: true },
+        modelsText: JSON.stringify(after.models.value, null, 2),
+        settingsText: JSON.stringify(after.settings.value, null, 2),
+      };
+    },
+    listSnapshots: async (profileId: string) => [1, 2].map((hoursAgo) => ({
+      id: `demo-${hoursAgo}`, profile: profileId, createdAt: new Date(Date.now() - hoursAgo * 3600_000).toISOString(),
+      modelsPath: "~/.omp/agent/models.yml", settingsPath: "~/.omp/agent/config.yml",
+    })),
     save: async (id: string, patch: ConfigPatch) => {
       const config = get(id);
       if (patch.provider) {
@@ -328,6 +365,24 @@ function settingsSignature(order: string, enabled: string, disabled: string, lev
   return JSON.stringify([order, enabled, disabled, level]);
 }
 
+/**
+ * OMP filters its model catalog by `enabledModels`; a role pointing at a filtered model silently
+ * no-ops (the incident class this guard exists for). String rules glob: a rule containing `/`
+ * matches `provider/model`, a bare rule matches the model id.
+ */
+function makeEnabledFilter(rules: Array<string | Record<string, unknown>> | undefined): (providerId: string, modelId: string) => boolean {
+  if (!rules?.length) return () => true;
+  const matchers = rules
+    .filter((rule): rule is string => typeof rule === "string")
+    .map((rule) => {
+      const pattern = new RegExp(`^${rule.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+      return rule.includes("/")
+        ? (providerId: string, modelId: string) => pattern.test(`${providerId}/${modelId}`)
+        : (_providerId: string, modelId: string) => pattern.test(modelId);
+    });
+  return (providerId, modelId) => matchers.some((match) => match(providerId, modelId));
+}
+
 /** Provider ids carry no slash, so a bare comma split is unambiguous here. */
 function parseDisabledProviderRules(value: string): Array<string | Record<string, unknown>> {
   const trimmed = value.trim();
@@ -431,6 +486,11 @@ export default function App() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
+  const [conflictDetail, setConflictDetail] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [confirmAsk, setConfirmAsk] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; action: () => void } | null>(null);
   const [catalog, setCatalog] = useState<ProviderPreset[]>([]);
   const [providerOrder, setProviderOrder] = useState("");
   const [enabledModels, setEnabledModels] = useState("");
@@ -451,6 +511,7 @@ export default function App() {
   }, [roles]);
   const rolesDirty = useMemo(() => rolesSignature(roles) !== rolesSignature(savedRoles), [roles, savedRoles]);
   const settingsDirty = settingsSignature(providerOrder, enabledModels, disabledProviders, defaultThinkingLevel) !== savedSettings;
+  const enabledFilter = useMemo(() => makeEnabledFilter(config?.settings.value.enabledModels), [config]);
 
   const notify = useCallback((next: { tone: "success" | "error" | "info"; text: string }) => {
     if (next.tone === "success") toast.success(next.text);
@@ -500,10 +561,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    function isTyping(target: EventTarget | null): boolean {
+      return target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+    }
     function onKeyDown(event: KeyboardEvent): void {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
         if (rolesDirty || settingsDirty) void saveDirty();
+      } else if (mod && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((value) => !value);
+      } else if (mod && /^[1-7]$/.test(event.key)) {
+        event.preventDefault();
+        const ids = Object.keys(sectionLabels) as Array<typeof section>;
+        const target = ids[Number(event.key) - 1];
+        if (target) { setSection(target); setFormOpen(false); setDrawerOpen(false); }
+      } else if (event.key === "?" && !isTyping(event.target)) {
+        event.preventDefault();
+        setHelpOpen(true);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -554,17 +630,9 @@ export default function App() {
       notify({ tone: "error", text: "Provider ID 和 Endpoint URL 都不能为空" });
       return;
     }
-    if (config.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
-    setBusy(true);
+    const id = form.id.trim();
     try {
-      const id = form.id.trim();
-      const existing = config.models.value.providers[id];
-      const headers = parseHeaders(form.headers);
-      const compat = parseObjectJson("Compat", form.compat);
-      const modelOverrides = parseModelOverrides(form.overrides);
-      const cost = parseCost(form.cost);
-      const remoteCompaction = parseObjectJson("Remote compaction", form.remoteCompaction);
-      let apiKeyValue: string | null | undefined = form.auth === "none" ? null : existing?.apiKey;
+      let apiKeyValue: string | null | undefined = form.auth === "none" ? null : config.models.value.providers[id]?.apiKey;
       let auth = form.auth;
       if (form.key.trim()) {
         const credential = await api.secretPut({ label: `${id} API key`, value: form.key.trim() });
@@ -572,58 +640,55 @@ export default function App() {
         auth = "apiKey";
       }
       const models = buildModels(modelEntries).map((model) => ({ ...model, api: model.api ?? form.api }));
-      const result = await api.save(profileId, {
+      await requestSave(`保存供应商 ${id}`, {
         provider: {
           id,
           baseUrl: form.baseUrl.trim(),
           api: form.api,
           auth,
           apiKey: apiKeyValue,
-          headers,
-          compat,
-          modelOverrides,
+          headers: parseHeaders(form.headers),
+          compat: parseObjectJson("Compat", form.compat),
+          modelOverrides: parseModelOverrides(form.overrides),
           models,
           ...(form.discoveryType ? { discovery: { type: form.discoveryType } } : {}),
           authHeader: form.authHeader,
           disableStrictTools: form.disableStrictTools,
           ...(form.transport.trim() ? { transport: form.transport.trim() } : {}),
-           remoteCompaction,
-          cost,
+          remoteCompaction: parseObjectJson("Remote compaction", form.remoteCompaction),
+          cost: parseCost(form.cost),
         },
-        confirmLegacyMigration: config.models.legacy,
+      }, () => {
+        setSelectedProviderId(id);
+        setFormOpen(false);
+        setDrawerOpen(true);
+        notify({ tone: "success", text: `已保存 ${id} → models.yml` });
       });
-      setConfig(result.config);
-      setSnapshot(result.snapshot);
-      setSelectedProviderId(id);
-      setFormOpen(false);
-      setDrawerOpen(true);
-      notify({ tone: "success", text: `已保存 ${id}，快照 ${formatDate(result.snapshot.createdAt)}` });
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function removeProvider(): Promise<void> {
+  function removeProvider(): void {
     if (!config || !selectedProviderId) return;
     if (readOnly) {
       notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
       return;
     }
-    if (config.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
-    setBusy(true);
-    try {
-      const result = await api.save(profileId, { removeProviderId: selectedProviderId, confirmLegacyMigration: config.models.legacy });
-      setConfig(result.config);
-      setSelectedProviderId(Object.keys(result.config.models.value.providers)[0] ?? null);
-      setFormOpen(false);
-      notify({ tone: "success", text: "供应商已移除，原配置已创建快照" });
-    } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setBusy(false);
-    }
+    const target = selectedProviderId;
+    setConfirmAsk({
+      title: `删除供应商 ${target}`,
+      message: "该供应商及其模型将从 models.yml 移除；原配置保留在写入前快照中，可从快照时间线恢复。",
+      confirmLabel: "删除",
+      danger: true,
+      action: () => {
+        void requestSave(`删除供应商 ${target}`, { removeProviderId: target }, () => {
+          setSelectedProviderId(Object.keys(config?.models.value.providers ?? {}).find((id) => id !== target) ?? null);
+          setFormOpen(false);
+          notify({ tone: "success", text: `已从 models.yml 移除 ${target}` });
+        });
+      },
+    });
   }
 
   async function fetchModels(): Promise<void> {
@@ -648,90 +713,114 @@ export default function App() {
     }
   }
 
-  async function saveRoles(): Promise<void> {
+  function isConflictError(message: string): boolean {
+    return message.includes("Configuration changed outside OMP Switch");
+  }
+
+  function handleSaveError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isConflictError(message)) setConflictDetail(message.replace(/^Error invoking remote method '[^']+':\s*/, ""));
+    else notify({ tone: "error", text: message });
+  }
+
+  /**
+   * Two-step save. Every commit first shows a preview of the exact text both files would receive;
+   * `commitPatch` re-plans and re-guards at confirm time, so an edit that lands between preview
+   * and confirm still fails safely instead of overwriting.
+   */
+  async function requestSave(title: string, patch: ConfigPatch, done?: () => void): Promise<void> {
     if (readOnly) {
       notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
       return;
     }
-    if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
+    if (config?.models.legacy) {
+      setConfirmAsk({
+        title: "迁移旧 models.json",
+        message: "检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。",
+        confirmLabel: "继续并迁移",
+        action: () => { void runSave(title, { ...patch, confirmLegacyMigration: true }, done); },
+      });
+      return;
+    }
+    await runSave(title, patch, done);
+  }
+
+  async function runSave(title: string, patch: ConfigPatch, done?: () => void): Promise<void> {
     setBusy(true);
     try {
-      const result = await api.save(profileId, { roleAssignments: roles, confirmLegacyMigration: config?.models.legacy });
-      applyConfig(result.config);
-      setSnapshot(result.snapshot);
-      notify({ tone: "success", text: "角色映射已写入 config.yml" });
+      const preview = await api.preview(profileId, patch);
+      setPendingSave({
+        title,
+        beforeModels: config?.models.raw ?? "",
+        beforeSettings: config?.settings.raw ?? "",
+        afterModels: preview.modelsText,
+        afterSettings: preview.settingsText,
+        commit: async () => {
+          const result = await api.save(profileId, patch);
+          applyConfig(result.config);
+          setSnapshot(result.snapshot);
+          done?.();
+        },
+      });
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      handleSaveError(error);
     } finally {
       setBusy(false);
     }
   }
 
-  async function saveSettings(): Promise<void> {
-    if (readOnly) {
-      notify({ tone: "error", text: readOnlyReason ?? "当前配置为只读" });
-      return;
-    }
-    if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
+  async function confirmPendingSave(): Promise<void> {
+    if (!pendingSave) return;
     setBusy(true);
     try {
-      const result = await api.save(profileId, {
-        settings: {
-          modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
-          enabledModels: parseEnabledModelRules(enabledModels),
-          disabledProviders: parseDisabledProviderRules(disabledProviders),
-          defaultThinkingLevel,
-        },
-        confirmLegacyMigration: config?.models.legacy,
-      });
-      applyConfig(result.config);
-      setSnapshot(result.snapshot);
-      notify({ tone: "success", text: "设置已写入 config.yml" });
+      await pendingSave.commit();
+      setPendingSave(null);
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      setPendingSave(null);
+      handleSaveError(error);
     } finally {
       setBusy(false);
     }
+  }
+
+  function saveRoles(): Promise<void> {
+    return requestSave("保存角色映射", { roleAssignments: roles }, () => notify({ tone: "success", text: "角色映射已写入 config.yml" }));
+  }
+
+  function saveSettings(): Promise<void> {
+    return requestSave("保存设置", { settings: settingsPatch() }, () => notify({ tone: "success", text: "设置已写入 config.yml" }));
+  }
+
+  function settingsPatch(): NonNullable<ConfigPatch["settings"]> {
+    return {
+      modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+      enabledModels: parseEnabledModelRules(enabledModels),
+      disabledProviders: parseDisabledProviderRules(disabledProviders),
+      defaultThinkingLevel,
+    };
   }
 
   /** One commit when both areas are dirty, otherwise whichever is — this is what Ctrl+S runs. */
-  async function saveDirty(): Promise<void> {
-    if (readOnly || busy) return;
-    if (rolesDirty && settingsDirty) {
-      if (config?.models.legacy && !window.confirm("检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。")) return;
-      setBusy(true);
-      try {
-        const result = await api.save(profileId, {
-          roleAssignments: roles,
-          settings: {
-            modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
-            enabledModels: parseEnabledModelRules(enabledModels),
-            disabledProviders: parseDisabledProviderRules(disabledProviders),
-            defaultThinkingLevel,
-          },
-          confirmLegacyMigration: config?.models.legacy,
-        });
-        applyConfig(result.config);
-        setSnapshot(result.snapshot);
-        notify({ tone: "success", text: "角色与设置已写入 config.yml" });
-      } catch (error) {
-        notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-    if (rolesDirty) await saveRoles();
-    else if (settingsDirty) await saveSettings();
+  function saveDirty(): Promise<void> {
+    if (rolesDirty && settingsDirty) return requestSave("保存角色与设置", { roleAssignments: roles, settings: settingsPatch() }, () => notify({ tone: "success", text: "角色与设置已写入 config.yml" }));
+    if (rolesDirty) return saveRoles();
+    if (settingsDirty) return saveSettings();
+    return Promise.resolve();
   }
 
   /**
    * Only switching profile actually loses edits (load() overwrites editor state); switching
    * sections keeps them in memory, so no guard there — the confirm would be both naggy and wrong.
    */
-  function confirmDiscard(): boolean {
-    if (!rolesDirty && !settingsDirty) return true;
-    return window.confirm("有未保存的角色或设置改动，切换 Profile 将丢失这些改动。仍要继续？");
+  function confirmDiscardThen(action: () => void): void {
+    if (!rolesDirty && !settingsDirty) { action(); return; }
+    setConfirmAsk({
+      title: "放弃未保存的改动？",
+      message: "有未保存的角色或设置改动，切换 Profile 将丢失这些改动。文件本身不受影响。",
+      confirmLabel: "放弃并切换",
+      danger: true,
+      action,
+    });
   }
 
   /** Quick-assign keeps the role's existing thinking suffix and only swaps the provider/model. */
@@ -763,21 +852,6 @@ export default function App() {
       const next = await api.snapshot(profileId);
       setSnapshot(next);
       notify({ tone: "success", text: `已创建本机快照 ${formatDate(next.createdAt)}` });
-    } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function restoreLatest(): Promise<void> {
-    setBusy(true);
-    try {
-      const result = await api.restoreLatest(profileId);
-      applyConfig(result.config);
-      setSnapshot(result.snapshot);
-      setSelectedProviderId(Object.keys(result.config.models.value.providers)[0] ?? null);
-      notify({ tone: "success", text: "已恢复最近快照" });
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -891,7 +965,7 @@ export default function App() {
         <aside className="left-rail">
           <div className="rail-profile">
             <span className="rail-label">PROFILE</span>
-            <select value={profileId} onChange={(event) => { if (!confirmDiscard()) return; setProfileId(event.target.value); void load(event.target.value); }} aria-label="选择 Profile">
+            <select value={profileId} onChange={(event) => { const next = event.target.value; confirmDiscardThen(() => { setProfileId(next); void load(next); }); }} aria-label="选择 Profile">
               {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
             </select>
             <span className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "读取中"}</span>
@@ -944,12 +1018,14 @@ export default function App() {
                   const expanded = expandedProviders[id] ?? id === selectedProviderId;
                   const active = id === selectedProviderId;
                   const models = providerModels(provider);
+                  const coverage = models.filter((model) => enabledFilter(id, model.id ?? "")).length;
                   return <article className={`provider-card ${active ? "active" : ""}`} key={id}>
                     <button className="provider-card-head" onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); setFormOpen(false); setExpandedProviders((current) => ({ ...current, [id]: !expanded })); }}>
                       <span className="provider-led" />
                       <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"} · {models.length} 模型</small></span>
                       <span className="provider-endpoint mono">{provider.baseUrl ?? "—"}</span>
                       <span className="row-status">{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置" : "未配置"}</span>
+                      {models.length > 0 && coverage < models.length ? <span className="status-chip warn" title="enabledModels 未完全覆盖此供应商，OMP 会将未覆盖的模型过滤出目录">{coverage === 0 ? "未启用" : `启用 ${coverage}/${models.length}`}</span> : null}
                       {expanded ? <ChevronDown size={16} /> : <ChevronDown size={16} className="rotate-closed" />}
                     </button>
                     {expanded ? <div className="model-list">
@@ -973,7 +1049,7 @@ export default function App() {
                 })}
               </div>
             </>
-          ) : section === "roles" ? <RolesModule providers={providers} roleIds={roleIds} roles={roles} baseline={savedRoles} readOnly={readOnly} busy={busy} onRoleChange={setRoleValue} onSave={() => void saveDirty()} />
+          ) : section === "roles" ? <RolesModule providers={providers} roleIds={roleIds} roles={roles} baseline={savedRoles} readOnly={readOnly} busy={busy} onRoleChange={setRoleValue} onSave={() => void saveDirty()} isEnabled={enabledFilter} />
             : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={notify} />
             : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={notify} />
               : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={notify} />
@@ -988,7 +1064,7 @@ export default function App() {
             <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><select value={defaultThinkingLevel} onChange={(event) => setDefaultThinkingLevel(event.target.value as SettingsThinkingLevel)}>{SETTINGS_THINKING_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建</button><button className="secondary-button" onClick={() => void restoreLatest()} disabled={busy}><RotateCcw size={15} />恢复</button></div><span className="muted-line">{snapshot ? formatDate(snapshot.createdAt) : "写入前自动创建"}</span></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div>
             <details className="yaml-preview"><summary>原始 YAML</summary><pre className="raw-view">{config?.models.raw || "models.yml 未创建"}{"\n\n"}{config?.settings.raw || "config.yml 未创建"}</pre></details>
@@ -1011,6 +1087,28 @@ export default function App() {
           {!profileDrawerOpen && !diagnosticsOpen && !formOpen && selectedProvider ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>连接</span><span className="status-chip ok">{selectedProvider.auth === "none" ? "无需密钥" : selectedProvider.apiKey ? "已配置" : "未配置"}</span></div><div className="detail-grid"><span>API</span><strong>{selectedProvider.api ?? "custom"}</strong><span>Endpoint</span><strong className="mono break">{selectedProvider.baseUrl ?? "—"}</strong><span>Auth</span><strong>{selectedProvider.auth ?? "apiKey"}</strong></div><div className="drawer-actions"><button className="primary-button" onClick={() => editProvider(selectedProviderId!)}><Sparkles size={15} />编辑</button><button className="icon-button danger" title="删除供应商" onClick={() => void removeProvider()} disabled={busy || readOnly}><Trash2 size={15} /></button></div></div><div className="drawer-section"><div className="drawer-section-title"><span>模型</span><span className="status-chip neutral">{selectedModels.length}</span></div>{selectedModels.map((model) => <div className="mini-model" key={model.id}><strong>{model.name ?? model.id}</strong><span>{model.id}</span></div>)}</div></div> : null}
         </aside> : null}
       </main>
+      <SavePreviewDialog pending={pendingSave} busy={busy} onClose={() => setPendingSave(null)} onConfirm={() => void confirmPendingSave()} />
+      <ConflictDialog detail={conflictDetail} busy={busy} onClose={() => setConflictDetail(null)} onReload={() => { setConflictDetail(null); void load(profileId); }} />
+      <ConfirmDialog open={Boolean(confirmAsk)} title={confirmAsk?.title ?? ""} message={confirmAsk?.message ?? ""} confirmLabel={confirmAsk?.confirmLabel ?? "确认"} danger={confirmAsk?.danger} busy={busy} onClose={() => setConfirmAsk(null)} onConfirm={() => { const ask = confirmAsk; setConfirmAsk(null); ask?.action(); }} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        sections={(Object.keys(sectionLabels) as Array<typeof section>).map((id) => ({ id, label: sectionLabels[id] }))}
+        profiles={profiles}
+        providers={providers.map(([id, provider]) => ({ id, modelCount: providerModels(provider).length }))}
+        activeProfileId={profileId}
+        onNavigate={(id) => { setSection(id as typeof section); setFormOpen(false); setDrawerOpen(false); }}
+        onSwitchProfile={(id) => confirmDiscardThen(() => { setProfileId(id); void load(id); })}
+        onSelectProvider={(id) => { setSection("models"); setSelectedProviderId(id); setExpandedProviders((current) => ({ ...current, [id]: true })); setFormOpen(false); setDrawerOpen(true); }}
+        actions={[
+          { id: "new-provider", label: "新建供应商", run: beginAdd },
+          { id: "save-all", label: "保存全部未保存改动", run: () => { void saveDirty(); } },
+          { id: "snapshot", label: "创建快照", run: () => { void createSnapshot(); } },
+          { id: "reload", label: "重新加载当前 Profile", run: () => { void load(profileId); } },
+          { id: "help", label: "快捷键说明", run: () => setHelpOpen(true) },
+        ]}
+      />
+      <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Toaster position="bottom-right" theme="system" closeButton toastOptions={{ classNames: { info: "toast-info" } }} />
     </div>
   );

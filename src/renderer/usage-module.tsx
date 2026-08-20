@@ -12,6 +12,10 @@ interface UsageModuleProps {
   onNotice: (notice: Notice) => void;
 }
 
+function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
 function formatUsd(value: number): string {
   if (value === 0) return "$0";
   if (value < 0.01) return `$${value.toFixed(5)}`;
@@ -92,11 +96,11 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
     return sequence === requestSequence.current;
   }
 
-  async function load(reindex = false): Promise<void> {
+  async function load(reindex = false, range?: { from?: string; to?: string }): Promise<void> {
     const sequence = ++requestSequence.current;
     setLoading(true);
     try {
-      const options = { from: from || undefined, to: to || undefined, reindex };
+      const options = { from: range?.from ?? (from || undefined), to: range?.to ?? (to || undefined), reindex };
       const cached = await api.usageSummary(profileId, options);
       if (!isCurrent(sequence)) return;
       setData(cached);
@@ -166,6 +170,10 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
     <div className="workspace-heading module-heading">
       <div><span className="eyebrow">PROFILE</span><h1>用量{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
       <div className="heading-actions">
+        <div className="mp-seg usage-range">
+          {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{days}天</button>)}
+          <button type="button" data-active={!from && !to} onClick={() => { setFrom(""); setTo(""); void load(false, {}); }}>全部</button>
+        </div>
         <input className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="起始日期" />
         <input className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="结束日期" />
         <button className="icon-button" title="应用筛选" onClick={() => void load()} disabled={loading}><Search size={16} /></button>
@@ -173,7 +181,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
       </div>
     </div>
 
-    {!data ? <div className="module-empty compact-empty"><Coins size={22} /><strong>正在读取会话索引</strong></div> : <div className="usage-layout">
+    {!data ? <div className="usage-cards">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="usage-card"><span className="eyebrow">&nbsp;</span><div className="skeleton skeleton-num" /><div className="skeleton skeleton-line" /></div>)}</div> : <div className="usage-layout">
       <div className="usage-cards">
         <div className="usage-card">
           <span className="eyebrow">花费</span>

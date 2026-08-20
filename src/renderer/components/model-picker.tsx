@@ -24,6 +24,8 @@ export interface ModelPickerProps {
   allowSpecial?: boolean;
   /** Show the thinking-level footer. Role selectors accept a level suffix; gateway upstreams do not. */
   allowLevel?: boolean;
+  /** Marks models the OMP catalog will filter out (enabledModels coverage) so a pick cannot silently no-op. */
+  isEnabled?: (providerId: string, modelId: string) => boolean;
   placeholder?: string;
   ariaLabel?: string;
 }
@@ -41,7 +43,7 @@ export function modelLabel(providers: Array<[string, OmpProvider]>, providerId: 
   return providers.find(([id]) => id === providerId)?.[1]?.models?.find((model) => model.id === modelId);
 }
 
-export function ModelPicker({ providers, value, onValueChange, allowSpecial, allowLevel, placeholder = "选择模型", ariaLabel }: ModelPickerProps): ReactElement {
+export function ModelPicker({ providers, value, onValueChange, allowSpecial, allowLevel, isEnabled, placeholder = "选择模型", ariaLabel }: ModelPickerProps): ReactElement {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<RoleThinkingLevel | null>(null);
@@ -172,6 +174,7 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
               flatIndex += 1;
               const index = flatIndex;
               const selected = parsed?.kind === "model" && parsed.provider === option.providerId && parsed.model === option.model.id;
+              const blocked = Boolean(isEnabled && !isEnabled(option.providerId, option.model.id ?? ""));
               return <button
                 type="button"
                 key={`${option.providerId}/${option.model.id}`}
@@ -182,12 +185,14 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
                 data-active={index === highlight}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => pick(option)}
+                title={blocked ? "enabledModels 未覆盖此模型，OMP 会将其过滤出目录" : undefined}
               >
                 <span className="mp-option-main">
                   <strong>{option.model.name ?? option.model.id}</strong>
                   <small>{option.providerId}/{option.model.id}</small>
                 </span>
                 <span className="mp-option-side">
+                  {blocked ? <span className="capability cap-blocked" title="enabledModels 未覆盖">过滤</span> : null}
                   {typeof option.model.contextWindow === "number" ? <span className="capability">{Math.round(option.model.contextWindow / 1000)}k</span> : null}
                   <span className={option.model.reasoning ? "capability on" : "capability"}>{option.model.reasoning ? "思考" : "标准"}</span>
                   <span className="capability">{option.model.input?.includes("image") ? "视觉" : "文本"}</span>

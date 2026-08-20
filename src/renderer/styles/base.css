@@ -160,3 +160,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .spin { animation: spin 0.85s linear infinite; }
 .rotate-open { transform: rotate(180deg); }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Motion floor: users who ask for reduced motion get none, everywhere, without per-rule opt-in. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
