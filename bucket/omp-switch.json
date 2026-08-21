@@ -1,12 +1,12 @@
 {
-  "version": "0.3.3",
+  "version": "0.4.1",
   "description": "Desktop companion for managing Oh My Pi model providers, plus a headless JSON CLI",
   "homepage": "https://github.com/skh2945932142/omp-switch",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.3.3/OMP-Switch-0.3.3-win.zip",
-      "hash": "92bf2bd9263f53f95f65c720e2cd9794804ffd6c884e9b363678212b550a5813"
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.4.1/OMP-Switch-0.4.1-win.zip",
+      "hash": "1aab767f9554c467d6c0c86c45589b972405155bd559e3be988a5a744e5e6d2d"
     }
   },
   "bin": "omp-switch-cli.exe",
