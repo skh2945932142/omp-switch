@@ -159,6 +159,16 @@ export interface UsageReport {
   byModel: UsageBucket[];
   byProvider: UsageBucket[];
   byDay: UsageBucket[];
+  /**
+   * Daily series per model key, sorted by day. Lets the UI draw an in-row trend for a single model
+   * without a second pass over the raw entries. Missing keys mean the model had no traffic.
+   */
+  byModelByDay: Record<string, UsageBucket[]>;
+  /**
+   * Daily series per provider, sorted by day. Same shape as byModelByDay so the per-provider
+   * breakdown can draw an identical in-row trend.
+   */
+  byProviderByDay: Record<string, UsageBucket[]>;
   /** `provider/model` seen with tokens but with no resolvable price. */
   unpriced: string[];
 }
@@ -226,6 +236,9 @@ function summarizeUsageInputs(entries: UsageInput[], options: SummarizeUsageOpti
   const byModel = new Map<string, UsageBucket>();
   const byProvider = new Map<string, UsageBucket>();
   const byDay = new Map<string, UsageBucket>();
+  // Nested maps: key -> day -> bucket. Collapsed into byModelByDay / byProviderByDay at the end.
+  const byModelByDay = new Map<string, Map<string, UsageBucket>>();
+  const byProviderByDay = new Map<string, Map<string, UsageBucket>>();
   const unpriced = new Set<string>();
   const seen = new Set<string>();
 
@@ -267,16 +280,42 @@ function summarizeUsageInputs(entries: UsageInput[], options: SummarizeUsageOpti
       addTo(bucket, tokens, recorded, computed, requestCount, failures, firstAt, lastAt);
       map.set(key, bucket);
     }
+    // Per-model daily bucket, so the UI can draw an in-row trend for one model.
+    if (day) {
+      const perModel = byModelByDay.get(modelKey) ?? new Map<string, UsageBucket>();
+      const dayBucket = perModel.get(day) ?? emptyBucket(day);
+      addTo(dayBucket, tokens, recorded, computed, requestCount, failures, firstAt, lastAt);
+      perModel.set(day, dayBucket);
+      byModelByDay.set(modelKey, perModel);
+
+      const providerKey = provider ?? "unknown";
+      const perProvider = byProviderByDay.get(providerKey) ?? new Map<string, UsageBucket>();
+      const providerDayBucket = perProvider.get(day) ?? emptyBucket(day);
+      addTo(providerDayBucket, tokens, recorded, computed, requestCount, failures, firstAt, lastAt);
+      perProvider.set(day, providerDayBucket);
+      byProviderByDay.set(providerKey, perProvider);
+    }
   }
 
   const byCost = (left: UsageBucket, right: UsageBucket): number =>
     (right.recordedCost || right.computedCost) - (left.recordedCost || left.computedCost) || right.tokens.total - left.tokens.total;
+
+  // Collapse the nested maps into day-sorted arrays keyed by model / provider.
+  const collapse = (nested: Map<string, Map<string, UsageBucket>>): Record<string, UsageBucket[]> => {
+    const record: Record<string, UsageBucket[]> = {};
+    for (const [key, perKey] of nested) {
+      record[key] = Array.from(perKey.values()).sort((left, right) => left.key.localeCompare(right.key));
+    }
+    return record;
+  };
 
   return {
     totals,
     byModel: Array.from(byModel.values()).sort(byCost),
     byProvider: Array.from(byProvider.values()).sort(byCost),
     byDay: Array.from(byDay.values()).sort((left, right) => left.key.localeCompare(right.key)),
+    byModelByDay: collapse(byModelByDay),
+    byProviderByDay: collapse(byProviderByDay),
     unpriced: Array.from(unpriced).sort(),
   };
 }

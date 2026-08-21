@@ -46,6 +46,7 @@ import { KNOWN_ROLES, RolesModule } from "./roles-module";
 import { QuickAssign } from "./components/quick-assign";
 import { CommandPalette } from "./components/command-palette";
 import { SnapshotTimeline } from "./components/snapshot-timeline";
+import { YamlPreview } from "./components/yaml-preview";
 import { ConflictDialog, ConfirmDialog, SavePreviewDialog, ShortcutsDialog, type PendingSave } from "./components/save-flow";
 import { IconButtonTip, StyledSelect } from "./components/ui-primitives";
 import { ThemeSwitch } from "./components/theme-switch";
@@ -219,7 +220,7 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
       modelsCandidates: [],
       settingsCandidates: [],
     },
-    models: { value: { providers: { openrouter: { baseUrl: "https://openrouter.ai/api/v1", api: "openai-completions", auth: "apiKey", apiKey: "OPENROUTER_API_KEY", models: [{ id: "openai/gpt-4.1", name: "GPT-4.1", reasoning: true, contextWindow: 128000, maxTokens: 16384 }] } } }, raw: "providers:\n  openrouter:\n    baseUrl: https://openrouter.ai/api/v1\n    api: openai-completions\n", path: "~/.omp/agent/models.yml", hash: "demo", exists: true, legacy: false, diagnostics: [] },
+    models: { value: { providers: { openrouter: { baseUrl: "https://openrouter.ai/api/v1", api: "openai-completions", auth: "apiKey", apiKey: "OPENROUTER_API_KEY", models: [{ id: "openai/gpt-4.1", name: "GPT-4.1", reasoning: true, contextWindow: 128000, maxTokens: 16384 }] } } }, raw: "# OMP model providers\nproviders:\n  openrouter:\n    baseUrl: \"https://openrouter.ai/api/v1\"\n    api: openai-completions\n    # auth resolves the key via the secret bridge\n    auth: apiKey\n    models:\n      - id: openai/gpt-4.1\n        name: \"GPT-4.1\"\n        contextWindow: 128000\n        maxTokens: 16384\n", path: "~/.omp/agent/models.yml", hash: "demo", exists: true, legacy: false, diagnostics: [{ code: "provider.api-unknown", severity: "warning", message: "api \"openai-completions\" 不在已知列表中，但运行时扩展可能注册它。" }, { code: "provider.apiKey-fragile-command", severity: "info", message: "apiKey 是明文而非 !command 引用；GUI 会先加密入库，但 CLI 路径不受此约束。" }] },
     settings: { value: { modelRoles: { default: "openrouter/openai/gpt-4.1", slow: "@default" } }, raw: "modelRoles:\n  default: openrouter/openai/gpt-4.1\n  slow: \"@default\"\n", path: "~/.omp/agent/config.yml", hash: "demo-settings", exists: true, legacy: false, diagnostics: [] },
     diagnostics: [{ severity: "info", code: "demo", message: "浏览器预览模式：当前数据为示例配置" }],
   });
@@ -318,21 +319,73 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     exportSurfaces: async (profileId) => ({ version: 1 as const, profile: profileId, items: [] }),
     importSurfaces: async () => [],
     refreshSessions: async () => ({ discovered: 0, skipped: 0, reused: 0, changed: 0, rebuilt: 0, scannedBytes: 0, invalidLines: 0, errors: 0 }),
-    listSessions: async () => ({ sessions: [], nextCursor: undefined }),
-    readSessionMessages: async () => ({ messages: [], hasMore: false, nextCursor: undefined }),
-    usageSummary: async () => ({
-      report: {
-        totals: { key: "total", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0, firstAt: "2026-08-18T10:00:00Z", lastAt: "2026-08-18T12:00:00Z" },
-        byModel: [{ key: "demo/demo-1", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
-        byProvider: [{ key: "demo", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
-        byDay: [{ key: "2026-08-18", requests: 2, failures: 0, tokens: { input: 31816, output: 77, cacheRead: 31744, cacheWrite: 0, reasoning: 34, total: 63637 }, recordedCost: 0.0140212, computedCost: 0, pricedRequests: 0 }],
-        unpriced: ["demo/demo-1"],
-      },
-      indexedEntries: 2,
-      invalidLines: 0,
-      pricedModels: 0,
-      overrides: {},
+    listSessions: async () => ({
+      sessions: [
+        { id: "demo-session-1", profile: "default", title: "重构 provider 配置加载", model: "gpt-5", provider: "openai", messageCount: 12, requestCount: 6, tokens: { input: 18420, output: 5210 }, cost: 0.0842, failures: 0, stale: false, fileSize: 48211, startedAt: "2026-08-21T13:42:00Z", lastActiveAt: "2026-08-21T14:08:00Z" },
+        { id: "demo-session-2", profile: "default", title: "排查缓存命中率为 0", model: "llama-3.3-70b", provider: "groq", messageCount: 6, requestCount: 4, tokens: { input: 9210, output: 1840 }, cost: 0.0118, failures: 1, stale: true, fileSize: 19840, startedAt: "2026-08-20T09:10:00Z", lastActiveAt: "2026-08-20T09:48:00Z" },
+      ],
+      nextCursor: undefined,
     }),
+    readSessionMessages: async (_profileId, _sessionId) => ({
+      messages: [
+        { id: "m1", role: "system", text: "Session started with model openai/gpt-5", timestamp: "2026-08-21T13:42:00Z" },
+        { id: "m2", role: "user", text: "帮我重构 provider 配置的加载逻辑，现在每次都重新解析整个文件。", timestamp: "2026-08-21T13:42:12Z" },
+        { id: "m3", role: "assistant", model: "gpt-5", provider: "openai", status: "stop", text: "好的。当前 `loadProfile` 每次都调用 `yaml.parse`，可以缓存解析后的 Document。建议这样改：\n\n```ts\nconst cached = this.cache.get(path);\nif (cached && cached.sha === sha) return cached.doc;\n```\n\n这样在外部文件未变时跳过解析。", timestamp: "2026-08-21T13:43:05Z" },
+        { id: "m4", role: "user", text: "缓存失效时呢？", timestamp: "2026-08-21T13:44:20Z" },
+        { id: "m5", role: "assistant", model: "gpt-5", provider: "openai", status: "stop", text: "哈希不匹配就重新解析并替换缓存项。commitPatch 已经在写入前重算哈希，所以缓存和磁盘永远一致。", timestamp: "2026-08-21T13:44:58Z", truncated: true },
+      ],
+      hasMore: false, nextCursor: undefined,
+    }),
+    usageSummary: async () => {
+      // Demo data: two models across two providers over several days, so the trend chart and the
+      // in-row sparklines have something to draw. Numbers are illustrative, not from a real machine.
+      const dayBucket = (key: string, requests: number, cost: number, input: number, output: number, cacheRead = 0, reasoning = 0) => ({
+        key, requests, failures: 0, tokens: { input, output, cacheRead, cacheWrite: 0, reasoning, total: input + output + cacheRead + reasoning }, recordedCost: cost, computedCost: 0, pricedRequests: 0,
+      });
+      const modelDays = [
+        dayBucket("2026-08-15", 38, 0.42, 920_000, 310_000, 640_000, 120_000),
+        dayBucket("2026-08-16", 52, 0.61, 1_240_000, 402_000, 780_000, 180_000),
+        dayBucket("2026-08-17", 29, 0.31, 710_000, 240_000, 510_000, 90_000),
+        dayBucket("2026-08-18", 61, 0.74, 1_510_000, 488_000, 960_000, 210_000),
+        dayBucket("2026-08-19", 44, 0.52, 1_080_000, 360_000, 720_000, 150_000),
+        dayBucket("2026-08-20", 73, 0.88, 1_720_000, 540_000, 1_080_000, 260_000),
+        dayBucket("2026-08-21", 58, 0.69, 1_380_000, 450_000, 880_000, 200_000),
+      ];
+      const groqDays = [
+        dayBucket("2026-08-18", 12, 0.04, 180_000, 60_000),
+        dayBucket("2026-08-19", 8, 0.03, 120_000, 40_000),
+        dayBucket("2026-08-20", 19, 0.07, 260_000, 90_000),
+      ];
+      const sum = (days: typeof modelDays) => days.reduce((acc, day) => {
+        acc.requests += day.requests;
+        for (const k of ["input", "output", "cacheRead", "cacheWrite", "reasoning", "total"] as const) acc.tokens[k] += day.tokens[k];
+        acc.recordedCost += day.recordedCost;
+        return acc;
+      }, { requests: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, total: 0 }, recordedCost: 0 });
+      const openaiSum = sum(modelDays);
+      const groqSum = sum(groqDays);
+      return {
+        report: {
+          totals: { key: "total", requests: openaiSum.requests + groqSum.requests, failures: 3, tokens: { ...openaiSum.tokens, total: openaiSum.tokens.total + groqSum.tokens.total }, recordedCost: openaiSum.recordedCost + groqSum.recordedCost, computedCost: 0, pricedRequests: 0, firstAt: "2026-08-15T08:00:00Z", lastAt: "2026-08-21T22:00:00Z" },
+          byModel: [
+            { key: "openai/gpt-5", ...openaiSum, failures: 2, computedCost: 0, pricedRequests: 0 },
+            { key: "groq/llama-3.3-70b", ...groqSum, failures: 1, computedCost: 0, pricedRequests: 0 },
+          ],
+          byProvider: [
+            { key: "openai", ...openaiSum, failures: 2, computedCost: 0, pricedRequests: 0 },
+            { key: "groq", ...groqSum, failures: 1, computedCost: 0, pricedRequests: 0 },
+          ],
+          byDay: modelDays.map((day) => ({ ...day, requests: day.requests + (groqDays.find((g) => g.key === day.key)?.requests ?? 0) })),
+          byModelByDay: { "openai/gpt-5": modelDays, "groq/llama-3.3-70b": groqDays },
+          byProviderByDay: { openai: modelDays, groq: groqDays },
+          unpriced: ["openai/gpt-5", "groq/llama-3.3-70b"],
+        },
+        indexedEntries: 420,
+        invalidLines: 0,
+        pricedModels: 0,
+        overrides: {},
+      };
+    },
     setUsagePrice: async () => ({}),
     listGatewayPools: async () => [],
     saveGatewayPool: async (pool) => pool,
@@ -946,6 +999,13 @@ export default function App() {
   });
   const healthLabel = readOnly ? "只读" : errorDiagnostics.length > 0 ? "有问题" : config?.models.exists ? "已连接" : "未配置";
   const sectionLabels = { models: "模型", roles: "角色", prompts: "提示", skills: "技能", sessions: "会话", usage: "用量", gateway: "网关" } as const;
+  // Nav groups, so the seven modules read as three sections instead of a flat list. The order of
+  // groups and items matches the sectionLabels keys; the grouping is presentational only.
+  const navGroups: Array<{ title: string; items: Array<keyof typeof sectionLabels> }> = [
+    { title: "配置", items: ["models", "roles"] },
+    { title: "内容", items: ["prompts", "skills", "sessions"] },
+    { title: "运维", items: ["usage", "gateway"] },
+  ];
 
   return (
     <Tooltip.Provider delayDuration={350}>
@@ -984,14 +1044,17 @@ export default function App() {
             <span className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "读取中"}</span>
           </div>
           <nav className="section-nav" aria-label="模块">
-            {(Object.keys(sectionLabels) as Array<keyof typeof sectionLabels>).map((item) => (
-              <button key={item} className={section === item ? "active" : ""} onClick={() => { setSection(item); setFormOpen(false); setDrawerOpen(false); }}>
-                <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "roles" ? <Users size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : item === "usage" ? <Coins size={16} /> : <ShieldCheck size={16} />}</span>
-                <span>{sectionLabels[item]}</span>
-                {item === "models" ? <span className="nav-count">{providers.length}</span> : null}
-                {item === "roles" && rolesDirty ? <span className="nav-dot" title="有未保存的角色改动" /> : null}
-              </button>
-            ))}
+            {navGroups.map((group) => <div className="nav-group" key={group.title}>
+              <span className="nav-group-title">{group.title}</span>
+              {group.items.map((item) => (
+                <button key={item} className={section === item ? "active" : ""} onClick={() => { setSection(item); setFormOpen(false); setDrawerOpen(false); }}>
+                  <span className="nav-icon">{item === "models" ? <CloudDownload size={16} /> : item === "roles" ? <Users size={16} /> : item === "prompts" ? <FileCheck2 size={16} /> : item === "skills" ? <Sparkles size={16} /> : item === "sessions" ? <Activity size={16} /> : item === "usage" ? <Coins size={16} /> : <ShieldCheck size={16} />}</span>
+                  <span>{sectionLabels[item]}</span>
+                  {item === "models" ? <span className="nav-count">{providers.length}</span> : null}
+                  {item === "roles" && rolesDirty ? <span className="nav-dot" title="有未保存的角色改动" /> : null}
+                </button>
+              ))}
+            </div>)}
           </nav>
           <div className="rail-footer">
             <button className="rail-action" onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}><CircleAlert size={15} />诊断<span>{errorDiagnostics.length}</span></button>
@@ -1026,7 +1089,7 @@ export default function App() {
               </div>
 
               {readOnlyReason ? <div className="inline-status warning"><CircleAlert size={15} /><span>{readOnlyReason}</span></div> : null}
-              {filteredProviders.length === 0 ? <div className="empty-workspace"><CloudDownload size={24} /><strong>{providers.length ? "没有匹配项" : "还没有供应商"}</strong><button className="primary-button" onClick={beginAdd} disabled={readOnly}><Plus size={15} />新增</button></div> : null}
+              {filteredProviders.length === 0 ? <div className="empty-workspace"><span className="empty-glyph"><CloudDownload size={30} /></span><strong>{providers.length ? "没有匹配的供应商" : "还没有供应商"}</strong><span className="empty-desc">{providers.length ? "调整筛选条件，或新增一个供应商。" : "新增第一个供应商，开始管理你的 OMP 模型目录。"}</span><div className="empty-actions"><button className="primary-button" onClick={beginAdd} disabled={readOnly}><Plus size={15} />新增供应商</button></div></div> : null}
               <div className="provider-stack">
                 {filteredProviders.map(([id, provider]) => {
                   const expanded = expandedProviders[id] ?? false;
@@ -1041,10 +1104,8 @@ export default function App() {
                         aria-label={`${expanded ? "收起" : "展开"} ${id} 的模型列表`}
                       >
                         <span className="provider-led" />
-                        <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"} · {models.length} 模型</small></span>
-                        <span className="provider-endpoint mono">{provider.baseUrl ?? "—"}</span>
-                        <span className="row-status">{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置" : "未配置"}</span>
-                        {models.length > 0 && coverage < models.length ? <span className="status-chip warn" title="enabledModels 未完全覆盖此供应商，OMP 会将未覆盖的模型过滤出目录">{coverage === 0 ? "未启用" : `启用 ${coverage}/${models.length}`}</span> : null}
+                        <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"}</small></span>
+                        <span className="provider-model-count">{models.length}</span>
                         <ChevronDown size={16} className={`provider-chevron${expanded ? " open" : ""}`} />
                       </button>
                       <IconButtonTip label={`编辑 ${id}`}>
@@ -1053,6 +1114,15 @@ export default function App() {
                     </div>
                     <div className={`model-list-wrap${expanded ? " open" : ""}`}>
                       <div className="model-list-clip">
+                        <div className="provider-meta-bar">
+                          <span className="provider-meta-endpoint mono" title={provider.baseUrl ?? ""}>{provider.baseUrl ?? "无端点"}</span>
+                          <span className="provider-meta-sep">·</span>
+                          <span className={`provider-meta-status ${provider.auth === "none" ? "ok" : provider.apiKey ? "ok" : "warn"}`}>{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置密钥" : "未配置密钥"}</span>
+                          {models.length > 0 && coverage < models.length ? <>
+                            <span className="provider-meta-sep">·</span>
+                            <span className="provider-meta-coverage warn-line" title="enabledModels 未完全覆盖此供应商，OMP 会将未覆盖的模型过滤出目录">{coverage === 0 ? "未启用" : `启用 ${coverage}/${models.length}`}</span>
+                          </> : null}
+                        </div>
                         <div className="model-list">
                           {models.map((model) => <div
                             className="model-row"
@@ -1099,19 +1169,58 @@ export default function App() {
             <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div>
-            <details className="yaml-preview"><summary>原始 YAML</summary><pre className="raw-view">{config?.models.raw || "models.yml 未创建"}{"\n\n"}{config?.settings.raw || "config.yml 未创建"}</pre></details>
+            <details className="yaml-preview"><summary>原始 YAML</summary><YamlPreview files={[{ name: "models.yml", content: config?.models.raw || "# models.yml 未创建" }, { name: "config.yml", content: config?.settings.raw || "# config.yml 未创建" }]} /></details>
           </div> : null}
 
-          {diagnosticsOpen ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>状态</span><span className={`status-chip ${errorDiagnostics.length ? "danger" : "ok"}`}>{errorDiagnostics.length ? "有问题" : "正常"}</span></div>{(config?.diagnostics ?? []).map((item, index) => <div className="diagnostic-row" key={`${item.code}-${index}`}><span className={`diag-icon ${item.severity}`}><CircleAlert size={14} /></span><span><strong>{item.code}</strong><small>{item.message}</small></span></div>)}{!config?.diagnostics.length ? <span className="muted-line">暂无诊断</span> : null}</div></div> : null}
+          {diagnosticsOpen ? (() => {
+            const diags = config?.diagnostics ?? [];
+            const errors = diags.filter((d) => d.severity === "error");
+            const warnings = diags.filter((d) => d.severity === "warning");
+            const infos = diags.filter((d) => d.severity === "info");
+            const groups: Array<{ key: "error" | "warning" | "info"; label: string; items: typeof diags }> = [
+              { key: "error", label: "错误", items: errors },
+              { key: "warning", label: "警告", items: warnings },
+              { key: "info", label: "信息", items: infos },
+            ].filter((g) => g.items.length > 0) as Array<{ key: "error" | "warning" | "info"; label: string; items: typeof diags }>;
+            return <div className="drawer-body">
+              <div className="diag-summary">
+                <div className="diag-summary-status">
+                  <span className={`status-led ${errors.length ? "danger" : warnings.length ? "warn" : "ok"}`} />
+                  <strong>{errors.length ? "存在问题" : warnings.length ? "有警告" : "配置正常"}</strong>
+                </div>
+                <div className="diag-summary-counts">
+                  <span className={`diag-count ${errors.length ? "danger" : ""}`}><strong>{errors.length}</strong>错误</span>
+                  <span className={`diag-count ${warnings.length ? "warn" : ""}`}><strong>{warnings.length}</strong>警告</span>
+                  <span className="diag-count"><strong>{infos.length}</strong>信息</span>
+                </div>
+              </div>
+              {diags.length === 0 ? <span className="muted-line diag-empty">暂无诊断。写入前会自动校验，遇到问题会在此列出。</span> : groups.map((group) => <div className="diag-group" key={group.key}>
+                <div className="diag-group-title">{group.label}<span className="status-chip neutral">{group.items.length}</span></div>
+                {group.items.map((item, index) => <div className="diagnostic-row" key={`${item.code}-${index}`}><span className={`diag-icon ${item.severity}`}><CircleAlert size={14} /></span><span><strong>{item.code}</strong><small>{item.message}</small></span></div>)}
+              </div>)}
+            </div>;
+          })() : null}
 
 
           {!profileDrawerOpen && !diagnosticsOpen && formOpen ? <div className="drawer-body form-drawer">
-            <label className="module-field"><span>预设</span><StyledSelect value={form.id} onValueChange={(next) => choosePreset(next)} options={[{ value: "", label: "自定义" }, ...(catalog.length ? catalog : FALLBACK_PRESETS).map((preset) => ({ value: preset.id, label: preset.label }))]} ariaLabel="选择预设" /></label>
-            <div className="form-two"><label>ID<input readOnly={Boolean(editingProviderId)} value={form.id} onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))} placeholder="openrouter" /></label><label>API<input list="omp-api-options" value={form.api} onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))} /><datalist id="omp-api-options"><option value="openai-completions" /><option value="openai-responses" /><option value="anthropic-messages" /><option value="openai-codex-responses" /></datalist></label></div>
-            <label>Endpoint<input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" /></label>
-            <div className="form-two"><label>Auth<StyledSelect value={form.auth} onValueChange={(next) => setForm((current) => ({ ...current, auth: next }))} options={[{ value: "apiKey", label: "apiKey" }, { value: "none", label: "none" }, { value: "oauth", label: "oauth" }]} ariaLabel="认证方式" mono /></label><label>密钥<input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空保留" /></label></div>
-            <div className="model-editor"><div className="drawer-section-title"><span>模型</span><button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={15} /></button></div>{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型</span> : null}</div>
-            <button className="drawer-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label className="module-field"><span>发现</span><StyledSelect value={form.discoveryType} onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))} options={[{ value: "", label: "手动" }, { value: "openai-models-list", label: "OpenAI" }, { value: "ollama", label: "Ollama" }, { value: "llama.cpp", label: "llama.cpp" }, { value: "lm-studio", label: "LM Studio" }, { value: "proxy", label: "Proxy" }, { value: "litellm", label: "LiteLLM" }]} ariaLabel="模型发现方式" /></label><label>Transport<input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label>Headers<textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label>Overrides<textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label>远程压缩<textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label>Cost<textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
+            <div className="form-group">
+              <div className="form-group-title"><span>身份</span></div>
+              <label className="module-field"><span>预设</span><StyledSelect value={form.id} onValueChange={(next) => choosePreset(next)} options={[{ value: "", label: "自定义" }, ...(catalog.length ? catalog : FALLBACK_PRESETS).map((preset) => ({ value: preset.id, label: preset.label }))]} ariaLabel="选择预设" /></label>
+              <div className="form-two"><label className="module-field"><span>ID</span><input readOnly={Boolean(editingProviderId)} value={form.id} onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))} placeholder="openrouter" /></label><label className="module-field"><span>API</span><input list="omp-api-options" value={form.api} onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))} /><datalist id="omp-api-options"><option value="openai-completions" /><option value="openai-responses" /><option value="anthropic-messages" /><option value="openai-codex-responses" /></datalist></label></div>
+            </div>
+            <div className="form-group">
+              <div className="form-group-title"><span>连接</span></div>
+              <label className="module-field"><span>Endpoint</span><input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" /></label>
+              <div className="form-two"><label className="module-field"><span>认证方式</span><StyledSelect value={form.auth} onValueChange={(next) => setForm((current) => ({ ...current, auth: next }))} options={[{ value: "apiKey", label: "apiKey" }, { value: "none", label: "none" }, { value: "oauth", label: "oauth" }]} ariaLabel="认证方式" mono /></label><label className="module-field"><span>密钥</span><input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空保留" /></label></div>
+              <span className="form-group-hint">OMP 以 <code className="inline-code">!command</code> 形式读取密钥；密钥经 DPAPI 加密存入本地凭据库，永远不会写入 OMP 配置文件。</span>
+            </div>
+            <div className="form-group">
+              <div className="form-group-title"><span>模型</span><button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={15} /></button></div>
+              <div className="model-editor">{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型 · 点击右上「+」添加</span> : null}</div>
+            </div>
+            <div className="form-group">
+              <button className="drawer-disclosure form-group-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label className="module-field"><span>发现</span><StyledSelect value={form.discoveryType} onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))} options={[{ value: "", label: "手动" }, { value: "openai-models-list", label: "OpenAI" }, { value: "ollama", label: "Ollama" }, { value: "llama.cpp", label: "llama.cpp" }, { value: "lm-studio", label: "LM Studio" }, { value: "proxy", label: "Proxy" }, { value: "litellm", label: "LiteLLM" }]} ariaLabel="模型发现方式" /></label><label className="module-field"><span>Transport</span><input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label className="module-field"><span>Headers</span><textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label className="module-field"><span>Compat</span><textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label className="module-field"><span>Overrides</span><textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label className="module-field"><span>远程压缩</span><textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label className="module-field"><span>Cost</span><textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
+            </div>
             <div className="drawer-actions form-submit-actions"><button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}><CloudDownload size={15} />测试并发现</button><button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
           </div> : null}
 

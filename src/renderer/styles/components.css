@@ -191,9 +191,15 @@
 .role-id strong { font-family: var(--font-mono); font-size: var(--fs-strong); font-weight: 600; }
 .role-id small { color: var(--muted); font-size: var(--fs-micro); }
 .role-meta { display: grid; gap: 5px; min-width: 0; }
-.role-resolved { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-mono); }
-.role-resolved .arrow { color: var(--muted); }
-.role-resolved .final { color: var(--ink); font-family: var(--font-sans); font-weight: 600; font-size: var(--fs-small); }
+/* The reference chain is secondary (quiet mono hops); the resolved model is the primary line. */
+.role-chain { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-mono); opacity: 0.85; }
+.role-chain-hop { display: inline-flex; align-items: center; gap: 5px; }
+.role-chain .arrow { color: var(--line); }
+.role-final { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.role-final-arrow { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.role-final-name { color: var(--ink); font-weight: 600; font-size: var(--fs-small); }
+.role-final-id { color: var(--muted); font-size: var(--fs-micro); }
+.role-unset { color: var(--muted); font-size: var(--fs-micro); }
 .role-warning { display: inline-flex; align-items: center; gap: 5px; color: var(--warn); font-family: var(--font-sans); font-size: var(--fs-micro); }
 .role-picker-cell { min-width: 0; }
 
@@ -257,14 +263,24 @@
 /* ---- Snapshot timeline ---- */
 
 .snapshot-timeline { display: grid; gap: 8px; }
-.snapshot-list { display: grid; gap: 4px; max-height: 220px; overflow: auto; }
-.snapshot-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); text-align: left; }
-.snapshot-row:hover { background: var(--hover); }
-.snapshot-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex: 0 0 auto; }
-.snapshot-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.snapshot-list { display: grid; gap: 0; max-height: 260px; overflow: auto; }
+/* Each item: a left rail carrying a node + connector, the time/id, and an inline restore button.
+   The connector is drawn on the rail so the list reads top-to-bottom as a timeline, not a list. */
+.snapshot-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 8px 8px 8px 0; }
+.snapshot-rail { position: relative; display: flex; justify-content: center; height: 100%; min-height: 44px; }
+.snapshot-rail::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); background: var(--hairline); }
+/* The first item's rail starts at the node (no line above it); the last item's stops at the node. */
+.snapshot-item:first-child .snapshot-rail::before { top: 50%; }
+.snapshot-item.last .snapshot-rail::before { bottom: 50%; }
+.snapshot-node { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--panel); border: 2px solid var(--muted); }
+.snapshot-item:hover .snapshot-node { border-color: var(--signal); }
+.snapshot-main { display: grid; gap: 2px; min-width: 0; }
 .snapshot-main strong { font-size: var(--fs-small); font-weight: 600; }
 .snapshot-main small { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.snapshot-row svg { color: var(--muted); }
+.snapshot-restore { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font-size: var(--fs-micro); font-weight: 600; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; }
+.snapshot-restore:hover { background: var(--hover); color: var(--ink); border-color: var(--hairline); }
+.snapshot-restore:disabled { opacity: 0.5; cursor: not-allowed; }
+.snapshot-restore svg { color: var(--signal); }
 
 /* ---- Loading skeletons ---- */
 

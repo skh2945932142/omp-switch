@@ -92,15 +92,18 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
             <small>{gloss || "自定义角色"}</small>
           </div>
           <div className="role-meta">
-            {value.trim() && resolution.chain.length > 0 ? <span className="role-resolved">
-              {resolution.chain.map((step, index) => <span key={`${step}-${index}`}>{index > 0 ? <span className="arrow">→</span> : null}<span className="mono">{step}</span></span>)}
-              {resolution.final?.kind === "model" && finalModel ? <>
-                <span className="arrow">=</span>
-                <span className="final">{finalModel.name ?? finalModel.id}</span>
+            {value.trim() && resolution.chain.length > 0 ? <>
+              {resolution.chain.length > 1 || resolution.final ? <span className="role-chain">
+                {resolution.chain.map((step, index) => <span className="role-chain-hop" key={`${step}-${index}`}>{index > 0 ? <span className="arrow">→</span> : null}<span className="mono">{step}</span></span>)}
+              </span> : null}
+              {resolution.final?.kind === "model" && finalModel ? <span className="role-final">
+                <span className="role-final-arrow">=</span>
+                <span className="role-final-name">{finalModel.name ?? finalModel.id}</span>
+                <span className="mono role-final-id">{finalModel.id}</span>
                 {finalModel.reasoning ? <span className="capability on">思考</span> : null}
                 {finalModel.input?.includes("image") ? <span className="capability on">视觉</span> : null}
-              </> : resolution.final?.kind === "wildcard" ? <span className="arrow">· 任意可用模型</span> : null}
-            </span> : <span className="role-resolved">未设置 · 由 OMP 内置目录决定</span>}
+              </span> : resolution.final?.kind === "wildcard" ? <span className="role-final"><span className="role-final-arrow">=</span><span className="role-final-name">任意可用模型</span></span> : resolution.final?.kind === "role" ? <span className="role-final"><span className="role-final-arrow">→</span><span className="role-final-name">@{resolution.final.role}</span></span> : null}
+            </> : <span className="role-unset">未设置 · 由 OMP 内置目录决定</span>}
             {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />@引用出现循环</span> : null}
             {invalid ? <span className="role-warning"><CircleAlert size={13} />无法解析的选择器</span> : null}
             {misused ? <span className="role-warning"><CircleAlert size={13} />`:{misused}` 不是角色思考等级（OMP 不会剥离它），请改用 minimal–max</span> : null}

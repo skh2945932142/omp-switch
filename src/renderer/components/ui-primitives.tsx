@@ -53,12 +53,21 @@ export function StyledSelect({ value, onValueChange, options, ariaLabel, mono, d
   </SelectPrimitive.Root>;
 }
 
-/** Tooltip wrapper for icon buttons; the label doubles as aria-label. */
-export function IconButtonTip({ label, children }: { label: string; children: ReactNode }): ReactElement {
-  return <TooltipPrimitive.Root delayDuration={350}>
+/**
+ * Tooltip wrapper. `label` may be any node, so callers like the usage trend chart can
+ * render multi-line summaries (date · cost · tokens) rather than a single string. The
+ * trigger is `asChild` so an SVG hit-target or an icon button becomes the anchor.
+ */
+export function Tip({ label, children, side = "top" }: { label: ReactNode; children: ReactNode; side?: "top" | "bottom" | "left" | "right" }): ReactElement {
+  return <TooltipPrimitive.Root delayDuration={120}>
     <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content className="tip-content" sideOffset={6} collisionPadding={10}>{label}</TooltipPrimitive.Content>
+      <TooltipPrimitive.Content className="tip-content" side={side} sideOffset={6} collisionPadding={10}>{label}</TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   </TooltipPrimitive.Root>;
+}
+
+/** Tooltip wrapper for icon buttons; the label doubles as aria-label. */
+export function IconButtonTip({ label, children }: { label: string; children: ReactNode }): ReactElement {
+  return <Tip label={label}>{children}</Tip>;
 }

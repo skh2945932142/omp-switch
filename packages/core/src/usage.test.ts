@@ -129,6 +129,14 @@ describe("usage aggregation", () => {
     expect(report.byProvider.map((bucket) => bucket.key).sort()).toEqual(["groq", "xiaomi"]);
     expect(report.byDay.map((bucket) => bucket.key)).toEqual(["2026-08-18", "2026-08-19"]);
     expect(report.byDay[0].requests).toBe(2);
+
+    // Per-model daily series. mimo has traffic only on 08-18 (entries a+b, 2 requests); groq/other
+    // has one day on 08-19 (entry c, 1 request).
+    expect(Object.keys(report.byModelByDay).sort()).toEqual(["groq/other", "xiaomi/mimo-v2.5-pro"]);
+    expect(report.byModelByDay["xiaomi/mimo-v2.5-pro"].map((b) => b.key)).toEqual(["2026-08-18"]);
+    expect(report.byModelByDay["xiaomi/mimo-v2.5-pro"][0].requests).toBe(2);
+    expect(report.byModelByDay["groq/other"].map((b) => b.key)).toEqual(["2026-08-19"]);
+    expect(report.byModelByDay["groq/other"][0].requests).toBe(1);
   });
 
   it("names models it could not price instead of silently reporting a low total", () => {

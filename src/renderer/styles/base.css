@@ -68,10 +68,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rail-profile select { height: 36px; padding: 0 9px; border: 0; border-radius: 9px; color: var(--ink); background: var(--sunken); }
 .path-note { overflow: hidden; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
 .section-nav { display: grid; gap: 2px; padding-top: 12px; }
-.section-nav button { position: relative; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 9px; min-height: 36px; padding: 0 10px 0 14px; border: 0; border-radius: 9px; color: var(--ink-soft); background: transparent; text-align: left; font-size: var(--fs-small); font-weight: 500; }
+.nav-group { display: grid; gap: 2px; }
+.nav-group + .nav-group { margin-top: 14px; }
+.nav-group-title { padding: 0 14px 4px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.section-nav button { position: relative; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 9px; min-height: 36px; padding: 0 10px 0 14px; border: 0; border-radius: 9px; color: var(--ink-soft); background: transparent; text-align: left; font-size: var(--fs-small); font-weight: 500; transition: background 120ms ease, color 120ms ease; }
 .section-nav button:hover { background: var(--hover); color: var(--ink); }
+/* Active = a soft rounded fill block (Apple-settings style), not a 3px accent rail. */
 .section-nav button.active { background: var(--selected); color: var(--ink); font-weight: 600; }
-.section-nav button.active::before { content: ""; position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; border-radius: 2px; background: var(--signal); }
+.section-nav button.active .nav-icon { color: var(--signal); }
 .nav-icon { display: inline-grid; place-items: center; }
 .nav-count { min-width: 20px; padding: 2px 6px; border-radius: var(--radius-pill); color: var(--muted); background: var(--sunken); text-align: center; font-size: var(--fs-micro); font-weight: 600; }
 .nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
@@ -95,8 +99,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .new-wrap { position: relative; }
 .inline-status { gap: 8px; min-height: 34px; margin-bottom: 14px; padding: 7px 12px; border: 0; border-radius: 10px; font-size: var(--fs-small); color: var(--warn); background: var(--warn-soft); }
 
-.empty-workspace, .module-empty { display: grid; justify-items: center; gap: 10px; padding: 72px 20px; border: 1px dashed var(--line); border-radius: var(--radius-l); color: var(--muted); background: transparent; text-align: center; }
-.empty-workspace strong, .module-empty strong { color: var(--ink); font-size: var(--fs-strong); }
+/* Empty states: a soft rounded panel with a large tinted glyph, a title, a context line, and a
+   primary/secondary CTA pair. No dashed border — a dashed outline reads as "unfinished", which
+   fights the premium tone; separation comes from the sunken surface and breathing room instead. */
+.empty-workspace, .module-empty { display: grid; justify-items: center; gap: 14px; padding: 56px 32px; border: 0; border-radius: var(--radius-l); color: var(--muted); background: var(--sunken); text-align: center; }
+.empty-workspace { padding: 80px 32px; }
+.empty-glyph { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; color: var(--ink-soft); background: var(--panel); box-shadow: var(--shadow-card); }
+.empty-workspace .empty-glyph { width: 64px; height: 64px; border-radius: 18px; }
+.empty-glyph svg { width: 26px; height: 26px; }
+.empty-workspace .empty-glyph svg { width: 30px; height: 30px; }
+.empty-workspace strong, .module-empty strong { color: var(--ink); font-size: var(--fs-title); font-weight: 650; letter-spacing: -0.01em; }
+.empty-workspace .empty-desc, .module-empty .empty-desc { max-width: 360px; font-size: var(--fs-small); line-height: 1.5; }
+.empty-actions { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; }
 .module-view { max-width: 780px; }
 .module-empty { margin-top: 18px; }
 .module-empty span { font-size: var(--fs-small); }
@@ -139,6 +153,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .module-field input:focus-visible, .module-field select:focus-visible, .module-field textarea:focus-visible { border-color: var(--signal); outline: none; }
 .form-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-drawer { gap: 12px; }
+/* Semantic form groups: each is a card with a quiet title row, breathing room between groups,
+   and an optional hint line (e.g. the DPAPI note under the key field). Replaces the old flat
+   stack of bare <label> rows so a long form reads as a few sections, not one long column. */
+.form-group { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--hairline); border-radius: var(--radius-m); background: var(--sunken); }
+.form-group-title { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: var(--fs-micro); font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.form-group-hint { color: var(--muted); font-size: var(--fs-micro); line-height: 1.5; }
+.inline-code { font-family: var(--font-mono); font-size: var(--fs-micro); padding: 1px 5px; border-radius: 5px; background: var(--panel); color: var(--ink-soft); }
+.form-group-disclosure { border-top: 0; padding: 0; margin-top: 2px; }
+.form-drawer > label:not(.check-line), .advanced-fields > label:not(.check-line) { display: grid; gap: 6px; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
+.form-drawer input:not([type="checkbox"]), .form-drawer select, .form-drawer textarea { width: 100%; min-width: 0; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: var(--sunken); }
+.form-drawer input:not([type="checkbox"]), .form-drawer select { height: 34px; padding: 0 10px; font-size: var(--fs-small); }
+.form-drawer input:not([type="checkbox"]):focus-visible, .form-drawer select:focus-visible, .form-drawer textarea:focus-visible { border-color: var(--signal); outline: none; }
+.form-drawer textarea { padding: 8px; resize: vertical; font-family: var(--font-mono); font-size: var(--fs-small); }
+.advanced-fields { display: grid; gap: 10px; }
+.form-submit-actions { justify-content: flex-end; padding-top: 4px; }
+/* Inputs inside a sunken form-group sit on the panel color so they read as fields, not as the group.
+   This override must outrank .form-drawer input:not([type=checkbox]) above (same 0,3,1 specificity,
+   so source order — this rule comes after — decides). */
+.form-drawer .form-group .module-field input,
+.form-drawer .form-group .module-field select,
+.form-drawer .form-group .module-field textarea,
+.form-drawer .form-group .sel-trigger,
+.form-drawer .form-group .mp-trigger { background: var(--panel); }
+.form-group .advanced-fields { padding-top: 6px; border-top: 1px solid var(--hairline); }
 .form-drawer > label:not(.check-line), .advanced-fields > label:not(.check-line) { display: grid; gap: 6px; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
 .form-drawer input:not([type="checkbox"]), .form-drawer select, .form-drawer textarea { width: 100%; min-width: 0; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: var(--sunken); }
 .form-drawer input:not([type="checkbox"]), .form-drawer select { height: 34px; padding: 0 10px; font-size: var(--fs-small); }
@@ -159,8 +197,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .surface-editor { width: 100%; min-height: 300px; padding: 12px; border: 1px solid transparent; border-radius: 10px; color: var(--ink); background: var(--sunken); font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.6; resize: vertical; }
 .surface-editor:focus-visible { border-color: var(--signal); outline: none; }
 .raw-view { max-width: 100%; margin: 0; padding: 14px; overflow: auto; border: 0; border-radius: 10px; color: var(--ink-soft); background: var(--sunken); font-family: var(--font-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.compact-empty { min-height: 210px; margin: 0; padding: 34px 18px; border: 0; border-radius: 0; background: transparent; }
-.compact-empty strong { color: var(--ink); font-size: var(--fs-small); }
+/* Compact variant lives inside a list/editor panel that already provides the surface, so it
+   drops its own padding/border and centers vertically rather than drawing a separate panel. */
+.compact-empty { min-height: 280px; margin: 0; padding: 48px 24px; border: 0; border-radius: 0; background: transparent; }
+.compact-empty strong { color: var(--ink); font-size: var(--fs-strong); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .mono { font-family: var(--font-mono); }

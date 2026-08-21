@@ -4,6 +4,46 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.1 - 2026-08-21
+
+### Added
+
+- Usage dashboard rework: expandable rows reveal the full token split (input/output/cacheRead/
+  cacheWrite/reasoning), cache hit rate, and an in-row cost sparkline; the trend chart switched from
+  thin bars to an SVG area chart with a 花费/请求/Tokens dimension switcher and a Radix tooltip; top
+  KPI cards collapsed into three composite cards (cost + source + token-composition stacked bar,
+  requests + failure rate, cache hit). A new `UsageReport.byModelByDay` / `byProviderByDay` feeds the
+  in-row sparklines.
+- Session messages rebuilt from a raw `<pre>` text join into role bubbles: user turns are
+  right-aligned ink/paper inversions, assistant turns are left-aligned sunken blocks carrying the
+  model, and system/tool/result turns are centered quiet strips. Whitespace is preserved so code
+  blocks render.
+- YAML preview with file tabs (models.yml / config.yml), line numbers, and a hand-written four-color
+  syntax highlighter (key/string/number/comment), replacing the merged single `<pre>`.
+- Diagnostics gained a summary header (status LED + error/warning/info counts) and severity grouping.
+- Empty states redesigned: soft rounded panels with a large tinted glyph, a context line, and a
+  primary/secondary CTA pair, replacing the dashed-border placeholder.
+
+### Changed
+
+- Left rail: the seven modules are grouped into 配置 / 内容 / 运维 with section titles; the active
+  state moved from a 3px accent rail to a soft rounded fill block with a signal-tinted icon.
+- Provider card header primary/secondary split: the header row keeps only the name, api, a model-count
+  badge, and the chevron; endpoint, key status, and coverage moved into a sunken meta bar above the
+  model list.
+- Provider edit form grouped into 身份 / 连接 / 模型 / 高级 cards with hint lines (e.g. the DPAPI note
+  that OMP reads keys via `!command` and never writes them to config).
+- Snapshot timeline draws as a vertical-line timeline with node dots and inline restore buttons,
+  instead of a flat clickable list.
+- Roles resolution chain split into a secondary quiet reference chain and a primary resolved-model
+  line.
+
+### Security
+
+- No new IPC channels; the usage rework adds `byModelByDay` / `byProviderByDay` to the existing
+  `omp:usage-summary` payload only. The YAML highlighter runs renderer-side on already-loaded text
+  with no new filesystem or network access.
+
 ## 0.4.0 - 2026-08-21
 
 ### Added
