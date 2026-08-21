@@ -101,8 +101,8 @@ function TrendArea({ days, metric }: { days: UsageBucket[]; metric: TrendMetric 
     <svg className="usage-trend-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`按日${TREND_METRICS.find((m) => m.key === metric)!.label}趋势`}>
       <defs>
         <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--trend-top)" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="var(--trend-bottom)" stopOpacity="0.02" />
+          <stop className="trend-stop-top" offset="0%" stopColor="var(--trend-top)" />
+          <stop className="trend-stop-bottom" offset="100%" stopColor="var(--trend-bottom)" />
         </linearGradient>
       </defs>
       <path d={areaPath} fill="url(#trend-fill)" />

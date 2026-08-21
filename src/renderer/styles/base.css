@@ -64,7 +64,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-body { min-height: calc(100vh - 64px); display: grid; grid-template-columns: 224px minmax(0, 1fr); }
 .left-rail { display: flex; flex-direction: column; min-width: 0; padding: 18px 12px 14px; border-right: 1px solid var(--hairline); background: var(--rail); }
 .rail-profile { display: grid; gap: 7px; padding: 0 6px 15px; border-bottom: 1px solid var(--hairline); }
-.rail-label, .eyebrow { color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.rail-label, .eyebrow { color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.eyebrow { display: inline-flex; align-items: center; gap: 5px; }
 .rail-profile select { height: 36px; padding: 0 9px; border: 0; border-radius: 9px; color: var(--ink); background: var(--sunken); }
 .path-note { overflow: hidden; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
 .section-nav { display: grid; gap: 2px; padding-top: 12px; }
@@ -90,8 +91,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Section switch: content crossfades with a slight rise. Keyed by React (section-view). */
 .section-view { animation: section-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes section-in { from { opacity: 0; transform: translateY(6px); } }
-.workspace-heading { justify-content: space-between; gap: 18px; margin-bottom: 22px; }
-.workspace-heading h1 { margin: 5px 0 0; font-size: 24px; font-weight: 650; letter-spacing: -0.015em; }
+.workspace-heading { justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+/* Display heading: confident page title (Apple/OpenAI register). Tight tracking, 650 weight,
+   sits one step above body — the single largest type on the page, reserved for module titles. */
+.workspace-heading h1 { margin: 6px 0 0; font-size: var(--fs-display); font-weight: 640; letter-spacing: -0.022em; line-height: 1.15; }
 .heading-actions { gap: 8px; }
 .search-box { display: flex; align-items: center; gap: 8px; width: 230px; height: 36px; padding: 0 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); background: var(--sunken); }
 .search-box:focus-within { border-color: var(--signal); background: var(--panel); }
@@ -102,7 +105,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Empty states: a soft rounded panel with a large tinted glyph, a title, a context line, and a
    primary/secondary CTA pair. No dashed border — a dashed outline reads as "unfinished", which
    fights the premium tone; separation comes from the sunken surface and breathing room instead. */
-.empty-workspace, .module-empty { display: grid; justify-items: center; gap: 14px; padding: 56px 32px; border: 0; border-radius: var(--radius-l); color: var(--muted); background: var(--sunken); text-align: center; }
+.empty-workspace, .module-empty { display: grid; justify-items: center; gap: 14px; padding: 56px 32px; border: 1px solid var(--hairline); border-radius: var(--radius-l); color: var(--muted); background: var(--sunken); text-align: center; }
 .empty-workspace { padding: 80px 32px; }
 .empty-glyph { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; color: var(--ink-soft); background: var(--panel); box-shadow: var(--shadow-card); }
 .empty-workspace .empty-glyph { width: 64px; height: 64px; border-radius: 18px; }
@@ -133,6 +136,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .drawer-head { justify-content: space-between; gap: 12px; min-height: 76px; padding: 17px 20px 14px; border-bottom: 1px solid var(--hairline); }
 .drawer-head h2 { margin: 5px 0 0; overflow: hidden; font-size: 18px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-body { display: grid; gap: 18px; padding: 18px 20px 32px; }
+/* Profile drawer: tabbed so five concerns (设置/项目/快照/OMP/OAuth) no longer scroll as one
+   long stack. The tab bar is sticky so it stays reachable while a section scrolls. */
+.profile-drawer { gap: 0; padding-top: 14px; }
+.profile-tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; margin: 0 -20px 16px; padding: 0 14px 10px; border-bottom: 1px solid var(--hairline); background: var(--panel); }
+.profile-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: var(--fs-small); font-weight: 600; transition: background 120ms ease, color 120ms ease; }
+.profile-tabs button:hover { background: var(--hover); color: var(--ink); }
+.profile-tabs button.active { color: var(--ink); background: var(--selected); }
+.profile-tabs button:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.profile-drawer > .drawer-section { margin-bottom: 18px; }
 .drawer-section { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 1px solid var(--hairline); }
 .drawer-section:last-child { border-bottom: 0; }
 .drawer-section-title { justify-content: space-between; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
@@ -177,13 +189,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .form-drawer .form-group .sel-trigger,
 .form-drawer .form-group .mp-trigger { background: var(--panel); }
 .form-group .advanced-fields { padding-top: 6px; border-top: 1px solid var(--hairline); }
-.form-drawer > label:not(.check-line), .advanced-fields > label:not(.check-line) { display: grid; gap: 6px; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
-.form-drawer input:not([type="checkbox"]), .form-drawer select, .form-drawer textarea { width: 100%; min-width: 0; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: var(--sunken); }
-.form-drawer input:not([type="checkbox"]), .form-drawer select { height: 34px; padding: 0 10px; font-size: var(--fs-small); }
-.form-drawer input:not([type="checkbox"]):focus-visible, .form-drawer select:focus-visible, .form-drawer textarea:focus-visible { border-color: var(--signal); outline: none; }
-.form-drawer textarea { padding: 8px; resize: vertical; font-family: var(--font-mono); font-size: var(--fs-small); }
-.advanced-fields { display: grid; gap: 10px; }
-.form-submit-actions { justify-content: flex-end; padding-top: 4px; }
 
 /* Checkboxes render as switches. An ON switch is a selected state, so it may use the signal. */
 .check-line { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 500; white-space: nowrap; cursor: pointer; }

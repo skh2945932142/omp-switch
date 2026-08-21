@@ -52,11 +52,18 @@ export function SnapshotTimeline({ api, profileId, busy, onRestored, onNotice }:
     {loading && snapshots === null ? <span className="muted-line">读取快照…</span>
       : !snapshots?.length ? <span className="muted-line">暂无快照。每次写入前会自动创建，最多保留 30 个。</span>
       : <div className="snapshot-list">
-        {snapshots.map((snapshot, index) => <div className={`snapshot-item${index === snapshots.length - 1 ? " last" : ""}`} key={snapshot.id}>
-          <span className="snapshot-rail"><span className="snapshot-node" /></span>
-          <span className="snapshot-main"><strong>{formatDate(snapshot.createdAt)}</strong><small className="mono">{snapshot.id.slice(0, 24)}</small></span>
-          <button className="snapshot-restore" onClick={() => void restore(snapshot)} disabled={busy || loading} title="恢复此快照"><ArchiveRestore size={14} /><span>恢复</span></button>
-        </div>)}
+        {snapshots.map((snapshot, index) => {
+          const isLatest = index === 0;
+          return <div className={`snapshot-item${index === snapshots.length - 1 ? " last" : ""}${isLatest ? " latest" : ""}`} key={snapshot.id}>
+            <span className="snapshot-rail"><span className="snapshot-node" /></span>
+            <span className="snapshot-main">
+              <strong>{formatDate(snapshot.createdAt)}</strong>
+              <small className="mono">{snapshot.id.slice(0, 24)}</small>
+              {isLatest ? <small className="snapshot-tag">最近</small> : null}
+            </span>
+            <button className="snapshot-restore" onClick={() => void restore(snapshot)} disabled={busy || loading} title="恢复此快照"><ArchiveRestore size={14} /><span>恢复</span></button>
+          </div>;
+        })}
       </div>}
   </div>;
 }

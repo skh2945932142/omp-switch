@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactElement, ReactNode } from "react";
 import {
   Archive,
   Check,
+  ChevronUp,
   CircleAlert,
   Download,
   FileCheck2,
@@ -212,16 +213,48 @@ function formatTime(value?: string): string {
  * A single session turn as a chat bubble. The three roles read at a glance: the user is a
  * right-aligned ink/paper inversion, the assistant is a left-aligned sunken block carrying its
  * model, and anything else (system / tool / result) is a centered narrow strip so it reads as
- * instrumentation between turns rather than another voice. Code fences and preserved whitespace
- * stay mono inside the bubble body.
+ * instrumentation between turns rather than another voice. Code fences render as standalone
+ * blocks inside the body; everything else keeps preserved whitespace.
  */
+type MessageSegment = { kind: "text"; text: string } | { kind: "code"; lang: string; text: string };
+
+/** A GFM-ish fence splitter: ```lang … ``` becomes a code segment; the rest stays text. A fence
+ *  without a closing ``` (common on truncated previews) takes the remainder as code so the block
+ *  is still visually contained. */
+function splitMessageSegments(text: string): MessageSegment[] {
+  const segments: MessageSegment[] = [];
+  const fence = /(^|\n)```([^\n`]*)\n([\s\S]*?)(```|$)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = fence.exec(text)) !== null) {
+    const leading = text.slice(lastIndex, match.index + match[1].length);
+    if (leading.trim()) segments.push({ kind: "text", text: leading.replace(/^\n/, "") });
+    const lang = match[2].trim();
+    const body = match[3].replace(/\n$/, "");
+    segments.push({ kind: "code", lang, text: body });
+    lastIndex = fence.lastIndex;
+  }
+  const tail = text.slice(lastIndex);
+  if (tail.trim()) segments.push({ kind: "text", text: tail.replace(/^\n/, "") });
+  return segments.length ? segments : [{ kind: "text", text }];
+}
+
+function MessageBody({ text, fallback }: { text: string; fallback: string }): ReactElement {
+  const segments = splitMessageSegments(text || fallback);
+  return <div className="msg-text">
+    {segments.map((segment, index) => segment.kind === "code"
+      ? <pre className="msg-code" key={index}><code>{segment.text}</code></pre>
+      : <span key={index} className="msg-prose">{segment.text}</span>)}
+  </div>;
+}
+
 function MessageBubble({ message }: { message: SessionMessagePreview }): ReactElement {
   const time = formatTime(message.timestamp);
   if (message.role === "user") {
     return <div className="msg msg-user">
       <div className="msg-bubble">
         <div className="msg-meta"><span className="msg-role">你</span>{time ? <span className="msg-time">{time}</span> : null}</div>
-        <div className="msg-text">{message.text || "（空）"}</div>
+        <MessageBody text={message.text} fallback="（空）" />
       </div>
     </div>;
   }
@@ -235,7 +268,7 @@ function MessageBubble({ message }: { message: SessionMessagePreview }): ReactEl
           {time ? <span className="msg-time">{time}</span> : null}
           {failed ? <span className="msg-fail">{message.status}</span> : null}
         </div>
-        <div className="msg-text">{message.text || "（无内容）"}</div>
+        <MessageBody text={message.text} fallback="（无内容）" />
         {message.truncated ? <div className="msg-trunc">已截断</div> : null}
       </div>
     </div>;
@@ -376,7 +409,7 @@ export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "
     {refreshStats ? <span className="muted-line">识别 {refreshStats.discovered} · 跳过 {refreshStats.skipped} · 复用 {refreshStats.reused} · 变化 {refreshStats.changed} · 重建 {refreshStats.rebuilt} · 扫描 {formatBytes(refreshStats.scannedBytes)}{refreshStats.diagnostics?.[0] ? ` · ${refreshStats.diagnostics[0].message}` : ""}</span> : null}
     <div className="module-columns sessions-columns">
       <div className="module-list-panel session-list">{entries.length === 0 && loading ? <div className="list-skel">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="skeleton skeleton-row" />)}</div> : entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><Archive size={26} /></span><strong>{refreshStats?.rootMissing ? "会话目录不存在" : refreshStats?.phase === "quick" ? "正在建立初始索引" : refreshStats?.errors ? "部分文件无法读取" : "暂无可识别主会话"}</strong><span className="empty-desc">{refreshStats?.rootMissing ? "OMP 的会话目录尚未创建，运行一次 OMP 后再扫描。" : "扫描 OMP 会话目录，按需读取消息内容。"}</span><div className="empty-actions"><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />扫描</button></div></div> : <>{entries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? "未命名会话"}</strong><small>{entry.provider ?? "—"} · {formatDate(entry.lastActiveAt ?? entry.startedAt)} · {entry.messageCount} 条消息</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? "缓存过期" : entry.failures ? entry.failures + " 失败" : "已索引"}</span></button>)}{listCursor ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>加载更多会话</button> : null}</>}</div>
-      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">SESSION</span><strong>{selected.title ?? selected.model ?? "会话"}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDate(selected.lastActiveAt ?? selected.startedAt)}</span></div>{hasMoreMessages ? <button className="secondary-button" onClick={() => void loadEarlier()} disabled={loading}>加载更早消息</button> : null}<div className="session-messages">{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">读取中…</div>}</div></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>选择一个会话</strong><span className="empty-desc">从左侧选择会话查看对话。消息按需分页读取，不写入索引缓存。</span></div>}</div>
+      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">SESSION</span><strong>{selected.title ?? selected.model ?? "会话"}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDate(selected.lastActiveAt ?? selected.startedAt)}</span></div><div className="session-messages">{hasMoreMessages ? <div className="session-load-earlier"><button className="secondary-button compact" onClick={() => void loadEarlier()} disabled={loading}><ChevronUp size={14} />加载更早消息</button></div> : null}{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">读取中…</div>}</div></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>选择一个会话</strong><span className="empty-desc">从左侧选择会话查看对话。消息按需分页读取，不写入索引缓存。</span></div>}</div>
     </div>
   </section>;
 }

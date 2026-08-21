@@ -4,6 +4,45 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.2 - 2026-08-22
+
+### Changed
+
+- Command palette (Ctrl+K) rewritten to an icon-prefixed list: each item carries a leading glyph
+  (shared with the left-rail icon language), a label, and a `↵` affordance that lights up on the
+  selected row. The input gained a leading search glyph; Profile items show 当前 / ↵ and provider
+  items show a model-count chip. Group headings tightened.
+- Session detail moved the "load earlier messages" control inside the scroll area at the top, so the
+  pagination entry stays visible instead of being pushed below the thread. The selected session row
+  now carries a 3px signal left rail so the active row and the detail panel feel connected.
+- Snapshot timeline: the latest snapshot reads as the current state — a filled signal node with a
+  soft ring, plus a 最近 badge — instead of every snapshot reading as equal weight.
+- Diagnostics rows widened (padding 11px / gap 10px) and severity groups separated by a margin so
+  the title-to-list hierarchy is clearer.
+- Card surfaces (provider cards, role cards, module list/editor panels, usage cards, trend wrap,
+  pricing editor, empty states) gained a 1px hairline border in addition to their shadow, so panels
+  separate by tone plus a hair rather than only by shadow — closer to the Apple Settings register.
+  Light-mode hairline lifted toward a cooler, lower-contrast neutral; dark-mode hairline sits
+  barely above the panel.
+- Trend area gradient stops carry per-theme opacity via CSS classes (dark mode nudged up) so the
+  fill reads on dark panels; the trend line stroke widened to 1.75.
+- Display page-title size token (`--fs-display`, 28px) drives module headings — the single largest
+  type on the page, reserved for titles.
+- Dark-mode signal desaturated from `#43b8aa` to `#3fb6a6` (teal-mint) so it reads as a highlight
+  rather than a saturated accent; dark-mode trend colors lifted to a clearer mint.
+- The Profile drawer is now tabbed (设置 / 项目 / 快照 / OMP / OAuth) with a sticky tab bar, so its
+  five concerns no longer scroll as one long stack.
+- Provider edit form de-duplicated its `input/select/textarea` styling: the field rules now live in
+  one place with a single override for fields inside a sunken form-group, removing a stale duplicate
+  block that had drifted out of sync.
+- Per-row quick-assign affordance is now faintly present at rest (opacity 0.4) so it is discoverable
+  without hovering, intensifying on hover/focus; touch users still see it.
+
+### Security
+
+- No new IPC channels and no new dependencies. All changes are renderer-side CSS and React; the
+  usage trend, session message, and YAML paths are unchanged.
+
 ## 0.4.1 - 2026-08-21
 
 ### Added

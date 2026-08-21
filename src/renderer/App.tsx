@@ -543,6 +543,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<"settings" | "project" | "snapshots" | "omp" | "oauth">("settings");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
@@ -1016,7 +1017,7 @@ export default function App() {
           <div className="brand-name">OMP Switch</div>
         </div>
         <div className="topbar-center">
-          <button className="profile-chip" title="打开 Profile" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}>
+          <button className="profile-chip" title="打开 Profile" onClick={() => { setProfileTab("settings"); setProfileDrawerOpen(true); setDrawerOpen(true); }}>
             <span className="status-led" />{profiles.find((profile) => profile.id === profileId)?.name ?? profileId}<ChevronDown size={14} />
           </button>
           <button className={`status-chip ${readOnly ? "warning" : errorDiagnostics.length ? "danger" : "ok"}`} onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}>
@@ -1058,7 +1059,7 @@ export default function App() {
           </nav>
           <div className="rail-footer">
             <button className="rail-action" onClick={() => { setDiagnosticsOpen(true); setDrawerOpen(true); }}><CircleAlert size={15} />诊断<span>{errorDiagnostics.length}</span></button>
-            <button className="rail-action" onClick={() => { setProfileDrawerOpen(true); setDrawerOpen(true); }}><Settings2 size={15} />Profile{settingsDirty ? <span className="nav-dot" title="设置有未保存改动" /> : null}</button>
+            <button className="rail-action" onClick={() => { setProfileTab("settings"); setProfileDrawerOpen(true); setDrawerOpen(true); }}><Settings2 size={15} />Profile{settingsDirty ? <span className="nav-dot" title="设置有未保存改动" /> : null}</button>
           </div>
         </aside>
 
@@ -1162,14 +1163,25 @@ export default function App() {
           >
           <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? "PROFILE" : diagnosticsOpen ? "DIAGNOSTICS" : formOpen ? (editingProviderId ? "编辑" : "新增") : "PROVIDER"}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? "诊断" : formOpen ? (editingProviderId ?? "新供应商") : selectedProviderId ?? "详情"}</h2></div><button className="icon-button" title="关闭" onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
 
-          {profileDrawerOpen ? <div className="drawer-body">
+          {profileDrawerOpen ? <div className="drawer-body profile-drawer">
+            <div className="profile-tabs" role="tablist">
+              <button role="tab" aria-selected={profileTab === "settings"} className={profileTab === "settings" ? "active" : ""} onClick={() => setProfileTab("settings")}><Settings2 size={14} />设置</button>
+              <button role="tab" aria-selected={profileTab === "project"} className={profileTab === "project" ? "active" : ""} onClick={() => setProfileTab("project")}><FolderOpen size={14} />项目</button>
+              <button role="tab" aria-selected={profileTab === "snapshots"} className={profileTab === "snapshots" ? "active" : ""} onClick={() => setProfileTab("snapshots")}><ArchiveRestore size={14} />快照</button>
+              <button role="tab" aria-selected={profileTab === "omp"} className={profileTab === "omp" ? "active" : ""} onClick={() => setProfileTab("omp")}><RefreshCw size={14} />OMP</button>
+              <button role="tab" aria-selected={profileTab === "oauth"} className={profileTab === "oauth" ? "active" : ""} onClick={() => setProfileTab("oauth")}><KeyRound size={14} />OAuth</button>
+            </div>
+            {profileTab === "settings" ? <>
             <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><StyledSelect value={defaultThinkingLevel} onValueChange={(next) => setDefaultThinkingLevel(next as SettingsThinkingLevel)} options={SETTINGS_THINKING_LEVELS.map((level) => ({ value: level, label: level }))} ariaLabel="默认思考等级" mono /></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div>
+            </> : null}
+            {profileTab === "project" ? <div className="drawer-section"><div className="drawer-section-title"><span>项目覆盖</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div> : null}
+            {profileTab === "snapshots" ? <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div> : null}
+            {profileTab === "omp" ? <>
             <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div>
             <details className="yaml-preview"><summary>原始 YAML</summary><YamlPreview files={[{ name: "models.yml", content: config?.models.raw || "# models.yml 未创建" }, { name: "config.yml", content: config?.settings.raw || "# config.yml 未创建" }]} /></details>
+            </> : null}
+            {profileTab === "oauth" ? <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div> : null}
           </div> : null}
 
           {diagnosticsOpen ? (() => {

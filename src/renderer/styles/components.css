@@ -175,8 +175,10 @@
   border-radius: 8px;
   color: var(--muted);
   background: transparent;
-  opacity: 0;
-  transition: opacity 120ms ease;
+  /* Faintly present so the per-row assign affordance is discoverable without hovering;
+     intensifies on hover/focus. Touch users (no hover) still see it. */
+  opacity: 0.4;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 .model-row:hover .qa-trigger, .model-row:focus-within .qa-trigger, .qa-trigger[data-state="open"], .qa-trigger:focus-visible { opacity: 1; }
 .qa-trigger:hover { background: var(--selected); color: var(--ink); }
@@ -185,8 +187,8 @@
 /* ---- Roles spec sheet (B2) ---- */
 
 .roles-list { display: grid; gap: 10px; max-width: 880px; }
-.role-card { display: grid; grid-template-columns: 156px minmax(0, 1fr) minmax(230px, 300px); gap: 16px; align-items: center; padding: 15px 18px; border: 0; border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow-card); }
-.role-card.changed { box-shadow: var(--shadow-card), inset 3px 0 0 var(--signal); }
+.role-card { display: grid; grid-template-columns: 156px minmax(0, 1fr) minmax(230px, 300px); gap: 16px; align-items: center; padding: 15px 18px; border: 1px solid var(--hairline); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow-card); }
+.role-card.changed { box-shadow: var(--shadow-card), inset 3px 0 0 var(--signal); border-color: light-dark(rgba(15, 118, 110, 0.28), rgba(63, 182, 166, 0.3)); }
 .role-id { display: grid; gap: 3px; min-width: 0; }
 .role-id strong { font-family: var(--font-mono); font-size: var(--fs-strong); font-weight: 600; }
 .role-id small { color: var(--muted); font-size: var(--fs-micro); }
@@ -251,13 +253,26 @@
 .shortcut-row .mono { color: var(--ink-soft); }
 
 /* ---- Command palette ---- */
+/* OpenAI/Linear register: a search input with a leading glyph, grouped items that each carry an
+   icon, a label, and a quiet ↵ affordance on the trailing edge (only the selected one lights up).
+   The hint chip ("当前" / "N 模型") stays right-aligned next to ↵. */
 
 .palette-content { position: fixed; z-index: 41; top: 16vh; left: 50%; transform: translateX(-50%); width: min(560px, 92vw); background: var(--panel); border-radius: var(--radius-l); box-shadow: var(--shadow-float); overflow: hidden; animation: pal-in 140ms cubic-bezier(0.16, 1, 0.3, 1); }
-.palette [cmdk-input] { width: 100%; height: 52px; padding: 0 18px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: var(--fs-body); border-bottom: 1px solid var(--hairline); }
+.pal-input-wrap { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--hairline); }
+.pal-search { flex: 0 0 auto; color: var(--muted); }
+.palette [cmdk-input] { flex: 1; min-width: 0; height: 50px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: var(--fs-body); }
 .palette [cmdk-list] { max-height: 340px; overflow: auto; padding: 6px; }
-.palette [cmdk-group-heading] { padding: 8px 10px 4px; color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
-.palette [cmdk-item] { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-radius: 8px; color: var(--ink); font-size: var(--fs-small); cursor: pointer; }
+.palette [cmdk-group-heading] { padding: 10px 10px 4px; color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.palette [cmdk-group]:not(:first-child) [cmdk-group-heading] { padding-top: 12px; }
+.palette [cmdk-item] { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 10px; border-radius: 8px; color: var(--ink); font-size: var(--fs-small); cursor: pointer; }
+.palette [cmdk-item] .pal-icon { display: inline-grid; place-items: center; width: 18px; flex: 0 0 auto; color: var(--muted); }
+.palette [cmdk-item] .pal-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette [cmdk-item] .pal-hint { flex: 0 0 auto; color: var(--muted); font-size: var(--fs-micro); }
+.palette [cmdk-item] .pal-enter { flex: 0 0 auto; color: var(--muted); opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .palette [cmdk-item][data-selected="true"] { background: var(--signal-soft); }
+.palette [cmdk-item][data-selected="true"] .pal-icon { color: var(--signal); }
+.palette [cmdk-item][data-selected="true"] .pal-enter { opacity: 1; color: var(--signal); }
+.palette [cmdk-item][aria-disabled="true"] .pal-enter { display: none; }
 .palette [cmdk-empty] { padding: 18px; color: var(--muted); font-size: var(--fs-small); text-align: center; }
 
 /* ---- Snapshot timeline ---- */
@@ -272,12 +287,16 @@
 /* The first item's rail starts at the node (no line above it); the last item's stops at the node. */
 .snapshot-item:first-child .snapshot-rail::before { top: 50%; }
 .snapshot-item.last .snapshot-rail::before { bottom: 50%; }
-.snapshot-node { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--panel); border: 2px solid var(--muted); }
+.snapshot-node { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--panel); border: 2px solid var(--muted); transition: border-color 120ms ease, box-shadow 120ms ease; }
 .snapshot-item:hover .snapshot-node { border-color: var(--signal); }
+/* The latest commit reads as the current state: a filled signal node, so the eye lands on it
+   first instead of treating every snapshot as equal weight. */
+.snapshot-item.latest .snapshot-node { border-color: var(--signal); background: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
 .snapshot-main { display: grid; gap: 2px; min-width: 0; }
 .snapshot-main strong { font-size: var(--fs-small); font-weight: 600; }
 .snapshot-main small { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.snapshot-restore { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font-size: var(--fs-micro); font-weight: 600; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; }
+.snapshot-tag { display: inline-flex; align-items: center; align-self: start; min-height: 17px; margin-top: 2px; padding: 0 7px; border-radius: var(--radius-pill); color: var(--signal); background: var(--signal-soft); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.snapshot-restore { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font-size: var(--fs-micro); font-weight: 600; transition: background 120ms ease, color 120ms ease, border-color 120ms ease, opacity 120ms ease; }
 .snapshot-restore:hover { background: var(--hover); color: var(--ink); border-color: var(--hairline); }
 .snapshot-restore:disabled { opacity: 0.5; cursor: not-allowed; }
 .snapshot-restore svg { color: var(--signal); }

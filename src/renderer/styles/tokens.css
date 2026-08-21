@@ -17,19 +17,22 @@
   --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular", monospace;
 
-  /* Type scale. Body is 14px; micro is reserved for eyebrows, chips, and mono captions. */
+  /* Type scale. Body is 14px; micro is reserved for eyebrows, chips, and mono captions.
+     Display is the page-title size (Apple/OpenAI confident heading), kept off body text. */
   --fs-micro: 11px;
   --fs-small: 13px;
   --fs-body: 14px;
   --fs-strong: 15px;
   --fs-title: 16px;
+  --fs-display: 28px;
 
   --radius-s: 8px;
   --radius-m: 12px;
   --radius-l: 16px;
   --radius-pill: 999px;
 
-  /* Surfaces */
+  /* Surfaces. --panel is a raised card on --paper; --sunken is the recessed tier for inset
+     fields, meta bars, and chips (Apple Settings: grouped background one step below the card). */
   --paper: light-dark(#fafafa, #101013);
   --panel: light-dark(#ffffff, #1a1a1e);
   --sunken: light-dark(#f4f4f5, #222227);
@@ -44,13 +47,16 @@
   --ink-soft: light-dark(#3f3f46, #d4d4d8);
   --muted: light-dark(#71717a, #96969e);
 
-  /* Lines. Hairlines live inside lists; an outer border is rare and uses --line. */
-  --hairline: light-dark(#e4e4e7, #2a2a30);
+  /* Lines. Hairlines live inside lists; an outer border is rare and uses --line. Light-mode
+     hairline is lifted toward a cooler, lower-contrast neutral so panels separate by tone +
+     a hair, not a hard gray rule (Apple). Dark-mode hairline sits barely above the panel. */
+  --hairline: light-dark(#e9e9ec, #2c2c33);
   --line: light-dark(#d4d4d8, #3a3a41);
 
-  /* Signal: selection, focus, links. Nothing else. */
-  --signal: light-dark(#0f766e, #43b8aa);
-  --signal-soft: light-dark(rgba(15, 118, 110, 0.1), rgba(67, 184, 170, 0.14));
+  /* Signal: selection, focus, links. Nothing else. Dark mode desaturated toward a teal-mint so
+     it reads as a highlight, not a saturated accent — matching the restrained dark palette. */
+  --signal: light-dark(#0f766e, #3fb6a6);
+  --signal-soft: light-dark(rgba(15, 118, 110, 0.1), rgba(63, 182, 166, 0.14));
 
   /* Primary action = ink/paper inversion. */
   --invert-bg: light-dark(#18181b, #fafafa);
@@ -65,9 +71,10 @@
   --danger-soft: light-dark(rgba(220, 38, 38, 0.1), rgba(238, 111, 98, 0.12));
   --warn-soft: light-dark(rgba(199, 125, 16, 0.12), rgba(221, 162, 60, 0.14));
 
-  /* Usage trend */
-  --trend-top: light-dark(#4c8f6b, #4f9d74);
-  --trend-bottom: light-dark(#2f6b4c, #37775a);
+  /* Usage trend. Dark mode lifts to a clearer mint so the line reads on the dark panel instead
+     of fading into it; the area gradient opacity is also nudged up in the SVG. */
+  --trend-top: light-dark(#4c8f6b, #5fb886);
+  --trend-bottom: light-dark(#2f6b4c, #3a8a64);
 
   /* Shadow colors — light mode shadows are ink-tinted, dark mode pure black. */
   --shadow-tint: light-dark(rgba(24, 24, 27, 0.05), rgba(0, 0, 0, 0.3));

@@ -56,8 +56,8 @@ This installs the portable build and puts `omp-switch-cli.exe` on PATH.
 ### Docker
 
 ```bash
-docker pull ghcr.io/skh2945932142/omp-switch-cli:0.4.1
-docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.4.1 validate --profile default
+docker pull ghcr.io/skh2945932142/omp-switch-cli:0.4.2
+docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.4.2 validate --profile default
 ```
 
 `:latest` also tracks the newest release.
