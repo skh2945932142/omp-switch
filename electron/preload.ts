@@ -3,6 +3,7 @@ import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, Manage
 
 const api = {
   getInfo: () => ipcRenderer.invoke("app:info"),
+  setTheme: (theme: "light" | "dark" | "system") => ipcRenderer.invoke("app:set-theme", theme),
   listProfiles: (): Promise<ProfileRef[]> => ipcRenderer.invoke("omp:list-profiles"),
   loadProfile: (profileId: string): Promise<EffectiveConfig> => ipcRenderer.invoke("omp:load-profile", profileId),
   save: (profileId: string, patch: ConfigPatch) => ipcRenderer.invoke("omp:save", profileId, patch),

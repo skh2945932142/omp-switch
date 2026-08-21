@@ -9,10 +9,18 @@
     <link rel="icon" href="data:," />
     <title>OMP Switch</title>
     <style>
-      /* Pre-paint background so a dark OS theme never flashes white before the bundle loads. */
+      /* Pre-paint background so a dark OS theme never flashes white before the bundle loads.
+         Mirrors the stored manual theme choice before React mounts. */
       html { background: #fafafa; }
-      @media (prefers-color-scheme: dark) { html { background: #101013; } }
+      html[data-theme="dark"] { background: #101013; }
+      @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background: #101013; } }
     </style>
+    <script>
+      try {
+        var stored = localStorage.getItem("omp.theme");
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      } catch (e) { /* private mode */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

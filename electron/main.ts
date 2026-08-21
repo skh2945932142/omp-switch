@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -184,12 +184,25 @@ async function createWindow(): Promise<void> {
   // material shows through the chrome while panels stay opaque. An opaque backgroundColor
   // would paint over it, so the two options are mutually exclusive.
   const micaSupported = process.platform === "win32" && Number.parseInt(os.release().split(".")[2] ?? "0", 10) >= 22621;
+  // Hidden title bar + native overlay buttons: the web topbar becomes the drag region,
+  // reclaiming the OS caption's height while keeping Snap Layouts and system menus.
+  const overlaySupported = process.platform === "win32" && Number.parseInt(os.release().split(".")[0], 10) >= 10;
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1080,
     minHeight: 680,
     ...(micaSupported ? { backgroundMaterial: "mica" as const } : { backgroundColor: "#fafafa" }),
+    ...(overlaySupported
+      ? {
+          titleBarStyle: "hidden" as const,
+          titleBarOverlay: {
+            color: "#00000000",
+            symbolColor: nativeTheme.shouldUseDarkColors ? "#f4f4f5" : "#3f3f46",
+            height: 48,
+          },
+        }
+      : {}),
     title: "OMP Switch",
     webPreferences: {
       preload: path.join(currentDir, "../preload/preload.cjs"),
@@ -207,6 +220,20 @@ async function createWindow(): Promise<void> {
   if (micaSupported) mainWindow.webContents.once("did-finish-load", () => {
     mainWindow?.webContents.executeJavaScript('document.documentElement.classList.add("mica")', true).catch(() => undefined);
   });
+  // Overlay button glyphs must flip with the manual theme choice, not just the OS one.
+  const syncOverlaySymbols = (): void => {
+    if (!overlaySupported || !mainWindow) return;
+    try {
+      mainWindow.setTitleBarOverlay({
+        color: "#00000000",
+        symbolColor: nativeTheme.shouldUseDarkColors ? "#f4f4f5" : "#3f3f46",
+        height: 48,
+      });
+    } catch {
+      // Overlay options absent (e.g. window created without them) — nothing to sync.
+    }
+  };
+  nativeTheme.on("updated", syncOverlaySymbols);
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (mayUseDevRenderer(app.isPackaged, rendererUrl)) await mainWindow.loadURL(rendererUrl as string);
   else await mainWindow.loadFile(path.join(currentDir, "../renderer/index.html"));
@@ -215,6 +242,11 @@ async function createWindow(): Promise<void> {
 
 function registerIpc(): void {
   ipcMain.handle("app:info", () => ({ version: app.getVersion(), platform: process.platform, installation: adapter.installation }));
+  ipcMain.handle("app:set-theme", (_event, theme: "light" | "dark" | "system") => {
+    // Keeps the native frame (title bar overlay buttons) in step with the renderer's choice.
+    if (theme === "light" || theme === "dark") nativeTheme.themeSource = theme;
+    else nativeTheme.themeSource = "system";
+  });
   ipcMain.handle("omp:list-profiles", () => adapter.listProfiles());
   ipcMain.handle("omp:load-profile", (_event, profileId: string) => adapter.loadProfile(adapterProfile(profileId)));
   ipcMain.handle("omp:save", async (_event, profileId: string, patch: ConfigPatch) => {

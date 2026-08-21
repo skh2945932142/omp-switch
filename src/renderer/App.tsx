@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { Toaster, toast } from "sonner";
+import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
   ArchiveRestore,
@@ -14,6 +16,7 @@ import {
   FolderOpen,
   KeyRound,
   LoaderCircle,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
@@ -22,7 +25,6 @@ import {
   Settings2,
   Sparkles,
   Trash2,
-  RotateCcw,
   Users,
   X,
 } from "lucide-react";
@@ -45,6 +47,9 @@ import { QuickAssign } from "./components/quick-assign";
 import { CommandPalette } from "./components/command-palette";
 import { SnapshotTimeline } from "./components/snapshot-timeline";
 import { ConflictDialog, ConfirmDialog, SavePreviewDialog, ShortcutsDialog, type PendingSave } from "./components/save-flow";
+import { IconButtonTip, StyledSelect } from "./components/ui-primitives";
+import { ThemeSwitch } from "./components/theme-switch";
+import { initTheme, type ThemeChoice } from "./theme";
 
 const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
   { label: "Custom OpenAI-compatible", id: "", baseUrl: "https://api.example.com/v1", api: "openai-completions" },
@@ -221,6 +226,7 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
   const get = (id: string) => (memory[id] ??= makeConfig(id));
   return {
     getInfo: async () => ({ version: "0.1.0-demo", platform: "browser", installation: { executable: "omp", version: "demo", supported: true } }),
+    setTheme: async () => undefined,
     listProfiles: async () => [get("default").profile, { id: "work", name: "work", kind: "named", agentDir: "~/.omp/profiles/work/agent" }],
     loadProfile: async (id: string) => get(id),
     preview: async (id: string, patch: ConfigPatch) => {
@@ -497,6 +503,7 @@ export default function App() {
   const [disabledProviders, setDisabledProviders] = useState("");
   const [defaultThinkingLevel, setDefaultThinkingLevel] = useState<SettingsThinkingLevel>("auto");
   const [updatingOmp, setUpdatingOmp] = useState(false);
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
   const catalogInput = useRef<HTMLInputElement>(null);
 
   const providers = config ? Object.entries(config.models.value.providers) : [];
@@ -552,12 +559,14 @@ export default function App() {
   }
 
   useEffect(() => {
+    setThemeChoice(initTheme());
     void api.getInfo().then((info) => setReadOnlyReason(info.installation.supported ? null : info.installation.reason ?? "当前 OMP 版本不受支持")).catch(() => undefined);
     void api.listProfiles().then((items) => {
       setProfiles(items);
       void load(items[0]?.id ?? "default");
     });
     void api.listCatalog().then((items) => setCatalog(items as ProviderPreset[])).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap; load() closes over the initial profileId by design
   }, []);
 
   useEffect(() => {
@@ -585,7 +594,6 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
-
   function beginAdd(): void {
     setForm(blankForm());
     setModelEntries([]);
@@ -940,6 +948,7 @@ export default function App() {
   const sectionLabels = { models: "模型", roles: "角色", prompts: "提示", skills: "技能", sessions: "会话", usage: "用量", gateway: "网关" } as const;
 
   return (
+    <Tooltip.Provider delayDuration={350}>
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
@@ -955,9 +964,10 @@ export default function App() {
           </button>
         </div>
         <div className="topbar-actions">
-          <button className="icon-button" title="刷新" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button>
-          <button className="icon-button" title="创建快照" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button>
-          <button className="primary-button compact" title="保存全部未保存改动 (Ctrl+S)" onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={15} />保存</button>
+            <IconButtonTip label="刷新"><button className="icon-button" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button></IconButtonTip>
+            <IconButtonTip label="创建快照"><button className="icon-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button></IconButtonTip>
+            <ThemeSwitch value={themeChoice} onChange={setThemeChoice} />
+            <button className="primary-button compact" title="保存全部未保存改动 (Ctrl+S)" onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={15} />保存</button>
         </div>
       </header>
 
@@ -965,9 +975,12 @@ export default function App() {
         <aside className="left-rail">
           <div className="rail-profile">
             <span className="rail-label">PROFILE</span>
-            <select value={profileId} onChange={(event) => { const next = event.target.value; confirmDiscardThen(() => { setProfileId(next); void load(next); }); }} aria-label="选择 Profile">
-              {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-            </select>
+            <StyledSelect
+              value={profileId}
+              onValueChange={(next) => confirmDiscardThen(() => { setProfileId(next); void load(next); })}
+              options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
+              ariaLabel="选择 Profile"
+            />
             <span className="path-note" title={config?.profile.agentDir}>{config?.profile.agentDir ?? "读取中"}</span>
           </div>
           <nav className="section-nav" aria-label="模块">
@@ -987,6 +1000,7 @@ export default function App() {
         </aside>
 
         <section className="workspace-main">
+          <div className="section-view" key={section}>
           {section === "models" ? (
             <>
               <div className="workspace-heading">
@@ -1015,36 +1029,45 @@ export default function App() {
               {filteredProviders.length === 0 ? <div className="empty-workspace"><CloudDownload size={24} /><strong>{providers.length ? "没有匹配项" : "还没有供应商"}</strong><button className="primary-button" onClick={beginAdd} disabled={readOnly}><Plus size={15} />新增</button></div> : null}
               <div className="provider-stack">
                 {filteredProviders.map(([id, provider]) => {
-                  const expanded = expandedProviders[id] ?? id === selectedProviderId;
-                  const active = id === selectedProviderId;
+                  const expanded = expandedProviders[id] ?? false;
                   const models = providerModels(provider);
                   const coverage = models.filter((model) => enabledFilter(id, model.id ?? "")).length;
-                  return <article className={`provider-card ${active ? "active" : ""}`} key={id}>
-                    <button className="provider-card-head" onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); setFormOpen(false); setExpandedProviders((current) => ({ ...current, [id]: !expanded })); }}>
-                      <span className="provider-led" />
-                      <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"} · {models.length} 模型</small></span>
-                      <span className="provider-endpoint mono">{provider.baseUrl ?? "—"}</span>
-                      <span className="row-status">{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置" : "未配置"}</span>
-                      {models.length > 0 && coverage < models.length ? <span className="status-chip warn" title="enabledModels 未完全覆盖此供应商，OMP 会将未覆盖的模型过滤出目录">{coverage === 0 ? "未启用" : `启用 ${coverage}/${models.length}`}</span> : null}
-                      {expanded ? <ChevronDown size={16} /> : <ChevronDown size={16} className="rotate-closed" />}
-                    </button>
-                    {expanded ? <div className="model-list">
-                      {models.map((model) => <div
-                        className="model-row"
-                        key={model.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => { setSelectedProviderId(id); setDrawerOpen(true); }}
-                        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedProviderId(id); setDrawerOpen(true); } }}
+                  return <article className="provider-card" key={id}>
+                    <div className="provider-card-head">
+                      <button
+                        className="provider-card-toggle"
+                        onClick={() => setExpandedProviders((current) => ({ ...current, [id]: !expanded }))}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "收起" : "展开"} ${id} 的模型列表`}
                       >
-                        <span className="model-name"><strong>{model.name ?? model.id}</strong><small>{model.id}</small></span>
-                        <span className="model-api">{model.api ?? provider.api ?? "—"}</span>
-                        <span className="model-context">{typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}</span>
-                        <span className="capabilities"><span className={model.reasoning ? "capability on" : "capability"}>{model.reasoning ? "思考" : "标准" }</span><span className="capability">{model.input?.includes("image") ? "视觉" : "文本"}</span></span>
-                        <QuickAssign roles={roleIds} assignments={roles} providerId={id} modelId={model.id ?? ""} providerIds={providerIds} onAssign={(roleId) => assignModelToRole(roleId, id, model.id ?? "")} onOpenRoles={() => { setSection("roles"); setFormOpen(false); setDrawerOpen(false); }} />
-                      </div>)}
-                      {models.length === 0 ? <div className="model-empty">暂无模型 · 打开抽屉发现</div> : null}
-                    </div> : null}
+                        <span className="provider-led" />
+                        <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"} · {models.length} 模型</small></span>
+                        <span className="provider-endpoint mono">{provider.baseUrl ?? "—"}</span>
+                        <span className="row-status">{provider.auth === "none" ? "无需密钥" : provider.apiKey ? "已配置" : "未配置"}</span>
+                        {models.length > 0 && coverage < models.length ? <span className="status-chip warn" title="enabledModels 未完全覆盖此供应商，OMP 会将未覆盖的模型过滤出目录">{coverage === 0 ? "未启用" : `启用 ${coverage}/${models.length}`}</span> : null}
+                        <ChevronDown size={16} className={`provider-chevron${expanded ? " open" : ""}`} />
+                      </button>
+                      <IconButtonTip label={`编辑 ${id}`}>
+                        <button className="provider-edit" aria-label={`编辑 ${id}`} onClick={() => editProvider(id)}><Pencil size={15} /></button>
+                      </IconButtonTip>
+                    </div>
+                    <div className={`model-list-wrap${expanded ? " open" : ""}`}>
+                      <div className="model-list-clip">
+                        <div className="model-list">
+                          {models.map((model) => <div
+                            className="model-row"
+                            key={model.id}
+                          >
+                            <span className="model-name"><strong>{model.name ?? model.id}</strong><small>{model.id}</small></span>
+                            <span className="model-api">{model.api ?? provider.api ?? "—"}</span>
+                            <span className="model-context">{typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}</span>
+                            <span className="capabilities"><span className={model.reasoning ? "capability on" : "capability"}>{model.reasoning ? "思考" : "标准" }</span><span className="capability">{model.input?.includes("image") ? "视觉" : "文本"}</span></span>
+                            <QuickAssign roles={roleIds} assignments={roles} providerId={id} modelId={model.id ?? ""} providerIds={providerIds} onAssign={(roleId) => assignModelToRole(roleId, id, model.id ?? "")} onOpenRoles={() => { setSection("roles"); setFormOpen(false); setDrawerOpen(false); }} />
+                          </div>)}
+                          {models.length === 0 ? <div className="model-empty">暂无模型 · 点击「编辑」添加</div> : null}
+                        </div>
+                      </div>
+                    </div>
                   </article>;
                 })}
               </div>
@@ -1055,14 +1078,23 @@ export default function App() {
               : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={notify} />
               : section === "usage" ? <UsageModule api={api} profileId={profileId} onNotice={notify} />
                 : <GatewayModule api={api} profileId={profileId} readOnly={readOnly} onNotice={notify} providers={providers} />}
+          </div>
         </section>
 
-        {(drawerOpen || formOpen || profileDrawerOpen || diagnosticsOpen) ? <aside className="detail-drawer">
+        <AnimatePresence>
+          {(drawerOpen || formOpen || profileDrawerOpen || diagnosticsOpen) ? <motion.aside
+            className="detail-drawer"
+            key="detail-drawer"
+            initial={{ opacity: 0, x: 32 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 32 }}
+            transition={{ type: "spring", stiffness: 420, damping: 36 }}
+          >
           <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? "PROFILE" : diagnosticsOpen ? "DIAGNOSTICS" : formOpen ? (editingProviderId ? "编辑" : "新增") : "PROVIDER"}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? "诊断" : formOpen ? (editingProviderId ?? "新供应商") : selectedProviderId ?? "详情"}</h2></div><button className="icon-button" title="关闭" onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
 
           {profileDrawerOpen ? <div className="drawer-body">
             <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><select value={defaultThinkingLevel} onChange={(event) => setDefaultThinkingLevel(event.target.value as SettingsThinkingLevel)}>{SETTINGS_THINKING_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><StyledSelect value={defaultThinkingLevel} onValueChange={(next) => setDefaultThinkingLevel(next as SettingsThinkingLevel)} options={SETTINGS_THINKING_LEVELS.map((level) => ({ value: level, label: level }))} ariaLabel="默认思考等级" mono /></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>项目</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>OMP</span><RefreshCw size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void updateOmp()} disabled={busy || updatingOmp || readOnly}><RefreshCw size={14} className={updatingOmp ? "spin" : ""} />更新</button><button className="secondary-button" onClick={() => void exportCatalog()} disabled={busy}><Download size={14} />目录</button></div></div>
@@ -1074,18 +1106,19 @@ export default function App() {
 
 
           {!profileDrawerOpen && !diagnosticsOpen && formOpen ? <div className="drawer-body form-drawer">
-            <label>预设<select value={form.id} onChange={(event) => choosePreset(event.target.value)}><option value="">自定义</option>{(catalog.length ? catalog : FALLBACK_PRESETS).map((preset) => <option key={`${preset.id}-${preset.label}`} value={preset.id}>{preset.label}</option>)}</select></label>
+            <label className="module-field"><span>预设</span><StyledSelect value={form.id} onValueChange={(next) => choosePreset(next)} options={[{ value: "", label: "自定义" }, ...(catalog.length ? catalog : FALLBACK_PRESETS).map((preset) => ({ value: preset.id, label: preset.label }))]} ariaLabel="选择预设" /></label>
             <div className="form-two"><label>ID<input readOnly={Boolean(editingProviderId)} value={form.id} onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))} placeholder="openrouter" /></label><label>API<input list="omp-api-options" value={form.api} onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))} /><datalist id="omp-api-options"><option value="openai-completions" /><option value="openai-responses" /><option value="anthropic-messages" /><option value="openai-codex-responses" /></datalist></label></div>
             <label>Endpoint<input value={form.baseUrl} onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.example.com/v1" /></label>
-            <div className="form-two"><label>Auth<select value={form.auth} onChange={(event) => setForm((current) => ({ ...current, auth: event.target.value }))}><option value="apiKey">apiKey</option><option value="none">none</option><option value="oauth">oauth</option></select></label><label>密钥<input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空保留" /></label></div>
+            <div className="form-two"><label>Auth<StyledSelect value={form.auth} onValueChange={(next) => setForm((current) => ({ ...current, auth: next }))} options={[{ value: "apiKey", label: "apiKey" }, { value: "none", label: "none" }, { value: "oauth", label: "oauth" }]} ariaLabel="认证方式" mono /></label><label>密钥<input type="password" value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} placeholder="留空保留" /></label></div>
             <div className="model-editor"><div className="drawer-section-title"><span>模型</span><button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={15} /></button></div>{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型</span> : null}</div>
-            <button className="drawer-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label>发现<select value={form.discoveryType} onChange={(event) => setForm((current) => ({ ...current, discoveryType: event.target.value }))}><option value="">手动</option><option value="openai-models-list">OpenAI</option><option value="ollama">Ollama</option><option value="llama.cpp">llama.cpp</option><option value="lm-studio">LM Studio</option><option value="proxy">Proxy</option><option value="litellm">LiteLLM</option></select></label><label>Transport<input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label>Headers<textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label>Overrides<textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label>远程压缩<textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label>Cost<textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
+            <button className="drawer-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label className="module-field"><span>发现</span><StyledSelect value={form.discoveryType} onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))} options={[{ value: "", label: "手动" }, { value: "openai-models-list", label: "OpenAI" }, { value: "ollama", label: "Ollama" }, { value: "llama.cpp", label: "llama.cpp" }, { value: "lm-studio", label: "LM Studio" }, { value: "proxy", label: "Proxy" }, { value: "litellm", label: "LiteLLM" }]} ariaLabel="模型发现方式" /></label><label>Transport<input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label>Headers<textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label>Overrides<textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label>远程压缩<textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label>Cost<textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
             <div className="drawer-actions form-submit-actions"><button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}><CloudDownload size={15} />测试并发现</button><button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
           </div> : null}
 
 
           {!profileDrawerOpen && !diagnosticsOpen && !formOpen && selectedProvider ? <div className="drawer-body"><div className="drawer-section"><div className="drawer-section-title"><span>连接</span><span className="status-chip ok">{selectedProvider.auth === "none" ? "无需密钥" : selectedProvider.apiKey ? "已配置" : "未配置"}</span></div><div className="detail-grid"><span>API</span><strong>{selectedProvider.api ?? "custom"}</strong><span>Endpoint</span><strong className="mono break">{selectedProvider.baseUrl ?? "—"}</strong><span>Auth</span><strong>{selectedProvider.auth ?? "apiKey"}</strong></div><div className="drawer-actions"><button className="primary-button" onClick={() => editProvider(selectedProviderId!)}><Sparkles size={15} />编辑</button><button className="icon-button danger" title="删除供应商" onClick={() => void removeProvider()} disabled={busy || readOnly}><Trash2 size={15} /></button></div></div><div className="drawer-section"><div className="drawer-section-title"><span>模型</span><span className="status-chip neutral">{selectedModels.length}</span></div>{selectedModels.map((model) => <div className="mini-model" key={model.id}><strong>{model.name ?? model.id}</strong><span>{model.id}</span></div>)}</div></div> : null}
-        </aside> : null}
+          </motion.aside> : null}
+        </AnimatePresence>
       </main>
       <SavePreviewDialog pending={pendingSave} busy={busy} onClose={() => setPendingSave(null)} onConfirm={() => void confirmPendingSave()} />
       <ConflictDialog detail={conflictDetail} busy={busy} onClose={() => setConflictDetail(null)} onReload={() => { setConflictDetail(null); void load(profileId); }} />
@@ -1111,5 +1144,6 @@ export default function App() {
       <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Toaster position="bottom-right" theme="system" closeButton toastOptions={{ classNames: { info: "toast-info" } }} />
     </div>
+    </Tooltip.Provider>
   );
 }

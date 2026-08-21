@@ -2,6 +2,7 @@ import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, Gatewa
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
+  setTheme(theme: "light" | "dark" | "system"): Promise<void>;
   listProfiles(): Promise<ProfileRef[]>;
   loadProfile(profileId: string): Promise<EffectiveConfig>;
   save(profileId: string, patch: ConfigPatch): Promise<{ snapshot: Snapshot; config: EffectiveConfig }>;

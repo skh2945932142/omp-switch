@@ -17,15 +17,16 @@ button:disabled { cursor: wait; opacity: 0.55; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
 .app-shell { min-height: 100vh; }
 
-/* ---- Top bar ---- */
+/* ---- Top bar. Doubles as the drag region under the hidden title bar; buttons opt back out. ---- */
 
-.topbar { height: 64px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--hairline); background: var(--topbar); }
+.topbar { height: 64px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--hairline); background: var(--topbar); -webkit-app-region: drag; }
+.topbar button, .topbar input, .topbar [role="button"] { -webkit-app-region: no-drag; }
 .brand-lockup, .topbar-center, .topbar-actions, .profile-chip, .status-chip, .provider-card-head, .workspace-heading, .heading-actions, .drawer-head, .drawer-section-title, .drawer-actions, .rail-action, .inline-status { display: flex; align-items: center; }
 .brand-lockup { gap: 10px; min-width: 0; }
 .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: var(--invert-ink); background: var(--invert-bg); border-radius: 9px; }
 .brand-name { font-weight: 650; letter-spacing: -0.01em; font-size: var(--fs-strong); }
 .topbar-center { justify-content: center; gap: 8px; }
-.topbar-actions { justify-content: flex-end; gap: 6px; }
+.topbar-actions { justify-content: flex-end; gap: 6px; padding-right: 148px; /* clears the native overlay buttons */ }
 
 /* Status = colored dot plus quiet text, not a filled pill. Chips that carry their own icon
    keep it and drop the synthetic dot. */
@@ -43,22 +44,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ---- Buttons. Primary is ink/paper inversion; the signal color never fills a button. ---- */
 
-.icon-button { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 0; border-radius: 9px; color: var(--muted); background: transparent; }
+.icon-button { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 0; border-radius: 9px; color: var(--muted); background: transparent; transition: background 120ms ease, color 120ms ease, transform 80ms ease; }
 .icon-button:hover { background: var(--hover); color: var(--ink); }
+.icon-button:active { transform: scale(0.94); }
 .icon-button.subtle { border-color: transparent; background: transparent; }
 .icon-button.danger:hover { background: var(--danger-soft); color: var(--danger); }
-.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border-radius: 10px; padding: 0 14px; border: 1px solid transparent; font-weight: 600; font-size: var(--fs-small); }
+.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border-radius: 10px; padding: 0 14px; border: 1px solid transparent; font-weight: 600; font-size: var(--fs-small); transition: background 120ms ease, border-color 120ms ease, transform 80ms ease, filter 120ms ease; }
 .primary-button { color: var(--invert-ink); background: var(--invert-bg); }
 .primary-button:hover { background: var(--invert-bg-hover); }
+.primary-button:active { transform: scale(0.98); }
 .primary-button.compact { min-height: 32px; padding-inline: 11px; }
 .secondary-button { color: var(--ink); border-color: var(--hairline); background: transparent; }
 .secondary-button:hover { border-color: var(--line); background: var(--hover); }
+.secondary-button:active { transform: scale(0.98); }
 .secondary-button.full-width, .primary-button.full-width { width: 100%; }
 
 /* ---- Body grid + source list ---- */
 
-.app-body { min-height: calc(100vh - 64px); display: grid; grid-template-columns: 224px minmax(0, 1fr) 0; transition: grid-template-columns 160ms ease; }
-.app-body:has(.detail-drawer) { grid-template-columns: 224px minmax(0, 1fr) 396px; }
+.app-body { min-height: calc(100vh - 64px); display: grid; grid-template-columns: 224px minmax(0, 1fr); }
 .left-rail { display: flex; flex-direction: column; min-width: 0; padding: 18px 12px 14px; border-right: 1px solid var(--hairline); background: var(--rail); }
 .rail-profile { display: grid; gap: 7px; padding: 0 6px 15px; border-bottom: 1px solid var(--hairline); }
 .rail-label, .eyebrow { color: var(--muted); font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -80,6 +83,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* ---- Workspace chrome ---- */
 
 .workspace-main { min-width: 0; padding: 28px 32px 44px; overflow: auto; }
+/* Section switch: content crossfades with a slight rise. Keyed by React (section-view). */
+.section-view { animation: section-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes section-in { from { opacity: 0; transform: translateY(6px); } }
 .workspace-heading { justify-content: space-between; gap: 18px; margin-bottom: 22px; }
 .workspace-heading h1 { margin: 5px 0 0; font-size: 24px; font-weight: 650; letter-spacing: -0.015em; }
 .heading-actions { gap: 8px; }
@@ -106,9 +112,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .capability { display: inline-flex; align-items: center; min-height: 20px; padding: 0 7px; border-radius: var(--radius-pill); color: var(--muted); background: var(--sunken); font-size: var(--fs-micro); }
 .capability.on { color: var(--ink); background: var(--selected); }
 
-/* ---- Drawer: a sheet, not a walled column ---- */
+/* ---- Drawer: a floating sheet over the workspace, never squeezing it ---- */
 
-.detail-drawer { min-width: 0; border-left: 1px solid var(--hairline); border-radius: var(--radius-l) 0 0 var(--radius-l); background: var(--panel); box-shadow: var(--shadow-lift); overflow: auto; }
+.detail-drawer { position: fixed; inset: 64px 0 0 auto; z-index: 10; width: min(440px, 94vw); border-left: 1px solid var(--hairline); border-radius: var(--radius-l) 0 0 0; background: var(--panel); box-shadow: var(--shadow-overlay); overflow: auto; animation: sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes sheet-in { from { opacity: 0; transform: translateX(28px); } }
 .drawer-head { justify-content: space-between; gap: 12px; min-height: 76px; padding: 17px 20px 14px; border-bottom: 1px solid var(--hairline); }
 .drawer-head h2 { margin: 5px 0 0; overflow: hidden; font-size: 18px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-body { display: grid; gap: 18px; padding: 18px 20px 32px; }
@@ -143,7 +150,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Checkboxes render as switches. An ON switch is a selected state, so it may use the signal. */
 .check-line { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .check-line input[type="checkbox"] { appearance: none; -webkit-appearance: none; position: relative; width: 32px; height: 19px; margin: 0; border-radius: var(--radius-pill); background: var(--line); cursor: pointer; transition: background 150ms ease; flex: 0 0 auto; }
-.check-line input[type="checkbox"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: transform 150ms ease; }
+.check-line input[type="checkbox"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-switch); transition: transform 150ms ease; }
 .check-line input[type="checkbox"]:checked { background: var(--signal); }
 .check-line input[type="checkbox"]:checked::after { transform: translateX(13px); }
 .check-line input[type="checkbox"]:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
