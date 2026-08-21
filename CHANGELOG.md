@@ -4,6 +4,37 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.0 - 2026-08-21
+
+### Added
+
+- Manual theme switch (light / dark / system) in the top bar, persisted across sessions and
+  forwarded to the main process so the native title-bar overlay buttons follow; one `light-dark()`
+  token definition serves both the OS-following and manual tracks.
+- Custom title bar: the web topbar doubles as the drag region with native overlay window buttons,
+  reclaiming the OS caption height and letting Mica reach the top edge (Snap Layouts kept).
+- Tooltips on top-bar icon buttons via Radix Tooltip, replacing slow native `title` hints.
+- `pnpm preview:renderer` — a browser dev server for renderer-only work, mirroring the
+  electron-vite `@omp-switch/core` alias.
+
+### Changed
+
+- Provider cards: the header now only expands/collapses the model list (animated via a CSS
+  grid-rows transition); an edit pencil appears on hover; the selected-state ring is gone.
+  Model rows are display-only; quick-assign stays.
+- The detail/editor drawer became a floating sheet that springs in over the workspace instead of
+  squeezing it as a third column.
+- Native `<select>` replaced by a styled Radix Select (profile picker, auth mode, discovery type,
+  default thinking level, gateway upstream kind).
+- Hairline-weight theme-aware scrollbars; buttons compress slightly on press; section switches
+  crossfade with a slight rise.
+
+### Fixed
+
+- Collapsing a provider's model list opened the right-hand drawer, because expand/collapse and
+  select/open-drawer shared one click handler. They are now separate controls and can no longer
+  fire together.
+
 ## 0.3.3 - 2026-08-21
 
 ### Added

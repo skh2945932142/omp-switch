@@ -1,6 +1,6 @@
 {
   "name": "omp-switch",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "private": true,
   "description": "A focused desktop companion for managing Oh My Pi model providers.",
   "author": "OMP Switch contributors",
@@ -41,6 +41,7 @@
     "package:win": "pnpm build && electron-builder --win nsis zip --publish never",
     "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
     "build:cli": "vite build --config vite.cli.config.ts",
+    "preview:renderer": "vite dev --config vite.preview.config.ts --port 5199 --strictPort",
     "render:packaging": "powershell -ExecutionPolicy Bypass -File scripts/render-packaging.ps1"
   },
   "workspaces": [
@@ -51,8 +52,11 @@
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-popover": "^1.1.23",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-tooltip": "^1.2.16",
     "cmdk": "^1.1.1",
     "lucide-react": "^0.511.0",
+    "motion": "^13.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sonner": "^2.0.8",
