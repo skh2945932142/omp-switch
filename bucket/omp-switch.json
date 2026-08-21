@@ -5,8 +5,8 @@
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.4.1/OMP-Switch-0.4.1-win.zip",
-      "hash": "1aab767f9554c467d6c0c86c45589b972405155bd559e3be988a5a744e5e6d2d"
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.4.2/OMP-Switch-0.4.2-win.zip",
+      "hash": "d865eab45e61cbd9f35f0018af7e1562193d4d28aff800c6b868821b21e320b0"
     }
   },
   "bin": "omp-switch-cli.exe",
