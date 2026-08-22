@@ -412,6 +412,119 @@ describe("OmpFilesystemAdapter", () => {
     expect(updated).toContain("defaultThinkingLevel: xhigh");
   });
 
+  it("writes the OMP v17.4 settings keys and preserves comments and unrelated keys", async () => {
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(path.join(agentDir, "models.yml"), "providers:\n  demo:\n    baseUrl: https://demo.example/v1\n    api: openai-completions\n    auth: none\n    models:\n      - id: demo-model\n");
+    await fs.writeFile(path.join(agentDir, "config.yml"), "# user note\ncustomSetting: keep\n");
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    const result = await adapter.commitPatch(current, adapter.planPatch(current, {
+      settings: {
+        compaction: { asyncEnabled: true, methodOrder: ["remote", "snapcompact"] },
+        extendedContext: true,
+        externalThinking: false,
+        personality: "friendly",
+        images: { urls: { enabled: true } },
+      },
+    }));
+    const updated = await fs.readFile(result.config.settings.path, "utf8");
+    expect(updated).toContain("# user note");
+    expect(updated).toContain("customSetting: keep");
+    expect(updated).toContain("compaction:");
+    expect(updated).toContain("methodOrder:");
+    expect(updated).toContain("extendedContext: true");
+    expect(updated).toContain("personality: friendly");
+    expect(updated).toContain("images:");
+    expect(updated).toContain("urls:");
+    expect(updated).toContain("enabled: true");
+  });
+
+  it("patches compaction/images child-by-child and keeps user comments and untouched sub-keys", async () => {
+    // Gap-2 fix: compaction and images are mappings and must be diffed per sub-key, not replaced
+    // whole — otherwise an edit to methodOrder drops a user comment and a sibling key this app
+    // does not write (e.g. an OMP-added tuning key), and the same holds for images.
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(path.join(agentDir, "models.yml"), "providers:\n  demo:\n    baseUrl: https://demo.example/v1\n    api: openai-completions\n    auth: none\n    models:\n      - id: demo-model\n");
+    await fs.writeFile(
+      path.join(agentDir, "config.yml"),
+      [
+        "compaction:",
+        "  # user note on keepRecentTokens",
+        "  keepRecentTokens: 12345   # inline comment",
+        "  asyncEnabled: false",
+        "  methodOrder:",
+        "    - remote",
+        "images:",
+        "  # user note on images",
+        "  autoResize: true",
+      ].join("\n") + "\n",
+    );
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    // The patch carries the full images object (autoResize echoed unchanged) and the full compaction
+    // object (keepRecentTokens echoed unchanged) — exactly what the renderer's settingsPatch() builds
+    // by merging the loaded value. The gap-2 guarantee is that these *unchanged* siblings are skipped
+    // by the AST diff, so their comments survive; only the changed sub-keys are rewritten.
+    const result = await adapter.commitPatch(current, adapter.planPatch(current, {
+      settings: {
+        compaction: { asyncEnabled: true, methodOrder: ["remote", "snapcompact"], keepRecentTokens: 12345 },
+        images: { autoResize: true, urls: { enabled: true } },
+      },
+    }));
+    const updated = await fs.readFile(result.config.settings.path, "utf8");
+    // The sibling key this app echoed but did not change is kept with its comment.
+    expect(updated).toContain("keepRecentTokens: 12345");
+    expect(updated).toContain("# user note on keepRecentTokens");
+    expect(updated).toContain("# inline comment");
+    // asyncEnabled changed in place (false -> true) without rewriting the compaction block.
+    expect(updated).toContain("asyncEnabled: true");
+    // The array was replaced wholesale — snapcompact appended, remote first.
+    expect(updated).toMatch(/methodOrder:[\s\S]*- remote[\s\S]*- snapcompact/);
+    // images: the user's autoResize (unchanged) and its comment survive adding urls.enabled.
+    expect(updated).toContain("# user note on images");
+    expect(updated).toContain("autoResize: true");
+    expect(updated).toContain("enabled: true");
+  });
+
+  it("clearing compaction/images removes the whole node without leaving an empty mapping", async () => {
+    // patchChildMap deletes the key when `after` carries no object — `compaction: {}` left behind
+    // would be a valid-but-strange artifact, and the renderer clears the field by omitting it.
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(path.join(agentDir, "models.yml"), "providers:\n  demo:\n    baseUrl: https://demo.example/v1\n    api: openai-completions\n    auth: none\n    models:\n      - id: demo-model\n");
+    await fs.writeFile(path.join(agentDir, "config.yml"), "compaction:\n  asyncEnabled: true\nimages:\n  autoResize: true\n");
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    // `planPatch` skips `undefined` patch values (applyOptionalField semantics in the settings loop),
+    // so the way the renderer expresses "clear this key" is by sending an empty object — which the
+    // writer's `patchChildMap` recognizes as "delete the node". Verify both shapes clear it.
+    const result = await adapter.commitPatch(current, adapter.planPatch(current, {
+      settings: { compaction: {}, images: {} },
+    }));
+    const updated = await fs.readFile(result.config.settings.path, "utf8");
+    expect(updated).not.toContain("compaction");
+    expect(updated).not.toContain("images");
+  });
+
+  it("does not treat OMP's own cost.longContext object as a validation error", async () => {
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    // A file OMP v17.4.0+ might write: a nested longContext tier object inside cost.
+    await fs.writeFile(path.join(agentDir, "models.yml"), "providers:\n  codex:\n    baseUrl: https://api.openai.com/v1\n    api: openai-codex-responses\n    auth: none\n    models:\n      - id: gpt-5.6\n        cost:\n          input: 1.25\n          output: 10\n          longContext:\n            272000: 2.5\n");
+    await fs.writeFile(path.join(agentDir, "config.yml"), "# keep\ndefaultThinkingLevel: xhigh\n");
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    // Re-committing a no-op role patch must not fail validation on the existing longContext cost.
+    const preview = adapter.planPatch(current, { roleAssignments: { default: "codex/gpt-5.6" } });
+    expect(preview.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+  });
+
   it("refuses writes when the OMP version adapter is read-only", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-test-"));
     tempRoots.push(root);

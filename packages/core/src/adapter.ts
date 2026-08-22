@@ -132,6 +132,7 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       applyOptionalField(next, "transport", provider.transport);
       applyOptionalField(next, "remoteCompaction", provider.remoteCompaction);
       applyOptionalField(next, "cost", provider.cost);
+      applyOptionalField(next, "codeMode", provider.codeMode);
       models.providers[provider.id] = next;
     }
     if (patch.roleAssignments) {
@@ -369,7 +370,7 @@ export function collectReferencedCredentialIds(models: ModelsDocument): Set<stri
 
 function applyOptionalField(
   target: Record<string, unknown>,
-  key: "apiKey" | "headers" | "compat" | "modelOverrides" | "authHeader" | "disableStrictTools" | "transport" | "remoteCompaction" | "cost",
+  key: "apiKey" | "headers" | "compat" | "modelOverrides" | "authHeader" | "disableStrictTools" | "transport" | "remoteCompaction" | "cost" | "codeMode",
   value: unknown | null | undefined,
 ): void {
   if (value === undefined) return;

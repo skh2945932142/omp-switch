@@ -77,8 +77,10 @@ export interface OmpModel extends Record<string, unknown> {
   compat?: Record<string, unknown>;
   transport?: string;
   remoteCompaction?: RemoteCompactionConfig;
-  cost?: Record<string, number>;
+  cost?: Record<string, number | Record<string, number>>;
   imageInputDecoder?: string;
+  /** OMP v17.4.0+: opt into a specific embedded local tokenizer family for proxy models. */
+  tokenizer?: string;
 }
 
 export interface OmpProvider extends Record<string, unknown> {
@@ -92,7 +94,7 @@ export interface OmpProvider extends Record<string, unknown> {
   disableStrictTools?: boolean;
   transport?: string;
   remoteCompaction?: RemoteCompactionConfig;
-  cost?: Record<string, number>;
+  cost?: Record<string, number | Record<string, number>>;
   discovery?: {
     type?: string;
     timeoutMs?: number;
@@ -100,6 +102,8 @@ export interface OmpProvider extends Record<string, unknown> {
   };
   modelOverrides?: Record<string, Record<string, unknown>>;
   models?: OmpModel[];
+  /** OMP v17.4.1+: `providers.openai-codex.codeMode` selects Codex Code Mode (off|auto|on). */
+  codeMode?: string;
   [key: string]: unknown;
 }
 
@@ -113,6 +117,36 @@ export interface SettingsDocument extends Record<string, unknown> {
   enabledModels?: EnabledModelRule[];
   disabledProviders?: DisabledProviderRule[];
   defaultThinkingLevel?: SettingsThinkingLevel;
+  /** OMP v17.4.0+ compaction tuning. `strategy`/`remoteEnabled` are deprecated (superseded by `methodOrder`). */
+  compaction?: CompactionSettings;
+  /** OMP v17.4.0+: clamp models with premium long-context pricing tiers. */
+  extendedContext?: boolean;
+  /** OMP v17.4.1+: surface external thinking as a `/settings` row carrying a risk note. */
+  externalThinking?: boolean;
+  /** OMP v17.4.1+: select the personality preset (`<agent dir>/PERSONALITY.md` replaces its text). */
+  personality?: string;
+  /** OMP v17.4.2+ image handling. Open-shaped: OMP carries `autoResize`/`blockImages` etc. this app
+   *  does not edit but must round-trip (the writer diffs child-by-child), so the extra fields survive. */
+  images?: { urls?: { enabled?: boolean }; [key: string]: unknown };
+}
+
+/** Compaction settings as documented for OMP v17.4.0+. */
+export interface CompactionSettings {
+  enabled?: boolean;
+  midTurnEnabled?: boolean;
+  /** Ordered fallback list replacing the deprecated `strategy`/`remoteEnabled`. */
+  methodOrder?: string[];
+  /** Speculative background summarization (default on). */
+  asyncEnabled?: boolean;
+  thresholdPercent?: number;
+  thresholdTokens?: number;
+  reserveTokens?: number;
+  keepRecentTokens?: number;
+  autoContinue?: boolean;
+  /** Deprecated; kept so files an older OMP wrote do not flag as errors. */
+  strategy?: string;
+  /** Deprecated; kept so files an older OMP wrote do not flag as errors. */
+  remoteEnabled?: boolean;
 }
 
 export interface RemoteCompactionConfig extends Record<string, unknown> {
@@ -217,14 +251,16 @@ export interface ProviderDraft {
   disableStrictTools?: boolean;
   transport?: string;
   remoteCompaction?: RemoteCompactionConfig | null;
-  cost?: Record<string, number> | null;
+  cost?: OmpProvider["cost"] | null;
+  /** OMP v17.4.1+: `providers.openai-codex.codeMode`. */
+  codeMode?: string | null;
 }
 
 export interface ConfigPatch {
   provider?: ProviderDraft;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
-  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel">>;
+  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images">>;
   confirmLegacyMigration?: boolean;
 }
 

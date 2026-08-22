@@ -212,7 +212,10 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
     }
   }
 
-  for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel"]) {
+  // Scalar and array settings keys replace the whole node — there is no per-element identity to
+  // preserve for a string, boolean, or ordered list, and `modelProviderOrder`/`enabledModels`/
+  // `disabledProviders` are arrays this app rewrites in full.
+  for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel", "extendedContext", "externalThinking", "personality"]) {
     const beforeValue = before[key];
     const afterValue = after[key];
     if (isDeepStrictEqual(beforeValue, afterValue)) continue;
@@ -220,6 +223,13 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
     if (afterValue === undefined || (Array.isArray(afterValue) && afterValue.length === 0)) root.delete(key);
     else root.set(key, afterValue);
   }
+  // `compaction` and `images` are mappings (`images` is nested), so they are diffed child-by-child
+  // the same way `modelRoles` and each provider entry are. Whole-node replacement would drop user
+  // comments and any sibling sub-key this app does not write — a real loss for compaction, whose
+  // tuning keys a user may edit by hand. An array inside (compaction.methodOrder) is still replaced
+  // wholesale, which is correct: an ordered list has no per-element identity to preserve.
+  patchChildMap(document, root, before, after, "compaction");
+  patchChildMap(document, root, before, after, "images");
   return documentToYaml(document);
 }
 
@@ -241,10 +251,34 @@ function ensureMap(document: Document): YAMLMap {
 function ensureChildMap(document: Document, parent: YAMLMap, key: string): YAMLMap {
   const existing = parent.get(key, true);
   if (isMap(existing)) return existing;
-  parent.set(key, {});
+  // `parent.set(key, {})` stores a plain JS object, not a YAMLMap node — `isMap` then rejects it and
+  // downstream `patchMap` (which calls `map.get`/`map.set`) breaks. `createNode` materializes a real
+  // map node the tree can hold, which is what every existing caller relied on the key already being.
+  parent.set(key, document.createNode({}));
   const created = parent.get(key, true);
   if (!isMap(created)) throw new Error(`Unable to create YAML mapping for ${key}`);
   return created;
+}
+
+/**
+ * Diffs one settings sub-mapping (currently `compaction` and `images`) child-by-child instead of
+ * replacing the whole node, so user comments and sibling keys this app does not write survive an
+ * edit. `before`/`after` are the whole settings objects; this reads `before[key]`/`after[key]`.
+ * An absent `after[key]` deletes the node; an absent `before[key]` creates it.
+ */
+function patchChildMap(document: Document, root: YAMLMap, before: Record<string, unknown>, after: Record<string, unknown>, key: string): void {
+  const beforeValue = before[key];
+  const afterValue = after[key];
+  if (isDeepStrictEqual(beforeValue, afterValue)) return;
+  if (afterValue === undefined || (isRecord(afterValue) && Object.keys(afterValue).length === 0)) {
+    // Empty or cleared: drop the key entirely rather than leaving `compaction: {}`.
+    const existing = root.get(key, true);
+    assertReplaceable(existing, key);
+    root.delete(key);
+    return;
+  }
+  const node = ensureChildMap(document, root, key);
+  patchMap(node, asRecord(beforeValue), asRecord(afterValue), key);
 }
 
 function patchMap(map: YAMLMap, before: Record<string, unknown>, after: Record<string, unknown>, keyPath: string): void {

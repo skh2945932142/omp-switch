@@ -183,4 +183,39 @@ describe("OMP configuration validation", () => {
       expect.objectContaining({ severity: "warning", code: "provider.apiKey-plaintext", path: "providers.leaky.apiKey" }),
     ]);
   });
+
+  it("accepts the nested cost.longContext tier object OMP v17.4.0+ writes", () => {
+    // OMP writes `cost.longContext` on subscription Codex GPT-5.6 models. The old scalar-only check
+    // blocked the commit on a file OMP itself produced; the recursive check must accept it.
+    const diagnostics = validateModelsDocument({
+      providers: {
+        codex: { baseUrl: "https://api.openai.com/v1", api: "openai-codex-responses", auth: "none", models: [{ id: "gpt-5.6", cost: { input: 1.25, output: 10, cacheRead: 0.1, longContext: { "272000": 2.5, "1000000": 5 } } }] },
+      },
+    });
+    expect(diagnostics.some((item) => item.code === "model.cost" || item.code === "provider.cost")).toBe(false);
+  });
+
+  it("still rejects a cost with a non-numeric leaf", () => {
+    expect(validateModelsDocument({ providers: { demo: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none", models: [{ id: "m", cost: { input: "free" } }] } } }).some((item) => item.code === "model.cost")).toBe(true);
+  });
+
+  it("warns about an unknown tokenizer family without blocking the commit", () => {
+    const diagnostics = validateModelsDocument({ providers: { demo: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none", models: [{ id: "m", tokenizer: "claude-v99" }] } } });
+    expect(diagnostics.find((item) => item.code === "model.tokenizer-unknown")).toMatchObject({ severity: "warning" });
+    expect(diagnostics.some((item) => item.severity === "error")).toBe(false);
+    expect(validateModelsDocument({ providers: { demo: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none", models: [{ id: "m", tokenizer: "claude-v5" }] } } })).toEqual([]);
+  });
+
+  it("validates the OMP v17.4.0+ compaction and settings keys", () => {
+    expect(validateSettingsDocument({
+      compaction: { asyncEnabled: true, methodOrder: ["remote", "snapcompact"], keepRecentTokens: 20000 },
+      extendedContext: true,
+      externalThinking: false,
+      personality: "friendly",
+      images: { urls: { enabled: true } },
+    })).toEqual([]);
+    expect(validateSettingsDocument({ compaction: { asyncEnabled: "yes" as never } }).some((item) => item.code === "settings.compaction")).toBe(true);
+    expect(validateSettingsDocument({ personality: "rude" as never }).some((item) => item.code === "settings.personality")).toBe(true);
+    expect(validateSettingsDocument({ images: { urls: { enabled: "yes" as never } } }).some((item) => item.code === "settings.images.urls.enabled")).toBe(true);
+  });
 });

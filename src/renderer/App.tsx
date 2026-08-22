@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type {
+  CompactionSettings,
   ConfigPatch,
   DiscoveryResult,
   EffectiveConfig,
@@ -39,7 +40,7 @@ import type {
   SettingsThinkingLevel,
   Snapshot,
 } from "@omp-switch/core";
-import { SETTINGS_THINKING_LEVELS, parseRoleSelector } from "@omp-switch/core/validation";
+import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES, PERSONALITY_PRESETS, SETTINGS_THINKING_LEVELS, parseRoleSelector } from "@omp-switch/core/validation";
 import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
 import { UsageModule } from "./usage-module";
 import { KNOWN_ROLES, RolesModule } from "./roles-module";
@@ -81,6 +82,7 @@ type FormState = {
   transport: string;
   remoteCompaction: string;
   cost: string;
+  codeMode: string;
 };
 
 function blankForm(): FormState {
@@ -99,6 +101,7 @@ function blankForm(): FormState {
     transport: "",
     remoteCompaction: "",
     cost: "",
+    codeMode: "",
   };
 }
 
@@ -117,6 +120,7 @@ interface ModelEditorEntry {
   remoteCompaction: string;
   cost: string;
   imageInputDecoder: string;
+  tokenizer: string;
 }
 
 function toModelEditorEntry(model: OmpModel): ModelEditorEntry {
@@ -135,6 +139,7 @@ function toModelEditorEntry(model: OmpModel): ModelEditorEntry {
     remoteCompaction: formatJson(model.remoteCompaction),
     cost: formatJson(model.cost),
     imageInputDecoder: model.imageInputDecoder ?? "",
+    tokenizer: typeof model.tokenizer === "string" ? model.tokenizer : "",
   };
 }
 
@@ -154,6 +159,7 @@ function createModelEditorEntry(): ModelEditorEntry {
     remoteCompaction: "",
     cost: "",
     imageInputDecoder: "",
+    tokenizer: "",
   };
 }
 
@@ -206,6 +212,9 @@ function buildModels(entries: ModelEditorEntry[]): OmpModel[] {
     const imageInputDecoder = entry.imageInputDecoder.trim();
     if (imageInputDecoder) model.imageInputDecoder = imageInputDecoder;
     else delete model.imageInputDecoder;
+    const tokenizer = entry.tokenizer.trim();
+    if (tokenizer) model.tokenizer = tokenizer;
+    else delete model.tokenizer;
     return model;
   });
 }
@@ -253,6 +262,11 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
         if (patch.settings.enabledModels) s.enabledModels = patch.settings.enabledModels;
         if (patch.settings.disabledProviders) s.disabledProviders = patch.settings.disabledProviders;
         if (patch.settings.defaultThinkingLevel) s.defaultThinkingLevel = patch.settings.defaultThinkingLevel;
+        if (patch.settings.compaction !== undefined) s.compaction = patch.settings.compaction;
+        if (patch.settings.extendedContext !== undefined) s.extendedContext = patch.settings.extendedContext;
+        if (patch.settings.externalThinking !== undefined) s.externalThinking = patch.settings.externalThinking;
+        if (patch.settings.personality !== undefined) s.personality = patch.settings.personality;
+        if (patch.settings.images !== undefined) s.images = patch.settings.images;
       }
       return {
         preview: { profile: before.profile, models: after.models.value, settings: after.settings.value, diagnostics: [], expectedModelsHash: before.models.hash, expectedSettingsHash: before.settings.hash, legacyMigrationApproved: true },
@@ -293,6 +307,11 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
         if (patch.settings.enabledModels) settings.enabledModels = patch.settings.enabledModels;
         if (patch.settings.disabledProviders) settings.disabledProviders = patch.settings.disabledProviders;
         if (patch.settings.defaultThinkingLevel) settings.defaultThinkingLevel = patch.settings.defaultThinkingLevel;
+        if (patch.settings.compaction !== undefined) settings.compaction = patch.settings.compaction;
+        if (patch.settings.extendedContext !== undefined) settings.extendedContext = patch.settings.extendedContext;
+        if (patch.settings.externalThinking !== undefined) settings.externalThinking = patch.settings.externalThinking;
+        if (patch.settings.personality !== undefined) settings.personality = patch.settings.personality;
+        if (patch.settings.images !== undefined) settings.images = patch.settings.images;
       }
       return { snapshot: { id: "demo-snapshot", profile: id, createdAt: new Date().toISOString(), modelsPath: config.models.path, settingsPath: config.settings.path }, config };
     },
@@ -411,6 +430,32 @@ function formatJson(value: unknown): string {
   return value && typeof value === "object" ? JSON.stringify(value, null, 2) : "";
 }
 
+/** Editor-facing mirror of the writable config.yml settings, flattened for the form. */
+interface SettingsDraft {
+  order: string;
+  enabled: string;
+  disabled: string;
+  level: SettingsThinkingLevel;
+  compaction: string;
+  extendedContext: boolean;
+  externalThinking: boolean;
+  personality: string;
+  imagesUrlsEnabled: string;
+}
+
+/**
+ * `images.urls.enabled` is a tri-state in the UI: unset (clear the key), on, off. A boolean form
+ * control cannot express "unset", so it is held as the string "" / "true" / "false" and resolved
+ * back into `boolean | undefined` in `settingsPatch`.
+ */
+function triStateFromBool(value: boolean | undefined): string {
+  return value === undefined ? "" : value ? "true" : "false";
+}
+
+function triStateToBool(value: string): boolean | undefined {
+  return value === "" ? undefined : value === "true";
+}
+
 function formatEnabledModelRules(value: Array<string | Record<string, unknown>> | undefined): string {
   return (value ?? []).map((item) => typeof item === "string" ? item : JSON.stringify(item)).join("\n");
 }
@@ -420,8 +465,8 @@ function rolesSignature(value: Record<string, string>): string {
   return JSON.stringify(Object.keys(value).sort().map((key) => `${key}=${value[key] ?? ""}`));
 }
 
-function settingsSignature(order: string, enabled: string, disabled: string, level: SettingsThinkingLevel): string {
-  return JSON.stringify([order, enabled, disabled, level]);
+function settingsSignature(payload: SettingsDraft): string {
+  return JSON.stringify(payload);
 }
 
 /**
@@ -556,6 +601,11 @@ export default function App() {
   const [enabledModels, setEnabledModels] = useState("");
   const [disabledProviders, setDisabledProviders] = useState("");
   const [defaultThinkingLevel, setDefaultThinkingLevel] = useState<SettingsThinkingLevel>("auto");
+  const [compactionJson, setCompactionJson] = useState("");
+  const [extendedContext, setExtendedContext] = useState(false);
+  const [externalThinking, setExternalThinking] = useState(false);
+  const [personality, setPersonality] = useState("default");
+  const [imagesUrlsEnabled, setImagesUrlsEnabled] = useState("");
   const [updatingOmp, setUpdatingOmp] = useState(false);
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
   const catalogInput = useRef<HTMLInputElement>(null);
@@ -571,8 +621,22 @@ export default function App() {
     return [...KNOWN_ROLES.map(([id, label]) => [id, label] as [string, string]), ...extra];
   }, [roles]);
   const rolesDirty = useMemo(() => rolesSignature(roles) !== rolesSignature(savedRoles), [roles, savedRoles]);
-  const settingsDirty = settingsSignature(providerOrder, enabledModels, disabledProviders, defaultThinkingLevel) !== savedSettings;
+  const settingsDirty = settingsSignature(settingsDraft()) !== savedSettings;
   const enabledFilter = useMemo(() => makeEnabledFilter(config?.settings.value.enabledModels), [config]);
+
+  function settingsDraft(): SettingsDraft {
+    return {
+      order: providerOrder,
+      enabled: enabledModels,
+      disabled: disabledProviders,
+      level: defaultThinkingLevel,
+      compaction: compactionJson,
+      extendedContext,
+      externalThinking,
+      personality,
+      imagesUrlsEnabled,
+    };
+  }
 
   const notify = useCallback((next: { tone: "success" | "error" | "info"; text: string }) => {
     if (next.tone === "success") toast.success(next.text);
@@ -583,19 +647,30 @@ export default function App() {
   /** Single place that mirrors a freshly loaded config into editor state and resets dirty baselines. */
   function applyConfig(next: EffectiveConfig): void {
     const nextRoles = next.settings.value.modelRoles ?? {};
+    const s = next.settings.value;
     setConfig(next);
     setRoles(nextRoles);
     setSavedRoles(nextRoles);
-    setProviderOrder((next.settings.value.modelProviderOrder ?? []).join(", "));
-    setEnabledModels(formatEnabledModelRules(next.settings.value.enabledModels));
-    setDisabledProviders(formatEnabledModelRules(next.settings.value.disabledProviders));
-    setDefaultThinkingLevel(next.settings.value.defaultThinkingLevel ?? "auto");
-    setSavedSettings(settingsSignature(
-      (next.settings.value.modelProviderOrder ?? []).join(", "),
-      formatEnabledModelRules(next.settings.value.enabledModels),
-      formatEnabledModelRules(next.settings.value.disabledProviders),
-      next.settings.value.defaultThinkingLevel ?? "auto",
-    ));
+    setProviderOrder((s.modelProviderOrder ?? []).join(", "));
+    setEnabledModels(formatEnabledModelRules(s.enabledModels));
+    setDisabledProviders(formatEnabledModelRules(s.disabledProviders));
+    setDefaultThinkingLevel(s.defaultThinkingLevel ?? "auto");
+    setCompactionJson(formatJson(s.compaction));
+    setExtendedContext(Boolean(s.extendedContext));
+    setExternalThinking(Boolean(s.externalThinking));
+    setPersonality(typeof s.personality === "string" ? s.personality : "default");
+    setImagesUrlsEnabled(triStateFromBool(s.images?.urls?.enabled));
+    setSavedSettings(settingsSignature({
+      order: (s.modelProviderOrder ?? []).join(", "),
+      enabled: formatEnabledModelRules(s.enabledModels),
+      disabled: formatEnabledModelRules(s.disabledProviders),
+      level: s.defaultThinkingLevel ?? "auto",
+      compaction: formatJson(s.compaction),
+      extendedContext: Boolean(s.extendedContext),
+      externalThinking: Boolean(s.externalThinking),
+      personality: typeof s.personality === "string" ? s.personality : "default",
+      imagesUrlsEnabled: triStateFromBool(s.images?.urls?.enabled),
+    }));
   }
 
   async function load(id: string): Promise<void> {
@@ -676,6 +751,7 @@ export default function App() {
       transport: provider?.transport ?? "",
        remoteCompaction: formatJson(provider?.remoteCompaction),
       cost: formatJson(provider?.cost),
+      codeMode: typeof provider?.codeMode === "string" ? provider.codeMode : "",
     });
     setModelEntries(providerModels(provider).map(toModelEditorEntry));
     setAdvancedOpen(false);
@@ -719,6 +795,7 @@ export default function App() {
           ...(form.transport.trim() ? { transport: form.transport.trim() } : {}),
           remoteCompaction: parseObjectJson("Remote compaction", form.remoteCompaction),
           cost: parseCost(form.cost),
+          codeMode: form.codeMode.trim() ? form.codeMode.trim() : null,
         },
       }, () => {
         setSelectedProviderId(id);
@@ -854,11 +931,28 @@ export default function App() {
   }
 
   function settingsPatch(): NonNullable<ConfigPatch["settings"]> {
+    // An empty compaction string clears the key; a parseable object writes it. A non-empty string
+    // that fails to parse throws in parseObjectJson and aborts the save before any filesystem effect.
+    const compactionParsed = compactionJson.trim() ? parseObjectJson("compaction", compactionJson) : null;
+    // `images` is patched as a full object: the editor only exposes urls.enabled, but the patch must
+    // carry the rest of images.* (e.g. autoResize) so the AST diff does not delete keys the user set
+    // by hand. Compaction avoids this by round-tripping the whole object through its JSON textarea;
+    // images has no such field, so the loaded value is merged here instead.
+    const imagesBase = config?.settings.value.images ?? {};
+    const urlsEnabled = triStateToBool(imagesUrlsEnabled);
+    const images = urlsEnabled === undefined
+      ? undefined
+      : { ...imagesBase, urls: { ...(typeof imagesBase.urls === "object" && imagesBase.urls ? imagesBase.urls : {}), enabled: urlsEnabled } };
     return {
       modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
       enabledModels: parseEnabledModelRules(enabledModels),
       disabledProviders: parseDisabledProviderRules(disabledProviders),
       defaultThinkingLevel,
+      ...(compactionParsed ? { compaction: compactionParsed as CompactionSettings } : {}),
+      extendedContext,
+      externalThinking,
+      personality,
+      ...(images ? { images } : {}),
     };
   }
 
@@ -1173,7 +1267,9 @@ export default function App() {
             </div>
             {profileTab === "settings" ? <>
             <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><StyledSelect value={defaultThinkingLevel} onValueChange={(next) => setDefaultThinkingLevel(next as SettingsThinkingLevel)} options={SETTINGS_THINKING_LEVELS.map((level) => ({ value: level, label: level }))} ariaLabel="默认思考等级" mono /></label><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>选择</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : <Settings2 size={15} />}</div><label className="module-field"><span>Provider 顺序</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>启用模型</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>禁用 Provider</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>默认思考</span><StyledSelect value={defaultThinkingLevel} onValueChange={(next) => setDefaultThinkingLevel(next as SettingsThinkingLevel)} options={SETTINGS_THINKING_LEVELS.map((level) => ({ value: level, label: level }))} ariaLabel="默认思考等级" mono /></label></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>行为</span>{settingsDirty ? <span className="heading-dirty">未保存</span> : null}</div><label className="module-field"><span>性格</span><StyledSelect value={personality} onValueChange={(next) => setPersonality(next)} options={PERSONALITY_PRESETS.map((preset) => ({ value: preset, label: preset }))} ariaLabel="性格预设" mono /></label><span className="muted-line">「default」之外的预设可被 <code className="inline-code">&lt;agent dir&gt;/PERSONALITY.md</code> 覆盖文本；「none」省略性格块。</span><label className="check-line"><input type="checkbox" checked={extendedContext} onChange={(event) => setExtendedContext(event.target.checked)} />扩展上下文（允许带长上下文溢价的档位使用扩展窗口）</label><label className="check-line"><input type="checkbox" checked={externalThinking} onChange={(event) => setExternalThinking(event.target.checked)} />外部思考（<code className="inline-code">externalThinking</code>，会作为 /settings 风险项展示）</label><label className="module-field"><span>图片 URL 镜像</span><StyledSelect value={imagesUrlsEnabled} onValueChange={(next) => setImagesUrlsEnabled(next)} options={[{ value: "", label: "未设置（继承默认）" }, { value: "true", label: "启用" }, { value: "false", label: "关闭" }]} ariaLabel="图片 URL 镜像" mono /></label><span className="muted-line">启用后，对会获取远程图片的供应商以 URL 镜像发送，而非内联 base64。</span><label className="module-field"><span>压缩（Compaction）</span><textarea value={compactionJson} onChange={(event) => setCompactionJson(event.target.value)} rows={4} placeholder={'{"asyncEnabled":true,"methodOrder":["remote","snapcompact"]}\n留空则删除该键'} /></label><span className="muted-line">OMP v17.4.0 起用 <code className="inline-code">methodOrder</code> 取代旧的 <code className="inline-code">strategy</code>/<code className="inline-code">remoteEnabled</code>；旧键不会报错但已忽略。</span></div>
+            <div className="drawer-actions"><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />保存设置</button></div>
             </> : null}
             {profileTab === "project" ? <div className="drawer-section"><div className="drawer-section-title"><span>项目覆盖</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div> : null}
             {profileTab === "snapshots" ? <div className="drawer-section"><div className="drawer-section-title"><span>快照</span><ArchiveRestore size={15} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={15} />创建快照</button></div><SnapshotTimeline api={api} profileId={profileId} busy={busy} onRestored={(restored, snap) => { applyConfig(restored); setSnapshot(snap); }} onNotice={notify} /><span className="muted-line">{snapshot ? `最近一次写入 ${formatDate(snapshot.createdAt)}` : "写入前自动创建快照，最多保留 30 个"}</span></div> : null}
@@ -1228,10 +1324,10 @@ export default function App() {
             </div>
             <div className="form-group">
               <div className="form-group-title"><span>模型</span><button className="icon-button" title="添加模型" onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}><Plus size={15} /></button></div>
-              <div className="model-editor">{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型 · 点击右上「+」添加</span> : null}</div>
+              <div className="model-editor">{modelEntries.map((entry, index) => <div className="model-editor-card" key={`${entry.raw.id}-${index}`}><div className="model-editor-row"><input aria-label={`模型 ${index + 1} ID`} value={entry.id} onChange={(event) => updateModelEntry(index, { id: event.target.value })} placeholder="Model ID" /><input aria-label={`模型 ${index + 1} 名称`} value={entry.name} onChange={(event) => updateModelEntry(index, { name: event.target.value })} placeholder="名称" /><input aria-label={`模型 ${index + 1} Context`} inputMode="numeric" value={entry.contextWindow} onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })} placeholder="Context" /><input aria-label={`模型 ${index + 1} Max output`} inputMode="numeric" value={entry.maxTokens} onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })} placeholder="Max" /><label className="check-line"><input type="checkbox" checked={entry.reasoning} onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })} />思考</label><label className="check-line"><input type="checkbox" checked={entry.vision} onChange={(event) => updateModelEntry(index, { vision: event.target.checked })} />视觉</label><button className="icon-button subtle danger" title="删除模型" onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div><details className="model-advanced"><summary>高级</summary><div className="model-advanced-grid"><label>API<input value={entry.api} onChange={(event) => updateModelEntry(index, { api: event.target.value })} placeholder="继承 Provider" /></label><label>Transport<input value={entry.transport} onChange={(event) => updateModelEntry(index, { transport: event.target.value })} placeholder="pi-native" /></label><label>图片解码<input value={entry.imageInputDecoder} onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })} placeholder="stb" /></label><label>Tokenizer<StyledSelect value={entry.tokenizer} onValueChange={(next) => updateModelEntry(index, { tokenizer: next })} options={[{ value: "", label: "继承 / 自动" }, ...Array.from(KNOWN_TOKENIZER_FAMILIES).map((family) => ({ value: family, label: family }))]} ariaLabel={`模型 ${index + 1} Tokenizer`} mono /></label><label>Headers<textarea value={entry.headers} onChange={(event) => updateModelEntry(index, { headers: event.target.value })} rows={2} placeholder='{"X-Client":"omp-switch"}' /></label><label>Compat<textarea value={entry.compat} onChange={(event) => updateModelEntry(index, { compat: event.target.value })} rows={2} /></label><label>远程压缩<textarea value={entry.remoteCompaction} onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })} rows={2} placeholder='{"enabled":true}' /></label><label>Cost<textarea value={entry.cost} onChange={(event) => updateModelEntry(index, { cost: event.target.value })} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div></details></div>)}{!modelEntries.length ? <span className="muted-line">暂无模型 · 点击右上「+」添加</span> : null}</div>
             </div>
             <div className="form-group">
-              <button className="drawer-disclosure form-group-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label className="module-field"><span>发现</span><StyledSelect value={form.discoveryType} onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))} options={[{ value: "", label: "手动" }, { value: "openai-models-list", label: "OpenAI" }, { value: "ollama", label: "Ollama" }, { value: "llama.cpp", label: "llama.cpp" }, { value: "lm-studio", label: "LM Studio" }, { value: "proxy", label: "Proxy" }, { value: "litellm", label: "LiteLLM" }]} ariaLabel="模型发现方式" /></label><label className="module-field"><span>Transport</span><input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label className="module-field"><span>Headers</span><textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label className="module-field"><span>Compat</span><textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label className="module-field"><span>Overrides</span><textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label className="module-field"><span>远程压缩</span><textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label className="module-field"><span>Cost</span><textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label></div> : null}
+              <button className="drawer-disclosure form-group-disclosure" onClick={() => setAdvancedOpen((value) => !value)}><span>Provider 高级</span><ChevronDown size={15} className={advancedOpen ? "rotate-open" : ""} /></button>{advancedOpen ? <div className="advanced-fields"><div className="form-two"><label className="module-field"><span>发现</span><StyledSelect value={form.discoveryType} onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))} options={[{ value: "", label: "手动" }, { value: "openai-models-list", label: "OpenAI" }, { value: "ollama", label: "Ollama" }, { value: "llama.cpp", label: "llama.cpp" }, { value: "lm-studio", label: "LM Studio" }, { value: "proxy", label: "Proxy" }, { value: "litellm", label: "LiteLLM" }]} ariaLabel="模型发现方式" /></label><label className="module-field"><span>Transport</span><input value={form.transport} onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))} placeholder="pi-native" /></label></div><div className="form-two"><label className="check-line"><input type="checkbox" checked={form.authHeader} onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))} />Auth header</label><label className="check-line"><input type="checkbox" checked={form.disableStrictTools} onChange={(event) => setForm((current) => ({ ...current, disableStrictTools: event.target.checked }))} />宽松工具</label></div><label className="module-field"><span>Headers</span><textarea value={form.headers} onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))} rows={3} placeholder='{"X-Client":"omp-switch"}' /></label><label className="module-field"><span>Compat</span><textarea value={form.compat} onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))} rows={3} /></label><label className="module-field"><span>Overrides</span><textarea value={form.overrides} onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))} rows={3} /></label><label className="module-field"><span>远程压缩</span><textarea value={form.remoteCompaction} onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))} rows={3} placeholder='{"enabled":true,"endpoint":"https://..."}' /></label><label className="module-field"><span>Cost</span><textarea value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} rows={2} placeholder='{"input":0.1,"output":0.4}' /></label><label className="module-field"><span>Code Mode</span><StyledSelect value={form.codeMode} onValueChange={(next) => setForm((current) => ({ ...current, codeMode: next }))} options={[{ value: "", label: "未设置（默认 off）" }, ...CODE_MODE_VALUES.map((mode) => ({ value: mode, label: mode }))]} ariaLabel="Codex Code Mode" mono /></label></div> : null}
             </div>
             <div className="drawer-actions form-submit-actions"><button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}><CloudDownload size={15} />测试并发现</button><button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}><Save size={15} />保存</button></div>
           </div> : null}

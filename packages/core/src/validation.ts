@@ -25,6 +25,36 @@ export const KNOWN_PROVIDER_APIS = new Set([
 ]);
 
 /**
+ * Every documented `tokenizer` family value (OMP v17.4.0+). Like `api`, an unknown value is a warning,
+ * not an error: OMP may add families, and a proxy model with an unrecognized id simply keeps the fast
+ * local estimate rather than rejecting the document.
+ */
+export const KNOWN_TOKENIZER_FAMILIES = new Set([
+  "claude-v3",
+  "claude-v47",
+  "claude-v5",
+  "claude-v5-sonnet",
+  "qwen3",
+  "deepseek-v3",
+  "kimi-k2",
+  "glm5",
+]);
+
+/**
+ * `personality` enum in config.yml (OMP v17.4.1+). `none` omits the personality block; the others
+ * select a preset whose text a user-level `<agent dir>/PERSONALITY.md` can replace.
+ */
+export const PERSONALITY_PRESETS = ["default", "friendly", "pragmatic", "none"] as const;
+export type PersonalityPreset = (typeof PERSONALITY_PRESETS)[number];
+
+/**
+ * `providers.openai-codex.codeMode` enum (OMP v17.4.1+). `auto` follows the catalog `tool_mode`
+ * flag, `on` forces Code Mode, `off` (default) leaves the full direct surface.
+ */
+export const CODE_MODE_VALUES = ["off", "auto", "on"] as const;
+export type CodeMode = (typeof CODE_MODE_VALUES)[number];
+
+/**
  * A provider with no models still has to carry one of these, or OMP fails the whole document
  * and silently falls back to its built-in catalog.
  */
@@ -106,6 +136,20 @@ export function looksLikePlaintextSecret(value: string): boolean {
   if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed) && trimmed === trimmed.toUpperCase()) return false;
   if (/^(sk|pk|rk|api|key|tok|ghp|gho|xai|pat)[-_]/i.test(trimmed)) return true;
   return trimmed.length >= 24 && /[0-9]/.test(trimmed) && /[a-z]/.test(trimmed);
+}
+
+/**
+ * OMP's `cost` mapping: scalar price fields (`input`, `output`, `cacheRead`, `cacheWrite`) are
+ * numbers, and since v17.4.0 subscription Codex GPT-5.6 models also carry a nested `longContext`
+ * object of threshold-tiered prices. The value can therefore be a finite non-negative number OR a
+ * mapping whose own values satisfy the same rule. OMP writes the nested shape itself, so treating it
+ * as an error would block a commit on a file this app does not own — only reject genuinely malformed
+ * (non-finite, negative, or structurally wrong) values.
+ */
+function validCost(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0;
+  if (!isRecord(value)) return false;
+  return Object.values(value).every(validCost);
 }
 
 function validateProviderCredential(providerId: string, provider: OmpProvider, diagnostics: Diagnostic[]): void {
@@ -206,8 +250,8 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     if (provider.transport !== undefined && provider.transport !== "pi-native") {
       diagnostics.push({ severity: "error", code: "provider.transport", path: `providers.${providerId}.transport`, message: "transport must be pi-native" });
     }
-    if (provider.cost !== undefined && (!isRecord(provider.cost) || Object.values(provider.cost).some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0))) {
-      diagnostics.push({ severity: "error", code: "provider.cost", path: `providers.${providerId}.cost`, message: "Provider cost values must be finite non-negative numbers" });
+    if (provider.cost !== undefined && !validCost(provider.cost)) {
+      diagnostics.push({ severity: "error", code: "provider.cost", path: `providers.${providerId}.cost`, message: "Provider cost values must be finite non-negative numbers (a nested longContext tier mapping is accepted)" });
     }
     for (const [index, model] of models.entries()) {
       if (!model || typeof model !== "object" || typeof model.id !== "string" || model.id.trim() === "") {
@@ -231,8 +275,14 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       if (model.transport !== undefined && model.transport !== "pi-native") diagnostics.push({ severity: "error", code: "model.transport", path: `providers.${providerId}.models.${index}.transport`, message: "transport must be pi-native" });
       if (model.remoteCompaction !== undefined && !validRemoteCompaction(model.remoteCompaction)) diagnostics.push({ severity: "error", code: "model.remoteCompaction", path: `providers.${providerId}.models.${index}.remoteCompaction`, message: "remoteCompaction must be a mapping" });
       if (model.imageInputDecoder !== undefined && model.imageInputDecoder !== "stb") diagnostics.push({ severity: "error", code: "model.imageInputDecoder", path: `providers.${providerId}.models.${index}.imageInputDecoder`, message: "imageInputDecoder must be stb" });
-      if (model.cost !== undefined && (!isRecord(model.cost) || Object.values(model.cost).some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0))) {
-        diagnostics.push({ severity: "error", code: "model.cost", path: `providers.${providerId}.models.${index}.cost`, message: "Model cost values must be finite non-negative numbers" });
+      if (model.cost !== undefined && !validCost(model.cost)) {
+        diagnostics.push({ severity: "error", code: "model.cost", path: `providers.${providerId}.models.${index}.cost`, message: "Model cost values must be finite non-negative numbers (a nested longContext tier mapping is accepted)" });
+      }
+      if (typeof model.tokenizer === "string" && !KNOWN_TOKENIZER_FAMILIES.has(model.tokenizer)) {
+        diagnostics.push({ severity: "warning", code: "model.tokenizer-unknown", path: `providers.${providerId}.models.${index}.tokenizer`, message: `Unknown tokenizer "${model.tokenizer}" on model ${model.id}; OMP only ships ${[...KNOWN_TOKENIZER_FAMILIES].join(", ")} unless a future version adds more` });
+      }
+      if (model.tokenizer !== undefined && typeof model.tokenizer !== "string") {
+        diagnostics.push({ severity: "error", code: "model.tokenizer", path: `providers.${providerId}.models.${index}.tokenizer`, message: "tokenizer must be a family string" });
       }
     }
   }
@@ -336,5 +386,52 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
   if (value.defaultThinkingLevel !== undefined && !SETTINGS_THINKING_LEVELS.includes(value.defaultThinkingLevel)) {
     diagnostics.push({ severity: "error", code: "settings.defaultThinkingLevel", message: `Unsupported thinking level: ${value.defaultThinkingLevel}. OMP accepts ${SETTINGS_THINKING_LEVELS.join(", ")}` });
   }
+  validateCompaction(value.compaction, diagnostics);
+  if (value.extendedContext !== undefined && typeof value.extendedContext !== "boolean") {
+    diagnostics.push({ severity: "error", code: "settings.extendedContext", message: "extendedContext must be a boolean" });
+  }
+  if (value.externalThinking !== undefined && typeof value.externalThinking !== "boolean") {
+    diagnostics.push({ severity: "error", code: "settings.externalThinking", message: "externalThinking must be a boolean" });
+  }
+  if (value.personality !== undefined && !PERSONALITY_PRESETS.includes(value.personality as PersonalityPreset)) {
+    diagnostics.push({ severity: "error", code: "settings.personality", message: `Unsupported personality: ${value.personality}. OMP accepts ${PERSONALITY_PRESETS.join(", ")}` });
+  }
+  if (value.images !== undefined) {
+    if (!isRecord(value.images)) {
+      diagnostics.push({ severity: "error", code: "settings.images", message: "images must be a mapping" });
+    } else if (value.images.urls !== undefined) {
+      if (!isRecord(value.images.urls)) {
+        diagnostics.push({ severity: "error", code: "settings.images.urls", message: "images.urls must be a mapping" });
+      } else if (value.images.urls.enabled !== undefined && typeof value.images.urls.enabled !== "boolean") {
+        diagnostics.push({ severity: "error", code: "settings.images.urls.enabled", message: "images.urls.enabled must be a boolean" });
+      }
+    }
+  }
   return diagnostics;
+}
+
+/**
+ * `compaction` (OMP v17.4.0+) is a mapping of tuning keys. `strategy`/`remoteEnabled` were replaced
+ * by `methodOrder`; validating both shapes lets this app read files an older OMP wrote without
+ * flagging the deprecated keys as errors (they are simply ignored by current OMP).
+ */
+function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    diagnostics.push({ severity: "error", code: "settings.compaction", message: "compaction must be a mapping" });
+    return;
+  }
+  for (const key of ["enabled", "midTurnEnabled", "asyncEnabled", "autoContinue"]) {
+    if (value[key] !== undefined && typeof value[key] !== "boolean") {
+      diagnostics.push({ severity: "error", code: "settings.compaction", path: `compaction.${key}`, message: `compaction.${key} must be a boolean` });
+    }
+  }
+  for (const key of ["thresholdPercent", "thresholdTokens", "reserveTokens", "keepRecentTokens"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]))) {
+      diagnostics.push({ severity: "error", code: "settings.compaction", path: `compaction.${key}`, message: `compaction.${key} must be a number` });
+    }
+  }
+  if (value.methodOrder !== undefined && (!Array.isArray(value.methodOrder) || value.methodOrder.some((item) => typeof item !== "string" || !item.trim()))) {
+    diagnostics.push({ severity: "error", code: "settings.compaction.methodOrder", message: "compaction.methodOrder must be a non-empty string array" });
+  }
 }
