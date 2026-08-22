@@ -224,6 +224,17 @@ Documented product limits, not incidental gaps: never read or modify OMP's `agen
 
 ## Releasing
 
-Tag-driven and gated (`docs/releasing.md`). `.github/workflows/release.yml` rejects a `vX.Y.Z` tag that does not match `package.json` or lacks `docs/releases/vX.Y.Z.md`, then publishes a **draft** with exactly three assets (NSIS installer, portable ZIP, `SHA256SUMS.txt`) plus build-provenance attestations. A maintainer publishes manually.
+Tag-driven and gated (`docs/releasing.md`). `.github/workflows/release.yml` rejects a `vX.Y.Z` tag that does not match `package.json` or lacks `docs/releases/vX.Y.Z.md`, then publishes a **draft** with three distribution assets (NSIS installer, portable ZIP, `SHA256SUMS.txt`) plus build-provenance attestations and, when the `OMP_UPDATE_ED25519` secret is set, two signed update-manifest assets (`latest.json` + `latest.json.sig`) uploaded to the same release. A maintainer publishes manually.
 
 Release notes follow `docs/releases/README.md`: headings from Added / Changed / Security / Fixed / Known Limitations, and the feature-flag status of gateway, OAuth integration, session indexing, and update checking must be stated explicitly. The workflow also asserts `dist/` holds exactly one `.exe` and one `.zip` before hashing, so any extra packaging artifact breaks the release.
+
+### Update checking
+
+This is the first non-user-initiated outbound network request in the app (gateway/discovery/oauth are all user-clicked). It is deliberately minimal and verifiable:
+
+- `packages/core/src/update.ts` holds the pure functions and the hardcoded Ed25519 `VERIFY_PUBLIC_KEY`. `compareVersions`/`parseUpdateManifest`/`verifyManifestSignature`/`buildUpdateStatus` are all unit-tested; none of them touches the network or Electron.
+- `electron/update-checker.ts` is the `UpdateChecker` service: fetches the two fixed GitHub URLs (`releases/download/latest/latest.json` and `.sig`) with an 8s timeout, verifies the signature over the **exact bytes served**, and returns `null` (silent) on any failure. It throttles automatic checks to once per 24h (1h retry-after-failure), reads/writes preferences `update.checkEnabled` (default true) / `update.lastCheckAt` / `update.lastResult` / `update.lastFailureAt`, and is bound to the GUI lifecycle only — the `--json`/`--gateway`/`--secret` paths return before `createWindow` and never start it. Started after the window is created so a slow fetch cannot delay startup; stopped on `will-quit`.
+- Four IPC channels: `update:check(force?)`, `update:status` (no network), `update:set-enabled`, and `app:open-external(url)`. The last uses `shell.openExternal` behind a `github.com`-only host allowlist (`isAllowedExternalUrl`) so the renderer cannot be coaxed into opening an arbitrary URL.
+- The renderer shows a top-bar badge dot when an update is available and an "关于/About" tab in the Profile drawer with current/latest version, summary, a `[立即检查]` button (force, bypasses throttle + enabled flag), `[前往下载]` (opens the release page), and the auto-check toggle.
+
+Zero new dependencies: Ed25519 signing/verification uses Node's built-in `crypto`; the manifest is fetched with the built-in `fetch`. The CI signs with `crypto.sign` from Node 24 and re-verifies against the app's public key before uploading, so a key mismatch fails the release rather than shipping an unverifiable manifest. Never auto-download or auto-install binaries — only notify and link to GitHub Releases.

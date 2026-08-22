@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus } from "@omp-switch/core";
 
 const api = {
   getInfo: () => ipcRenderer.invoke("app:info"),
@@ -43,6 +43,11 @@ const api = {
 
   authStatus: (provider: string) => ipcRenderer.invoke("omp:auth-status", provider),
   authLogin: (provider: string) => ipcRenderer.invoke("omp:auth-login", provider),
+
+  checkForUpdates: (force?: boolean): Promise<UpdateStatus | null> => ipcRenderer.invoke("update:check", force),
+  updateStatus: (): Promise<{ enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null }> => ipcRenderer.invoke("update:status"),
+  setUpdateCheckEnabled: (enabled: boolean): Promise<void> => ipcRenderer.invoke("update:set-enabled", enabled),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke("app:open-external", url),
 };
 
 contextBridge.exposeInMainWorld("ompSwitch", api);

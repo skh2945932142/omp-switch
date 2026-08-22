@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, ReactElement } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Toaster, toast } from "sonner";
@@ -27,6 +27,7 @@ import {
   Trash2,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import type {
   CompactionSettings,
@@ -39,6 +40,7 @@ import type {
   ProfileRef,
   SettingsThinkingLevel,
   Snapshot,
+  UpdateStatus,
 } from "@omp-switch/core";
 import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES, PERSONALITY_PRESETS, SETTINGS_THINKING_LEVELS, parseRoleSelector } from "@omp-switch/core/validation";
 import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
@@ -325,6 +327,11 @@ function createMockApi(): NonNullable<Window["ompSwitch"]> {
     secretOrphans: async () => [],
     authStatus: async () => ({ ok: true, output: "No active browser session in demo mode" }),
     authLogin: async () => ({ ok: false, output: "", error: "Run the packaged app to invoke omp auth login" }),
+    // Mock a pending update so the badge + About drawer are previewable in pnpm preview:renderer.
+    checkForUpdates: async () => ({ available: true, currentVersion: "0.4.3", checkedAt: new Date().toISOString(), manifest: { version: 1, name: "OMP Switch", release: "0.4.4", url: "https://github.com/skh2945932142/omp-switch/releases/tag/v0.4.4", summary: "新增签名校验的更新检查；修复 cost.longContext 写入阻断。", publishedAt: new Date().toISOString() } }),
+    updateStatus: async () => ({ enabled: true, lastCheckAt: new Date().toISOString(), lastResult: null }),
+    setUpdateCheckEnabled: async () => undefined,
+    openExternal: async () => undefined,
     listCatalog: async () => [],
     importCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
     exportCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
@@ -567,6 +574,40 @@ function parseCost(value: string): Record<string, number> | null {
   return parsed as Record<string, number>;
 }
 
+interface AboutSectionProps {
+  appVersion: string;
+  updateInfo: { enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null; checking: boolean };
+  onCheck: () => void;
+  onToggle: (enabled: boolean) => void;
+  onDownload: (url: string) => void;
+}
+
+function AboutSection({ appVersion, updateInfo, onCheck, onToggle, onDownload }: AboutSectionProps): ReactElement {
+  const result = updateInfo.lastResult;
+  return (
+    <>
+      <div className="drawer-section">
+        <div className="drawer-section-title"><span>版本</span><Zap size={15} /></div>
+        <div className="detail-grid">
+          <span>当前版本</span><strong>{appVersion || "—"}</strong>
+          <span>最新版本</span><strong>{result?.available ? <span className="update-available">{result.manifest.release} ↗</span> : result ? "已是最新" : "—"}</strong>
+        </div>
+        {result?.available && result.manifest.summary ? <span className="muted-line">{result.manifest.summary}</span> : null}
+        {updateInfo.lastCheckAt ? <span className="muted-line">上次检查 {formatDate(updateInfo.lastCheckAt)}</span> : null}
+        <div className="drawer-actions">
+          <button className="secondary-button" onClick={onCheck} disabled={updateInfo.checking}><RefreshCw size={14} className={updateInfo.checking ? "spin" : ""} />立即检查</button>
+          {result?.available ? <button className="primary-button" onClick={() => void onDownload(result.manifest.url)}><Download size={14} />前往下载</button> : null}
+        </div>
+      </div>
+      <div className="drawer-section">
+        <div className="drawer-section-title"><span>更新检查</span><ShieldCheck size={15} /></div>
+        <label className="check-line"><input type="checkbox" checked={updateInfo.enabled} onChange={(event) => onToggle(event.target.checked)} />自动检查更新（每天一次）</label>
+        <span className="muted-line">仅向 GitHub 请求签名清单，不发送任何信息；发现新版本在顶栏提示。关闭后应用不再发起任何被动网络请求。</span>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   const [profiles, setProfiles] = useState<ProfileRef[]>([]);
   const [profileId, setProfileId] = useState("default");
@@ -588,7 +629,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [profileTab, setProfileTab] = useState<"settings" | "project" | "snapshots" | "omp" | "oauth">("settings");
+  const [profileTab, setProfileTab] = useState<"settings" | "project" | "snapshots" | "omp" | "oauth" | "about">("settings");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
@@ -608,6 +649,8 @@ export default function App() {
   const [imagesUrlsEnabled, setImagesUrlsEnabled] = useState("");
   const [updatingOmp, setUpdatingOmp] = useState(false);
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
+  const [appVersion, setAppVersion] = useState<string>("");
+  const [updateInfo, setUpdateInfo] = useState<{ enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null; checking: boolean }>({ enabled: true, lastCheckAt: null, lastResult: null, checking: false });
   const catalogInput = useRef<HTMLInputElement>(null);
 
   const providers = config ? Object.entries(config.models.value.providers) : [];
@@ -689,12 +732,18 @@ export default function App() {
 
   useEffect(() => {
     setThemeChoice(initTheme());
-    void api.getInfo().then((info) => setReadOnlyReason(info.installation.supported ? null : info.installation.reason ?? "当前 OMP 版本不受支持")).catch(() => undefined);
+    void api.getInfo().then((info) => {
+      setAppVersion(info.version);
+      setReadOnlyReason(info.installation.supported ? null : info.installation.reason ?? "当前 OMP 版本不受支持");
+    }).catch(() => undefined);
     void api.listProfiles().then((items) => {
       setProfiles(items);
       void load(items[0]?.id ?? "default");
     });
     void api.listCatalog().then((items) => setCatalog(items as ProviderPreset[])).catch(() => undefined);
+    // The update checker runs on the main process; this only reads its cached state so the badge
+    // appears without a round-trip. A manual [立即检查] re-runs checkForUpdates below.
+    void api.updateStatus().then((status) => setUpdateInfo((current) => ({ ...current, enabled: status.enabled, lastCheckAt: status.lastCheckAt, lastResult: status.lastResult }))).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap; load() closes over the initial profileId by design
   }, []);
 
@@ -1048,6 +1097,33 @@ export default function App() {
     }
   }
 
+  async function checkForUpdates(manual: boolean): Promise<void> {
+    if (manual) setUpdateInfo((current) => ({ ...current, checking: true }));
+    try {
+      const result = await api.checkForUpdates(manual);
+      const status = await api.updateStatus();
+      setUpdateInfo({ enabled: status.enabled, lastCheckAt: status.lastCheckAt, lastResult: result ?? status.lastResult, checking: false });
+      if (manual && result?.available) notify({ tone: "info", text: `发现新版本 ${result.manifest.release}` });
+      else if (manual) notify({ tone: "info", text: "已是最新版本" });
+    } catch {
+      setUpdateInfo((current) => ({ ...current, checking: false }));
+      if (manual) notify({ tone: "info", text: "检查更新失败，稍后会自动重试" });
+    }
+  }
+
+  async function toggleUpdateCheckEnabled(enabled: boolean): Promise<void> {
+    await api.setUpdateCheckEnabled(enabled);
+    setUpdateInfo((current) => ({ ...current, enabled }));
+  }
+
+  async function openDownload(url: string): Promise<void> {
+    try {
+      await api.openExternal(url);
+    } catch (error) {
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
   async function importCatalogFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1122,6 +1198,9 @@ export default function App() {
             <IconButtonTip label="刷新"><button className="icon-button" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button></IconButtonTip>
             <IconButtonTip label="创建快照"><button className="icon-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button></IconButtonTip>
             <ThemeSwitch value={themeChoice} onChange={setThemeChoice} />
+            {updateInfo.lastResult?.available ? (
+              <button className="icon-button update-badge" title={`新版本 ${updateInfo.lastResult.manifest.release} 可用`} onClick={() => { setProfileTab("about"); setProfileDrawerOpen(true); setDrawerOpen(true); }}><Zap size={17} /><span className="update-badge-dot" /></button>
+            ) : null}
             <button className="primary-button compact" title="保存全部未保存改动 (Ctrl+S)" onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={15} />保存</button>
         </div>
       </header>
@@ -1264,6 +1343,7 @@ export default function App() {
               <button role="tab" aria-selected={profileTab === "snapshots"} className={profileTab === "snapshots" ? "active" : ""} onClick={() => setProfileTab("snapshots")}><ArchiveRestore size={14} />快照</button>
               <button role="tab" aria-selected={profileTab === "omp"} className={profileTab === "omp" ? "active" : ""} onClick={() => setProfileTab("omp")}><RefreshCw size={14} />OMP</button>
               <button role="tab" aria-selected={profileTab === "oauth"} className={profileTab === "oauth" ? "active" : ""} onClick={() => setProfileTab("oauth")}><KeyRound size={14} />OAuth</button>
+              <button role="tab" aria-selected={profileTab === "about"} className={profileTab === "about" ? "active" : ""} onClick={() => setProfileTab("about")}><Zap size={14} />关于</button>
             </div>
             {profileTab === "settings" ? <>
             <div className="drawer-section"><div className="drawer-section-title"><span>角色</span><Users size={15} /></div><span className="muted-line">模型角色的分配已移至独立的「角色」页面，可直接按供应商选择模型。</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />打开角色页</button></div></div>
@@ -1278,6 +1358,7 @@ export default function App() {
             <details className="yaml-preview"><summary>原始 YAML</summary><YamlPreview files={[{ name: "models.yml", content: config?.models.raw || "# models.yml 未创建" }, { name: "config.yml", content: config?.settings.raw || "# config.yml 未创建" }]} /></details>
             </> : null}
             {profileTab === "oauth" ? <div className="drawer-section"><div className="drawer-section-title"><span>OAuth</span><KeyRound size={16} /></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void checkAuth("openai-codex", "status")} disabled={busy}>Codex</button><button className="secondary-button" onClick={() => void checkAuth("anthropic", "status")} disabled={busy}>Anthropic</button></div>{authResult ? <span className="muted-line">{authResult}</span> : null}</div> : null}
+            {profileTab === "about" ? <AboutSection appVersion={appVersion} updateInfo={updateInfo} onCheck={() => void checkForUpdates(true)} onToggle={toggleUpdateCheckEnabled} onDownload={openDownload} /> : null}
           </div> : null}
 
           {diagnosticsOpen ? (() => {

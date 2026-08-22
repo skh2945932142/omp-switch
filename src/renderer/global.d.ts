@@ -1,4 +1,4 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UsageReport } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
@@ -48,6 +48,11 @@ export interface OmpSwitchApi {
 
   authStatus(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
   authLogin(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
+
+  checkForUpdates(force?: boolean): Promise<UpdateStatus | null>;
+  updateStatus(): Promise<{ enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null }>;
+  setUpdateCheckEnabled(enabled: boolean): Promise<void>;
+  openExternal(url: string): Promise<void>;
 }
 
 declare global {

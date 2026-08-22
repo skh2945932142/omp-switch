@@ -42,6 +42,7 @@ import { blockRendererNavigation, denyRendererWindowOpen, mayUseDevRenderer } fr
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
 import { SecretStoreService } from "./secret-store";
 import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
+import { activeUpdateChecker, initUpdateChecker, openExternalAllowed } from "./update-checker";
 
 const execFileAsync = promisify(execFile);
 let mainWindow: BrowserWindow | null = null;
@@ -419,6 +420,26 @@ function registerIpc(): void {
 
   ipcMain.handle("omp:auth-status", async (_event, provider: string) => runOmpAuth(provider, "status"));
   ipcMain.handle("omp:auth-login", async (_event, provider: string) => runOmpAuth(provider, "login"));
+
+  // Update checking: the first non-user-initiated outbound request in OMP Switch. Only GETs two
+  // fixed github.com URLs, verifies an Ed25519 signature over the manifest, and never uploads
+  // anything. All four handlers are deliberately thin — the throttle, schedule, and crypto live in
+  // update-checker.ts / @omp-switch/core so they are unit-testable without Electron.
+  ipcMain.handle("update:check", async (_event, force?: boolean) => {
+    const checker = activeUpdateChecker();
+    if (!checker) return null;
+    return checker.check(Boolean(force));
+  });
+  ipcMain.handle("update:status", () => activeUpdateChecker()?.getSnapshot() ?? { enabled: true, lastCheckAt: null, lastResult: null });
+  ipcMain.handle("update:set-enabled", async (_event, enabled: boolean) => {
+    const checker = activeUpdateChecker();
+    if (!checker) return;
+    await checker.setEnabled(Boolean(enabled));
+  });
+  ipcMain.handle("app:open-external", async (_event, url: string) => {
+    if (typeof url !== "string") throw new Error("open-external requires a url string");
+    await openExternalAllowed(url);
+  });
 }
 
 async function getOmpGatewayToken(): Promise<string> {
@@ -632,6 +653,10 @@ app.whenReady().then(async () => {
     return;
   }
   await createWindow();
+  // The update checker is bound to the GUI lifecycle only — the headless --json/--gateway/--secret
+  // paths above `return` before this point, so they never spawn background network work. It is
+  // started after the window is created so a slow manifest fetch can never delay startup.
+  initUpdateChecker(metadata);
 });
 
 app.on("window-all-closed", () => {

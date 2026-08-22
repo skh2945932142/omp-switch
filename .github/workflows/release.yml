@@ -115,6 +115,55 @@ jobs:
           name: release-assets
           path: release-assets
 
+      - name: Generate and sign the update manifest
+        env:
+          # Ed25519 private key (PKCS8 DER, base64). Its public counterpart is hardcoded in the app
+          # (packages/core/src/update.ts VERIFY_PUBLIC_KEY) and verifies every manifest the app fetches.
+          # Required: without it the release still publishes, but the manifest/signature assets are
+          # skipped and the in-app update checker will report "no manifest" until a later release ships.
+          SIGNING_KEY: ${{ secrets.OMP_UPDATE_ED25519 }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          repo="${GITHUB_REPOSITORY:-skh2945932142/omp-switch}"
+          release_url="https://github.com/${repo}/releases/tag/${TAG_NAME}"
+          # Pull a short summary from the release notes (the first Added/Fixed bullet), so the
+          # in-app "关于" drawer can show what changed without the user opening the browser.
+          summary="$(awk '/^## (Added|Fixed)/{f=1;next} f && /^- /{gsub(/^- /,"");print;exit}' "docs/releases/${TAG_NAME}.md" | head -c 280)"
+          cat > latest.json <<JSON
+          {"version":1,"name":"OMP Switch","release":"${version}","url":"${release_url}","summary":"${summary}","publishedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+          JSON
+          if [ -z "${SIGNING_KEY}" ]; then
+            echo "::warning::OMP_UPDATE_ED25519 secret is not set; skipping manifest signing. The in-app update checker will see no signed manifest for this release."
+            exit 0
+          fi
+          node -e '
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const privKey = crypto.createPrivateKey({
+              key: Buffer.from(process.env.SIGNING_KEY, "base64"),
+              format: "der",
+              type: "pkcs8",
+            });
+            const data = fs.readFileSync("latest.json");
+            const sig = crypto.sign(null, data, privKey).toString("base64");
+            fs.writeFileSync("latest.json.sig", sig);
+          '
+          # Verify the signature against the app's hardcoded public key before publishing, so a
+          # mismatched key fails the release rather than shipping an unverifiable manifest.
+          node -e '
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const PUB = "6BinnnFiq6WYtVR2LXd6XWUIQHUgIiFvcGUyIlyXFcc=";
+            const prefix = Buffer.from([0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00]);
+            const key = crypto.createPublicKey({ key: Buffer.concat([prefix, Buffer.from(PUB, "base64")]), format: "der", type: "spki" });
+            const data = fs.readFileSync("latest.json");
+            const sig = Buffer.from(fs.readFileSync("latest.json.sig", "utf8").trim(), "base64");
+            if (!crypto.verify(null, data, key, sig)) { console.error("manifest signature does not verify against the app public key"); process.exit(1); }
+            console.log("manifest signature verified");
+          '
+
       - name: Create GitHub Release draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -125,6 +174,11 @@ jobs:
             --verify-tag \
             --title "OMP Switch $TAG_NAME" \
             --notes-file "docs/releases/$TAG_NAME.md"
+          # Attach the signed manifest (if it was produced) to the same release. It is served from
+          # /releases/download/latest/ so the app's fixed URL always points at the newest manifest.
+          if [ -f latest.json ]; then
+            gh release upload "$TAG_NAME" latest.json latest.json.sig --clobber
+          fi
 
   publish-cli-image:
     name: Publish the headless CLI image to GHCR

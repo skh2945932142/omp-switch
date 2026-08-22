@@ -9,6 +9,7 @@ export * from "./project";
 export * from "./schema";
 export * from "./sessions";
 export * from "./surface";
+export * from "./update";
 export * from "./usage";
 export * from "./validation";
 export * from "./yaml-config";

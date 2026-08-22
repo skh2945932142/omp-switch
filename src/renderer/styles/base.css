@@ -80,6 +80,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .nav-icon { display: inline-grid; place-items: center; }
 .nav-count { min-width: 20px; padding: 2px 6px; border-radius: var(--radius-pill); color: var(--muted); background: var(--sunken); text-align: center; font-size: var(--fs-micro); font-weight: 600; }
 .nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+/* Update-available badge in the top bar: the Zap icon plus a small dot, tinted with the warn token
+   so it reads as an attention signal in the same language as the dirty/diagnostic dots. */
+.update-badge { position: relative; color: var(--warn); }
+.update-badge:hover { background: var(--warn-soft); }
+.update-badge-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--topbar); }
+.update-available { color: var(--warn); }
 .rail-footer { display: grid; gap: 2px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--hairline); }
 .rail-action { justify-content: flex-start; gap: 8px; min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: var(--fs-small); text-align: left; }
 .rail-action:hover { background: var(--hover); color: var(--ink); }
