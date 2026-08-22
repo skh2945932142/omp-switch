@@ -4,6 +4,31 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.4 - 2026-08-22
+
+### Added
+
+- **Update checking**: the first non-user-initiated outbound request in OMP Switch. Approximately
+  30s after launch (then every 24h), if auto-check is on and the last successful check was ≥ 24h ago,
+  the app GETs a signed manifest from GitHub, verifies its Ed25519 signature against a hardcoded
+  public key, and on finding a newer release shows a top-bar dot badge plus a version line and a
+  `[前往下载]` link in the Profile drawer's new "关于" tab. A `[立即检查]` button bypasses the
+  throttle and the enabled flag. An auto-check toggle turns all background checking off — when off,
+  the app makes no non-user-initiated network requests. It only notifies; it never downloads or
+  installs binaries. Silent on every failure (network, timeout, signature mismatch, malformed
+  payload). Zero new dependencies (Ed25519 + fetch are Node builtins).
+- **Signed update manifest** (`latest.json` + `latest.json.sig`): each release now publishes an
+  Ed25519-signed manifest. The CI signs with a secret key and re-verifies against the app's public
+  key before uploading, so a key mismatch fails the release.
+- **`app:open-external` IPC**: opens an external URL through `shell.openExternal` behind a
+  `github.com`-only https allowlist.
+
+### Changed
+
+- The Profile drawer gains a fifth tab, "关于", holding the version/update panel. The release
+  workflow's `draft-release` job now generates and signs the update manifest and attaches it to the
+  release; the `dist/` invariant (exactly one `.exe` and one `.zip`) is unchanged.
+
 ## 0.4.2 - 2026-08-22
 
 ### Changed

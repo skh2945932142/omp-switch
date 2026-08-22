@@ -30,8 +30,13 @@ The workflow produces only these user-facing assets:
 - NSIS installer (`OMP-Switch-Setup-X.Y.Z.exe`)
 - Portable ZIP (`OMP-Switch-X.Y.Z-win.zip`)
 - `SHA256SUMS.txt`
+- `latest.json` + `latest.json.sig` (the signed update manifest; present only when the
+  `OMP_UPDATE_ED25519` secret is set — see "Update Manifest" below)
 
-It also creates GitHub build-provenance attestations for both assets. Review the artifact names, checksums, release notes, installation behavior, and provenance before publishing the draft.
+It also creates GitHub build-provenance attestations for both install assets. Review the artifact
+names, checksums, release notes, installation behavior, and provenance before publishing the draft.
+When the manifest is present, confirm `latest.json` carries the correct release version and that
+`latest.json.sig` was uploaded alongside it.
 
 Do not attach `.blockmap` files unless a future updater implementation explicitly consumes them.
 
@@ -67,7 +72,25 @@ gh workflow run sync-scoop-bucket.yml -f tag=vX.Y.Z
 
 ## Update Manifest
 
-The future in-app update checker requires a separately signed manifest. Keep the Ed25519 private key outside the repository and store it only in the protected `OMP_SWITCH_UPDATE_SIGNING_KEY` GitHub Environment secret. A release without that secret may still be published; it must not advertise an unsigned update manifest.
+The in-app update checker (`packages/core/src/update.ts` + `electron/update-checker.ts`) fetches a
+separately signed manifest from each release's `latest` alias
+(`releases/download/latest/latest.json` + `latest.json.sig`). Keep the Ed25519 private key outside
+the repository and store it only in the protected `OMP_UPDATE_ED25519` repository secret, as PKCS8
+DER base64. The `draft-release` job signs the manifest bytes with `crypto.sign` and re-verifies
+against the app's hardcoded public key (`VERIFY_PUBLIC_KEY` in `update.ts`) before uploading, so a
+key mismatch fails the release rather than shipping an unverifiable manifest. A release without that
+secret may still be published; the job warns, skips the manifest assets, and the in-app checker
+silently reports nothing until a later release that ships one.
+
+Generate a keypair and obtain the values:
+
+```powershell
+node -e "const c=require('crypto');const {publicKey,privateKey}=c.generateKeyPairSync('ed25519');const der=publicKey.export({type:'spki',format:'der'});console.log('PUB:'+der.subarray(der.length-32).toString('base64'));console.log('PRIV:'+privateKey.export({type:'pkcs8',format:'der'}).toString('base64'));"
+```
+
+Store the `PRIV:` value as the `OMP_UPDATE_ED25519` secret. Paste the `PUB:` value into
+`packages/core/src/update.ts` (`VERIFY_PUBLIC_KEY`) **and** the matching constant inside the
+`draft-release` job's verification step — both must agree, or the release-time self-check fails.
 
 ## One-time setup for the container image
 
