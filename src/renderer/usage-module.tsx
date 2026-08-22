@@ -356,7 +356,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
 
   return <section className="module-view module-shell">
     <div className="workspace-heading module-heading">
-      <div><span className="eyebrow">PROFILE</span><h1>{t("usage.heading")}{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
+      <div><span className="eyebrow">{profileId}</span><h1>{t("usage.heading")}{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
       <div className="heading-actions">
         <div className="mp-seg usage-range">
           {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{t("usage.days", { days })}</button>)}

@@ -53,6 +53,7 @@ export interface RolesModuleProps {
   roles: Record<string, string>;
   /** Last committed values, used to flag pending changes. */
   baseline: Record<string, string>;
+  profileId: string;
   readOnly: boolean;
   busy: boolean;
   onRoleChange: (role: string, value: string) => void;
@@ -61,7 +62,7 @@ export interface RolesModuleProps {
   isEnabled?: (providerId: string, modelId: string) => boolean;
 }
 
-export function RolesModule({ providers, roleIds, roles, baseline, readOnly, busy, onRoleChange, onSave, isEnabled }: RolesModuleProps): ReactElement {
+export function RolesModule({ providers, roleIds, roles, baseline, profileId, readOnly, busy, onRoleChange, onSave, isEnabled }: RolesModuleProps): ReactElement {
   const { t, i18n } = useTranslation();
   const providerIds = useMemo(() => providers.map(([id]) => id), [providers]);
   const pending = useMemo(() => roleIds.filter(([id]) => (roles[id] ?? "") !== (baseline[id] ?? "")).length, [roleIds, roles, baseline]);
@@ -69,7 +70,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
   return <section className="module-view module-shell">
     <div className="workspace-heading module-heading">
       <div>
-        <span className="eyebrow">ROLES</span>
+        <span className="eyebrow">{profileId}</span>
         <h1>{t("roles.heading")}{pending ? <span className="heading-dirty">{t("roles.dirtyCount", { count: pending })}</span> : null}</h1>
       </div>
       <div className="heading-actions">

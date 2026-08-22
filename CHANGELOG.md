@@ -4,6 +4,23 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.6 - 2026-08-23
+
+### Changed
+
+- **Quiet Instrument increment.** Selected list / session / role rows drop the 3px teal inset
+  rail for Apple Settings soft fill. Eyebrows, nav groups, palette / form / picker / diagnostics
+  headings, and usage table heads are sentence case with quiet tracking.
+- Page rhythm: more air between eyebrow and 28px title; workspace padding and heading bottom
+  margin open slightly; heading count is quiet type, not a sunken pill; drawer head matches the
+  64px top bar.
+- List density: provider card heads 64→52, model rows 56→48, source-list / session rows 60→48.
+  Expand/collapse, the five-column model grid, and hover edit / quick-assign are unchanged.
+- Empty states sit on the page surface (no sunken well); hint copy is one short line.
+- Switch thumb and dialog scrim move onto tokens. Hardcoded `PROFILE` / `ROLES` / `SESSION` /
+  `POOL` / `DIAGNOSTICS` / `PROVIDER` eyebrows are i18n; save-dialog ALL-CAPS English labels
+  become sentence case. New keys: `providerEditor.provider`, `surfaces.source.*`, `gateway.pool`.
+
 ## 0.4.5 - 2026-08-23
 
 ### Added

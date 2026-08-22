@@ -1222,7 +1222,7 @@ export default function App() {
       <main className="app-body">
         <aside className="left-rail">
           <div className="rail-profile">
-            <span className="rail-label">PROFILE</span>
+            <span className="rail-label">{t("common.profile")}</span>
             <StyledSelect
               value={profileId}
               onValueChange={(next) => confirmDiscardThen(() => { setProfileId(next); void load(next); })}
@@ -1330,7 +1330,7 @@ export default function App() {
                 })}
               </div>
             </>
-          ) : section === "roles" ? <RolesModule providers={providers} roleIds={roleIds} roles={roles} baseline={savedRoles} readOnly={readOnly} busy={busy} onRoleChange={setRoleValue} onSave={() => void saveDirty()} isEnabled={enabledFilter} />
+          ) : section === "roles" ? <RolesModule providers={providers} roleIds={roleIds} roles={roles} baseline={savedRoles} profileId={profileId} readOnly={readOnly} busy={busy} onRoleChange={setRoleValue} onSave={() => void saveDirty()} isEnabled={enabledFilter} />
             : section === "prompts" ? <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={notify} />
             : section === "skills" ? <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={notify} />
               : section === "sessions" ? <SessionsModule api={api} profileId={profileId} onNotice={notify} />
@@ -1348,7 +1348,7 @@ export default function App() {
             exit={{ opacity: 0, x: 32 }}
             transition={{ type: "spring", stiffness: 420, damping: 36 }}
           >
-          <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? "PROFILE" : diagnosticsOpen ? "DIAGNOSTICS" : formOpen ? (editingProviderId ? t("providerEditor.edit") : t("providerEditor.new")) : "PROVIDER"}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? t("diagnostics.title") : formOpen ? (editingProviderId ?? t("providerEditor.newProvider")) : selectedProviderId ?? t("providerEditor.detail")}</h2></div><button className="icon-button" title={t("common.close")} onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
+          <div className="drawer-head"><div><span className="eyebrow">{profileDrawerOpen ? t("common.profile") : diagnosticsOpen ? t("diagnostics.title") : formOpen ? (editingProviderId ? t("providerEditor.edit") : t("providerEditor.new")) : t("providerEditor.provider")}</span><h2>{profileDrawerOpen ? profileId : diagnosticsOpen ? t("diagnostics.title") : formOpen ? (editingProviderId ?? t("providerEditor.newProvider")) : selectedProviderId ?? t("providerEditor.detail")}</h2></div><button className="icon-button" title={t("common.close")} onClick={() => { setDrawerOpen(false); setFormOpen(false); setProfileDrawerOpen(false); setDiagnosticsOpen(false); }}><X size={17} /></button></div>
 
           {profileDrawerOpen ? <div className="drawer-body profile-drawer">
             <div className="profile-tabs" role="tablist">
