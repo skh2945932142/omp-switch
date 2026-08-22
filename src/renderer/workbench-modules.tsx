@@ -31,7 +31,10 @@ import type {
   SurfaceBundle,
 } from "@omp-switch/core";
 import { ModelPicker } from "./components/model-picker";
+import { ConfirmDialog } from "./components/save-flow";
 import { StyledSelect } from "./components/ui-primitives";
+import { useTranslation } from "react-i18next";
+import { formatDateTime, formatClock } from "./locale";
 
 type AppApi = NonNullable<Window["ompSwitch"]>;
 type Notice = { tone: "success" | "error" | "info"; text: string };
@@ -41,12 +44,6 @@ interface CommonProps {
   profileId: string;
   readOnly: boolean;
   onNotice: (notice: Notice) => void;
-}
-
-function formatDate(value?: string): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function formatBytes(value: number): string {
@@ -70,14 +67,16 @@ function ModuleHeading({ title, count, children }: { title: string; count?: numb
 }
 
 export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: CommonProps & { kind: "prompt" | "skill" }): ReactElement {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<ManagedSurfaceEntry[]>([]);
   const [selected, setSelected] = useState<ManagedSurfaceEntry | null>(null);
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const label = kind === "prompt" ? "提示" : "技能";
+  const label = t(kind === "prompt" ? "surfaces.prompt" : "surfaces.skill");
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -122,8 +121,8 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
   }
 
   async function saveEntry(): Promise<void> {
-    if (readOnly) return onNotice({ tone: "error", text: "当前 Profile 为只读" });
-    if (!name.trim()) return onNotice({ tone: "error", text: `${label}名称不能为空` });
+    if (readOnly) return onNotice({ tone: "error", text: t("surfaces.readonly") });
+    if (!name.trim()) return onNotice({ tone: "error", text: t("surfaces.nameRequired", { label }) });
     setLoading(true);
     try {
       const saved = await api.writeSurface(profileId, kind, name.trim(), content);
@@ -131,7 +130,7 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
       setSelected(saved);
       setName(saved.name);
       setEditing(false);
-      onNotice({ tone: "success", text: `${label}已保存` });
+      onNotice({ tone: "success", text: t("surfaces.saved", { label }) });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -141,14 +140,19 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
 
   async function removeEntry(): Promise<void> {
     if (!selected || selected.source !== "profile") return;
-    if (!window.confirm(`删除${label}「${selected.name}」？`)) return;
+    setConfirmDelete(true);
+  }
+
+  async function confirmRemove(): Promise<void> {
+    if (!selected || selected.source !== "profile") return;
+    setConfirmDelete(false);
     setLoading(true);
     try {
       await api.deleteSurface(profileId, kind, selected.name);
       setSelected(null);
       setEditing(false);
       await refresh();
-      onNotice({ tone: "success", text: `${label}已删除` });
+      onNotice({ tone: "success", text: t("surfaces.deleted", { label }) });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -160,7 +164,7 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
     try {
       const bundle = await api.exportSurfaces(profileId);
       triggerDownload(`omp-${profileId}-surfaces.json`, JSON.stringify(bundle, null, 2));
-      onNotice({ tone: "success", text: "已导出" });
+      onNotice({ tone: "success", text: t("surfaces.exported") });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     }
@@ -174,7 +178,7 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
       const bundle = JSON.parse(await file.text()) as SurfaceBundle;
       const imported = await api.importSurfaces(profileId, bundle);
       await refresh();
-      onNotice({ tone: "success", text: `已导入 ${imported.length} 项` });
+      onNotice({ tone: "success", text: t("surfaces.imported", { count: imported.length }) });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     }
@@ -183,30 +187,34 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
   const writable = Boolean(selected?.source === "profile" || !selected);
   return <section className="module-view module-shell">
     <ModuleHeading title={label} count={entries.length}>
-      <button className="icon-button" title="刷新" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button>
-      <button className="icon-button" title="导出" onClick={() => void exportEntries()} disabled={loading}><Download size={16} /></button>
-      <button className="icon-button" title="导入" onClick={() => fileInput.current?.click()} disabled={loading || readOnly}><Upload size={16} /></button>
+      <button className="icon-button" title={t("surfaces.refresh")} onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button>
+      <button className="icon-button" title={t("surfaces.export")} onClick={() => void exportEntries()} disabled={loading}><Download size={16} /></button>
+      <button className="icon-button" title={t("surfaces.import")} onClick={() => fileInput.current?.click()} disabled={loading || readOnly}><Upload size={16} /></button>
       <input ref={fileInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void importEntries(event)} />
-      <button className="primary-button" onClick={beginNew} disabled={readOnly}><Plus size={16} />新增</button>
+      <button className="primary-button" onClick={beginNew} disabled={readOnly}><Plus size={16} />{t("surfaces.new")}</button>
     </ModuleHeading>
     <div className="module-columns">
       <div className="module-list-panel">
-        {entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><FileCheck2 size={26} /></span><strong>暂无{label}</strong><span className="empty-desc">创建你的第一个{label}，OMP 会在对应的目录下读取。</span><div className="empty-actions"><button className="primary-button" onClick={beginNew} disabled={readOnly}><FilePlus2 size={15} />新增{label}</button><button className="secondary-button" onClick={() => fileInput.current?.click()} disabled={loading || readOnly}><Upload size={15} />导入</button></div></div> : entries.map((entry) => <button key={entry.id} className={`module-list-row ${selected?.id === entry.id ? "active" : ""}`} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.name}</strong><small>{formatDate(entry.updatedAt)}</small></span><span className={`status-chip ${entry.source === "profile" ? "ok" : "neutral"}`}>{entry.source === "profile" ? "可编辑" : "只读"}</span></button>)}
+        {entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><FileCheck2 size={26} /></span><strong>{t("surfaces.empty", { label })}</strong><span className="empty-desc">{t("surfaces.emptyHint", { label })}</span><div className="empty-actions"><button className="primary-button" onClick={beginNew} disabled={readOnly}><FilePlus2 size={15} />{t("surfaces.newWithLabel", { label })}</button><button className="secondary-button" onClick={() => fileInput.current?.click()} disabled={loading || readOnly}><Upload size={15} />{t("surfaces.import")}</button></div></div> : entries.map((entry) => <button key={entry.id} className={`module-list-row ${selected?.id === entry.id ? "active" : ""}`} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.name}</strong><small>{formatDateTime(entry.updatedAt)}</small></span><span className={`status-chip ${entry.source === "profile" ? "ok" : "neutral"}`}>{entry.source === "profile" ? t("surfaces.editable") : t("surfaces.readonlyBadge")}</span></button>)}
       </div>
       <div className="module-editor-panel">
         {selected || editing ? <>
-          <div className="editor-head"><div><span className="eyebrow">{selected?.source === "profile" || !selected ? "PROFILE" : selected.source.toUpperCase()}</span><strong>{editing ? (selected ? "编辑" : "新增") : selected?.name}</strong></div><div className="drawer-actions">{selected && !editing ? <button className="icon-button danger" title="删除" onClick={() => void removeEntry()} disabled={loading || selected.source !== "profile"}><Trash2 size={15} /></button> : null}<button className="secondary-button" onClick={() => setEditing((value) => !value)} disabled={!writable}>{editing ? "预览" : "编辑"}</button></div></div>
-          {editing ? <><label className="module-field"><span>名称</span><input value={name} onChange={(event) => setName(event.target.value)} disabled={Boolean(selected && selected.source !== "profile")} placeholder={kind === "prompt" ? "review" : "release"} /></label><label className="module-field"><span>{kind === "prompt" ? "内容" : "SKILL.md"}</span><textarea className="surface-editor" value={content} onChange={(event) => setContent(event.target.value)} disabled={!writable} spellCheck={false} /></label><button className="primary-button full-width" onClick={() => void saveEntry()} disabled={loading || !writable}><Save size={15} />保存</button></> : <pre className="raw-view surface-readonly">{content || "空"}</pre>}
-        </> : <div className="module-empty compact-empty"><span className="empty-glyph"><FileCheck2 size={26} /></span><strong>选择一个{label}</strong><span className="empty-desc">从左侧选择一项查看内容，或新建一个{label}。</span></div>}
+          <div className="editor-head"><div><span className="eyebrow">{selected?.source === "profile" || !selected ? "PROFILE" : selected.source.toUpperCase()}</span><strong>{editing ? (selected ? t("surfaces.edit") : t("surfaces.new")) : selected?.name}</strong></div><div className="drawer-actions">{selected && !editing ? <button className="icon-button danger" title={t("common.delete")} onClick={() => void removeEntry()} disabled={loading || selected.source !== "profile"}><Trash2 size={15} /></button> : null}<button className="secondary-button" onClick={() => setEditing((value) => !value)} disabled={!writable}>{editing ? t("surfaces.preview") : t("surfaces.edit")}</button></div></div>
+          {editing ? <><label className="module-field"><span>{t("surfaces.name")}</span><input value={name} onChange={(event) => setName(event.target.value)} disabled={Boolean(selected && selected.source !== "profile")} placeholder={kind === "prompt" ? "review" : "release"} /></label><label className="module-field"><span>{kind === "prompt" ? t("surfaces.content") : "SKILL.md"}</span><textarea className="surface-editor" value={content} onChange={(event) => setContent(event.target.value)} disabled={!writable} spellCheck={false} /></label><button className="primary-button full-width" onClick={() => void saveEntry()} disabled={loading || !writable}><Save size={15} />{t("common.save")}</button></> : <pre className="raw-view surface-readonly">{content || t("surfaces.blank")}</pre>}
+        </> : <div className="module-empty compact-empty"><span className="empty-glyph"><FileCheck2 size={26} /></span><strong>{t("surfaces.selectPrompt", { label })}</strong><span className="empty-desc">{t("surfaces.selectHint", { label })}</span></div>}
       </div>
     </div>
+    <ConfirmDialog
+      open={confirmDelete}
+      title={t("common.delete")}
+      message={t("surfaces.deleteConfirm", { label, name: selected?.name ?? "" })}
+      confirmLabel={t("common.delete")}
+      danger
+      busy={loading}
+      onClose={() => setConfirmDelete(false)}
+      onConfirm={() => void confirmRemove()}
+    />
   </section>;
-}
-
-function formatTime(value?: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 /**
@@ -249,12 +257,13 @@ function MessageBody({ text, fallback }: { text: string; fallback: string }): Re
 }
 
 function MessageBubble({ message }: { message: SessionMessagePreview }): ReactElement {
-  const time = formatTime(message.timestamp);
+  const { t } = useTranslation();
+  const time = formatClock(message.timestamp);
   if (message.role === "user") {
     return <div className="msg msg-user">
       <div className="msg-bubble">
-        <div className="msg-meta"><span className="msg-role">你</span>{time ? <span className="msg-time">{time}</span> : null}</div>
-        <MessageBody text={message.text} fallback="（空）" />
+        <div className="msg-meta"><span className="msg-role">{t("sessions.roleYou")}</span>{time ? <span className="msg-time">{time}</span> : null}</div>
+        <MessageBody text={message.text} fallback={t("sessions.emptyBody")} />
       </div>
     </div>;
   }
@@ -263,13 +272,13 @@ function MessageBubble({ message }: { message: SessionMessagePreview }): ReactEl
     return <div className="msg msg-assistant">
       <div className="msg-bubble">
         <div className="msg-meta">
-          <span className="msg-role">助手</span>
+          <span className="msg-role">{t("sessions.roleAssistant")}</span>
           {message.provider && message.model ? <span className="msg-model mono">{message.provider}/{message.model}</span> : null}
           {time ? <span className="msg-time">{time}</span> : null}
           {failed ? <span className="msg-fail">{message.status}</span> : null}
         </div>
-        <MessageBody text={message.text} fallback="（无内容）" />
-        {message.truncated ? <div className="msg-trunc">已截断</div> : null}
+        <MessageBody text={message.text} fallback={t("sessions.noContent")} />
+        {message.truncated ? <div className="msg-trunc">{t("sessions.truncated")}</div> : null}
       </div>
     </div>;
   }
@@ -281,6 +290,7 @@ function MessageBubble({ message }: { message: SessionMessagePreview }): ReactEl
 }
 
 export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "readOnly">): ReactElement {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<SessionSummary[]>([]);
   const [listCursor, setListCursor] = useState<string | undefined>();
   const [selected, setSelected] = useState<SessionSummary | null>(null);
@@ -404,12 +414,12 @@ export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "
   }, { tokens: {} as Record<string, number>, cost: 0, failures: 0 }), [entries]);
 
   return <section className="module-view module-shell">
-    <ModuleHeading title="会话" count={entries.length}><button className="icon-button" title="刷新索引" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><button className="secondary-button" onClick={() => void refresh(true)} disabled={loading}>重建索引</button></ModuleHeading>
-    <div className="metric-strip"><span><strong>{entries.length}</strong>会话</span><span><strong>{Object.values(summary.tokens).reduce((a, b) => a + b, 0).toLocaleString()}</strong>tokens</span><span><strong>${summary.cost.toFixed(4)}</strong>成本</span><span className={summary.failures ? "metric-danger" : ""}><strong>{summary.failures}</strong>失败</span>{invalidLines ? <span className="metric-warning"><strong>{invalidLines}</strong>无效行</span> : null}{refreshStats?.errors ? <span className="metric-warning"><strong>{refreshStats.errors}</strong>文件异常</span> : null}</div>
-    {refreshStats ? <span className="muted-line">识别 {refreshStats.discovered} · 跳过 {refreshStats.skipped} · 复用 {refreshStats.reused} · 变化 {refreshStats.changed} · 重建 {refreshStats.rebuilt} · 扫描 {formatBytes(refreshStats.scannedBytes)}{refreshStats.diagnostics?.[0] ? ` · ${refreshStats.diagnostics[0].message}` : ""}</span> : null}
+    <ModuleHeading title={t("sessions.heading")} count={entries.length}><button className="icon-button" title={t("sessions.refreshIndex")} onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><button className="secondary-button" onClick={() => void refresh(true)} disabled={loading}>{t("sessions.rebuildIndex")}</button></ModuleHeading>
+    <div className="metric-strip"><span><strong>{entries.length}</strong>{t("sessions.metricSessions")}</span><span><strong>{Object.values(summary.tokens).reduce((a, b) => a + b, 0).toLocaleString()}</strong>{t("sessions.metricTokens")}</span><span><strong>${summary.cost.toFixed(4)}</strong>{t("sessions.metricCost")}</span><span className={summary.failures ? "metric-danger" : ""}><strong>{summary.failures}</strong>{t("sessions.metricFailures")}</span>{invalidLines ? <span className="metric-warning"><strong>{invalidLines}</strong>{t("sessions.metricInvalidLines")}</span> : null}{refreshStats?.errors ? <span className="metric-warning"><strong>{refreshStats.errors}</strong>{t("sessions.metricFileErrors")}</span> : null}</div>
+    {refreshStats ? <span className="muted-line">{(() => { const parts = [`${t("sessions.statsDiscovered")} ${refreshStats.discovered}`, `${t("sessions.statsSkipped")} ${refreshStats.skipped}`, `${t("sessions.statsReused")} ${refreshStats.reused}`, `${t("sessions.statsChanged")} ${refreshStats.changed}`, `${t("sessions.statsRebuilt")} ${refreshStats.rebuilt}`, `${t("sessions.statsScanned")} ${formatBytes(refreshStats.scannedBytes)}`]; if (refreshStats.diagnostics?.[0]) parts.push(refreshStats.diagnostics[0].message); return parts.join(" · "); })()}</span> : null}
     <div className="module-columns sessions-columns">
-      <div className="module-list-panel session-list">{entries.length === 0 && loading ? <div className="list-skel">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="skeleton skeleton-row" />)}</div> : entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><Archive size={26} /></span><strong>{refreshStats?.rootMissing ? "会话目录不存在" : refreshStats?.phase === "quick" ? "正在建立初始索引" : refreshStats?.errors ? "部分文件无法读取" : "暂无可识别主会话"}</strong><span className="empty-desc">{refreshStats?.rootMissing ? "OMP 的会话目录尚未创建，运行一次 OMP 后再扫描。" : "扫描 OMP 会话目录，按需读取消息内容。"}</span><div className="empty-actions"><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />扫描</button></div></div> : <>{entries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? "未命名会话"}</strong><small>{entry.provider ?? "—"} · {formatDate(entry.lastActiveAt ?? entry.startedAt)} · {entry.messageCount} 条消息</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? "缓存过期" : entry.failures ? entry.failures + " 失败" : "已索引"}</span></button>)}{listCursor ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>加载更多会话</button> : null}</>}</div>
-      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">SESSION</span><strong>{selected.title ?? selected.model ?? "会话"}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDate(selected.lastActiveAt ?? selected.startedAt)}</span></div><div className="session-messages">{hasMoreMessages ? <div className="session-load-earlier"><button className="secondary-button compact" onClick={() => void loadEarlier()} disabled={loading}><ChevronUp size={14} />加载更早消息</button></div> : null}{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">读取中…</div>}</div></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>选择一个会话</strong><span className="empty-desc">从左侧选择会话查看对话。消息按需分页读取，不写入索引缓存。</span></div>}</div>
+      <div className="module-list-panel session-list">{entries.length === 0 && loading ? <div className="list-skel">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="skeleton skeleton-row" />)}</div> : entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><Archive size={26} /></span><strong>{refreshStats?.rootMissing ? t("sessions.emptyRootMissing") : refreshStats?.phase === "quick" ? t("sessions.emptyIndexing") : refreshStats?.errors ? t("sessions.emptyPartialErrors") : t("sessions.emptyNoSessions")}</strong><span className="empty-desc">{refreshStats?.rootMissing ? t("sessions.emptyRootMissingHint") : t("sessions.emptyHint")}</span><div className="empty-actions"><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />{t("sessions.scan")}</button></div></div> : <>{entries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? t("sessions.unnamed")}</strong><small>{entry.provider ?? "—"} · {formatDateTime(entry.lastActiveAt ?? entry.startedAt)} · {t("sessions.messageCount", { count: entry.messageCount })}</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? t("sessions.stale") : entry.failures ? t("sessions.failures", { count: entry.failures }) : t("sessions.indexed")}</span></button>)}{listCursor ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>{t("sessions.loadMore")}</button> : null}</>}</div>
+      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">SESSION</span><strong>{selected.title ?? selected.model ?? t("sessions.heading")}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDateTime(selected.lastActiveAt ?? selected.startedAt)}</span></div><div className="session-messages">{hasMoreMessages ? <div className="session-load-earlier"><button className="secondary-button compact" onClick={() => void loadEarlier()} disabled={loading}><ChevronUp size={14} />{t("sessions.loadEarlier")}</button></div> : null}{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">{t("common.loading")}…</div>}</div></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>{t("sessions.selectPrompt")}</strong><span className="empty-desc">{t("sessions.selectHint")}</span></div>}</div>
     </div>
   </section>;
 }
@@ -426,6 +436,7 @@ function makeGatewayPool(profileId: string, providers: Array<[string, OmpProvide
 }
 
 export function GatewayModule({ api, profileId, readOnly, onNotice, providers }: GatewayProps): ReactElement {
+  const { t } = useTranslation();
   const [pools, setPools] = useState<GatewayPool[]>([]);
   const [draft, setDraft] = useState<GatewayPool | null>(null);
   const [status, setStatus] = useState<{ running: boolean; port: number | null; upstreams: GatewayUpstreamStat[] }>({ running: false, port: null, upstreams: [] });
@@ -458,13 +469,13 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
 
   async function saveDraft(): Promise<GatewayPool | null> {
     if (!draft) return null;
-    if (!draft.id.trim() || !draft.virtualModel.trim()) return onNotice({ tone: "error", text: "网关池 ID 和虚拟模型不能为空" }), null;
+    if (!draft.id.trim() || !draft.virtualModel.trim()) return onNotice({ tone: "error", text: t("gateway.poolIdVirtualModelRequired") }), null;
     setLoading(true);
     try {
       const saved = await api.saveGatewayPool({ ...draft, id: draft.id.trim(), virtualModel: draft.virtualModel.trim(), profile: profileId });
       setPools((current) => [saved, ...current.filter((pool) => pool.id !== saved.id)]);
       setDraft(saved);
-      onNotice({ tone: "success", text: "网关池已保存" });
+      onNotice({ tone: "success", text: t("gateway.poolSaved") });
       return saved;
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
@@ -475,7 +486,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
   }
 
   async function start(): Promise<void> {
-    if (readOnly) return onNotice({ tone: "error", text: "当前 Profile 为只读" });
+    if (readOnly) return onNotice({ tone: "error", text: t("gateway.readonly") });
     const saved = await saveDraft();
     if (!saved) return;
     setLoading(true);
@@ -483,7 +494,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
       const started = await api.startGateway(profileId);
       setStatus((current) => ({ running: started.running, port: started.port, upstreams: current.upstreams }));
       setToken(started.token);
-      onNotice({ tone: "success", text: `网关已启动 · 127.0.0.1:${started.port} · 需携带 Bearer token` });
+      onNotice({ tone: "success", text: t("gateway.started", { port: started.port }) });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -497,7 +508,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
       await api.stopGateway();
       setStatus({ running: false, port: null, upstreams: [] });
       setToken(null);
-      onNotice({ tone: "success", text: "网关已停止" });
+      onNotice({ tone: "success", text: t("gateway.stopped") });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -506,15 +517,16 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
   }
 
   return <section className="module-view module-shell">
-    <ModuleHeading title="网关" count={pools.length}><span className={`status-chip ${status.running ? "ok" : "neutral"}`}>{status.running ? `运行中 · ${status.port}` : "未启动"}</span><button className="icon-button" title="刷新" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}><Plus size={16} />新增</button></ModuleHeading>
+    <ModuleHeading title={t("gateway.heading")} count={pools.length}><span className={`status-chip ${status.running ? "ok" : "neutral"}`}>{status.running ? t("gateway.running", { port: status.port }) : t("gateway.stoppedBadge")}</span><button className="icon-button" title={t("common.refresh")} onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}><Plus size={16} />{t("common.add")}</button></ModuleHeading>
     <div className="gateway-layout">
-      <div className="module-list-panel">{pools.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>暂无网关池</strong><span className="empty-desc">新建一个网关池，把本地虚拟模型映射到一个或多个上游供应商。</span><div className="empty-actions"><button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}><Plus size={15} />新建网关池</button></div></div> : pools.map((pool) => <button key={pool.id} className={`module-list-row ${draft?.id === pool.id ? "active" : ""}`} onClick={() => setDraft(pool)}><span className="module-row-main"><strong>{pool.virtualModel}</strong><small>{pool.id} · {pool.upstreams.length} 上游 · {pool.port}</small></span><span className={`status-chip ${pool.enabled ? "ok" : "neutral"}`}>{pool.enabled ? "启用" : "停用"}</span></button>)}</div>
-      <div className="module-editor-panel gateway-editor">{draft ? <><div className="editor-head"><div><span className="eyebrow">POOL</span><strong>{draft.id}</strong></div><div className="drawer-actions"><button className="secondary-button" onClick={() => setDraft(null)}>关闭</button></div></div><div className="form-two"><label className="module-field"><span>ID</span><input value={draft.id} onChange={(event) => updateDraft("id", event.target.value)} disabled={Boolean(pools.find((pool) => pool.id === draft.id))} /></label><label className="module-field"><span>端口</span><input inputMode="numeric" value={draft.port} onChange={(event) => updateDraft("port", Number(event.target.value) || 0)} /></label></div><label className="module-field"><span>虚拟模型</span><input value={draft.virtualModel} onChange={(event) => updateDraft("virtualModel", event.target.value)} placeholder="omp-switch/default" /></label><label className="check-line module-check"><input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft("enabled", event.target.checked)} />启用</label><div className="upstream-list"><div className="drawer-section-title"><span>上游</span><button className="icon-button" title="添加上游" onClick={() => setDraft((current) => current ? { ...current, upstreams: [...current.upstreams, { id: `upstream-${current.upstreams.length + 1}`, providerId: providers[0]?.[0] ?? "", modelId: modelOptions[0]?.modelId ?? "", kind: "secret", enabled: true }] } : current)}><Plus size={15} /></button></div>{draft.upstreams.map((upstream, index) => <div className="upstream-row" key={upstream.id}><input value={upstream.id} onChange={(event) => updateUpstream(index, { id: event.target.value })} aria-label="上游 ID" /><ModelPicker providers={providers} value={upstream.providerId && upstream.modelId ? `${upstream.providerId}/${upstream.modelId}` : ""} onValueChange={(next) => { const slash = next.indexOf("/"); if (slash < 0) return; updateUpstream(index, { providerId: next.slice(0, slash), modelId: next.slice(slash + 1) }); }} ariaLabel="供应商模型" /><StyledSelect value={upstream.kind} onValueChange={(next) => updateUpstream(index, { kind: next as GatewayUpstream["kind"] })} options={[{ value: "secret", label: "安全库" }, { value: "omp-auth-gateway", label: "OMP OAuth" }]} ariaLabel="认证方式" /><input value={upstream.credentialId ?? ""} onChange={(event) => updateUpstream(index, { credentialId: event.target.value || undefined })} placeholder="凭据 ID" aria-label="凭据 ID" /><button className="icon-button subtle danger" title="删除上游" onClick={() => setDraft((current) => current ? { ...current, upstreams: current.upstreams.filter((_, itemIndex) => itemIndex !== index) } : current)} disabled={draft.upstreams.length <= 1}><Trash2 size={14} /></button></div>)}</div><div className="drawer-actions"><button className="primary-button" onClick={() => void saveDraft()} disabled={loading || readOnly}><Save size={15} />保存</button>{status.running ? <button className="secondary-button" onClick={() => void stop()} disabled={loading}><Square size={14} />停止</button> : <button className="secondary-button" onClick={() => void start()} disabled={loading || readOnly}><Play size={14} />启动</button>}</div>{token ? <label className="module-field"><span>Bearer token（调用时必须携带）</span><input className="mono" readOnly value={token} onFocus={(event) => event.currentTarget.select()} /></label> : null}{status.upstreams.length > 0 ? <div className="upstream-list"><div className="drawer-section-title"><span>上游状态</span></div>{status.upstreams.map((stat) => <div className="upstream-row" key={`${stat.poolId}:${stat.upstreamId}`}><span className="mono">{stat.upstreamId}</span><span className={`status-chip ${stat.consecutiveFailures > 0 ? "warn" : "ok"}`}>{stat.lastStatus ?? "ERR"}</span><span className="muted-line">{stat.lastLatencyMs !== undefined ? `${stat.lastLatencyMs} ms` : "—"}</span><span className="muted-line">{stat.consecutiveFailures > 0 ? `连续失败 ${stat.consecutiveFailures}` : formatDate(stat.lastAt)}</span></div>)}</div> : null}</> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>选择或新建网关池</strong><span className="empty-desc">网关仅绑定 127.0.0.1，且强制校验 Bearer token。</span></div>}</div>
+      <div className="module-list-panel">{pools.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>{t("gateway.empty")}</strong><span className="empty-desc">{t("gateway.emptyHint")}</span><div className="empty-actions"><button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}><Plus size={15} />{t("gateway.newPool")}</button></div></div> : pools.map((pool) => <button key={pool.id} className={`module-list-row ${draft?.id === pool.id ? "active" : ""}`} onClick={() => setDraft(pool)}><span className="module-row-main"><strong>{pool.virtualModel}</strong><small>{pool.id} · {t("gateway.upstreamCount", { count: pool.upstreams.length })} · {pool.port}</small></span><span className={`status-chip ${pool.enabled ? "ok" : "neutral"}`}>{pool.enabled ? t("gateway.enabled") : t("gateway.disabled")}</span></button>)}</div>
+      <div className="module-editor-panel gateway-editor">{draft ? <><div className="editor-head"><div><span className="eyebrow">POOL</span><strong>{draft.id}</strong></div><div className="drawer-actions"><button className="secondary-button" onClick={() => setDraft(null)}>{t("common.close")}</button></div></div><div className="form-two"><label className="module-field"><span>{t("gateway.fieldId")}</span><input value={draft.id} onChange={(event) => updateDraft("id", event.target.value)} disabled={Boolean(pools.find((pool) => pool.id === draft.id))} /></label><label className="module-field"><span>{t("gateway.fieldPort")}</span><input inputMode="numeric" value={draft.port} onChange={(event) => updateDraft("port", Number(event.target.value) || 0)} /></label></div><label className="module-field"><span>{t("gateway.fieldVirtualModel")}</span><input value={draft.virtualModel} onChange={(event) => updateDraft("virtualModel", event.target.value)} placeholder="omp-switch/default" /></label><label className="check-line module-check"><input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft("enabled", event.target.checked)} />{t("gateway.enabled")}</label><div className="upstream-list"><div className="drawer-section-title"><span>{t("gateway.upstreams")}</span><button className="icon-button" title={t("gateway.addUpstream")} onClick={() => setDraft((current) => current ? { ...current, upstreams: [...current.upstreams, { id: `upstream-${current.upstreams.length + 1}`, providerId: providers[0]?.[0] ?? "", modelId: modelOptions[0]?.modelId ?? "", kind: "secret", enabled: true }] } : current)}><Plus size={15} /></button></div>{draft.upstreams.map((upstream, index) => <div className="upstream-row" key={upstream.id}><input value={upstream.id} onChange={(event) => updateUpstream(index, { id: event.target.value })} aria-label={t("gateway.ariaUpstreamId")} /><ModelPicker providers={providers} value={upstream.providerId && upstream.modelId ? `${upstream.providerId}/${upstream.modelId}` : ""} onValueChange={(next) => { const slash = next.indexOf("/"); if (slash < 0) return; updateUpstream(index, { providerId: next.slice(0, slash), modelId: next.slice(slash + 1) }); }} ariaLabel={t("gateway.ariaProviderModel")} /><StyledSelect value={upstream.kind} onValueChange={(next) => updateUpstream(index, { kind: next as GatewayUpstream["kind"] })} options={[{ value: "secret", label: t("gateway.kindSecret") }, { value: "omp-auth-gateway", label: t("gateway.kindOmpAuth") }]} ariaLabel={t("gateway.ariaAuthKind")} /><input value={upstream.credentialId ?? ""} onChange={(event) => updateUpstream(index, { credentialId: event.target.value || undefined })} className="upstream-credential" placeholder={t("gateway.credentialId")} aria-label={t("gateway.credentialId")} /><button className="icon-button subtle danger" title={t("gateway.deleteUpstream")} onClick={() => setDraft((current) => current ? { ...current, upstreams: current.upstreams.filter((_, itemIndex) => itemIndex !== index) } : current)} disabled={draft.upstreams.length <= 1}><Trash2 size={14} /></button></div>)}</div><div className="drawer-actions"><button className="primary-button" onClick={() => void saveDraft()} disabled={loading || readOnly}><Save size={15} />{t("common.save")}</button>{status.running ? <button className="secondary-button" onClick={() => void stop()} disabled={loading}><Square size={14} />{t("gateway.stop")}</button> : <button className="secondary-button" onClick={() => void start()} disabled={loading || readOnly}><Play size={14} />{t("gateway.start")}</button>}</div>{token ? <label className="module-field"><span>{t("gateway.bearerToken")}</span><input className="mono" readOnly value={token} onFocus={(event) => event.currentTarget.select()} /></label> : null}{status.upstreams.length > 0 ? <div className="upstream-list"><div className="drawer-section-title"><span>{t("gateway.upstreamStatus")}</span></div>{status.upstreams.map((stat) => <div className="upstream-row" key={`${stat.poolId}:${stat.upstreamId}`}><span className="mono">{stat.upstreamId}</span><span className={`status-chip ${stat.consecutiveFailures > 0 ? "warn" : "ok"}`}>{stat.lastStatus ?? "ERR"}</span><span className="muted-line">{stat.lastLatencyMs !== undefined ? `${stat.lastLatencyMs} ms` : "—"}</span><span className="muted-line">{stat.consecutiveFailures > 0 ? t("gateway.consecutiveFailures", { count: stat.consecutiveFailures }) : formatDateTime(stat.lastAt)}</span></div>)}</div> : null}</> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>{t("gateway.selectPrompt")}</strong><span className="empty-desc">{t("gateway.selectHint")}</span></div>}</div>
     </div>
   </section>;
 }
 
 export function ProjectOverlayBadge({ api, profileId, onNotice }: { api: AppApi; profileId: string; onNotice: (notice: Notice) => void }): ReactElement {
+  const { t } = useTranslation();
   const [context, setContext] = useState<Awaited<ReturnType<AppApi["projectOverlay"]>> | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { void api.projectOverlay(profileId).then(setContext).catch(() => setContext(null)); }, [api, profileId]);
@@ -534,22 +546,22 @@ export function ProjectOverlayBadge({ api, profileId, onNotice }: { api: AppApi;
     const overlay = context?.overlay;
     if (!overlay) return;
     const text = `${overlay.models.raw || "providers: {}\n"}\n${overlay.settings.raw || "{}\n"}`;
-    try { await navigator.clipboard.writeText(text); onNotice({ tone: "success", text: "Patch 已复制" }); } catch { onNotice({ tone: "error", text: "复制失败" }); }
+    try { await navigator.clipboard.writeText(text); onNotice({ tone: "success", text: t("project.patchCopied") }); } catch { onNotice({ tone: "error", text: t("project.copyFailed") }); }
   }
 
-  if (!context) return <span className="muted-line">项目覆盖：读取中</span>;
+  if (!context) return <span className="muted-line">{t("project.reading")}</span>;
   const { overlay, precedence } = context;
   return <div className="project-overlay">
     <div className="project-overlay-head">
-      {overlay ? <span className="status-chip neutral">项目覆盖</span> : <span className="status-chip neutral">无覆盖</span>}
+      {overlay ? <span className="status-chip neutral">{t("project.hasOverlay")}</span> : <span className="status-chip neutral">{t("project.noOverlay")}</span>}
       {/* A packaged GUI's cwd is wherever the shortcut ran, so an unconfirmed root is called out. */}
-      {!context.explicit ? <span className="status-chip warn" title="未确认的目录，来自进程启动位置">推测目录</span> : null}
-      <button className="secondary-button" onClick={() => void chooseRoot()} disabled={busy}><FolderOpen size={14} />选择目录</button>
+      {!context.explicit ? <span className="status-chip warn" title={t("project.inferredTitle")}>{t("project.inferredDir")}</span> : null}
+      <button className="secondary-button" onClick={() => void chooseRoot()} disabled={busy}><FolderOpen size={14} />{t("project.chooseDir")}</button>
     </div>
     <span className="muted-line mono break">{context.root}</span>
     {overlay ? <div className="project-overlay-actions">
-      <button className="secondary-button" onClick={() => void copyPatch()}><Download size={14} />复制 Patch</button>
-      {overlay.diagnostics.length ? <span className="status-chip danger"><CircleAlert size={13} />{overlay.diagnostics.length}</span> : <span className="status-chip ok"><Check size={13} />正常</span>}
+      <button className="secondary-button" onClick={() => void copyPatch()}><Download size={14} />{t("project.copyPatch")}</button>
+      {overlay.diagnostics.length ? <span className="status-chip danger"><CircleAlert size={13} />{overlay.diagnostics.length}</span> : <span className="status-chip ok"><Check size={13} />{t("project.normal")}</span>}
     </div> : null}
     {precedence.map((item, index) => <span key={`${item.code}-${index}`} className={`muted-line ${item.severity === "warning" ? "warn-line" : ""}`}>{item.message}</span>)}
   </div>;

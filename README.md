@@ -6,7 +6,7 @@
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
 
-> `v0.4.2` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
+> `v0.4.5` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
 
 ![OMP Switch 模型工作区](docs/images/provider-workspace.png)
 
@@ -35,7 +35,7 @@ winget 与 Chocolatey 清单已准备好，但**尚未提交上架**，详见 [d
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.4.2 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.4.5 validate --profile default
 ```
 
 > 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
@@ -68,7 +68,7 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
 **界面**
 
 - 「Quiet Instrument」视觉语言：无彩中性色、teal 仅作选中/焦点信号色、主按钮墨底白字反转、状态以圆点 + 弱文字呈现。
-- 浅色 / 深色 / 跟随系统三态主题切换（持久化，原生标题栏按钮同步跟随）；Windows 11 22H2+ 上启用 Mica 窗口材质（其余环境自动回退实色）。
+- 浅色 / 深色 / 跟随系统三态主题切换（持久化，原生标题栏按钮同步跟随）；中文 / English / 跟随系统三态语言切换（持久化，首屏即按存储语言绘制，无中文闪屏）；Windows 11 22H2+ 上启用 Mica 窗口材质（其余环境自动回退实色）。
 - 自定义标题栏：顶栏即拖拽区，窗口按钮为原生 overlay（保留 Snap Layouts），Mica 直达顶缘。
 - 供应商卡片点击头部仅展开/收起模型列表（带高度动画），悬停浮现编辑按钮；详情/编辑抽屉以悬浮 Sheet 弹簧滑入，不再挤压工作区。
 - 保存语义按上下文拆分（角色 / 设置独立提交），未保存改动有导航圆点与 `Ctrl+S`；切换 Profile 前确认丢弃。

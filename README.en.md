@@ -9,7 +9,7 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.4.2` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> `v0.4.5` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
 > binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
 > build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
@@ -46,7 +46,7 @@ manifests are prepared but **not yet submitted** — see [docs/install.md](docs/
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.4.2 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.4.5 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
@@ -93,8 +93,9 @@ Every method, including checksum and provenance verification, is in
 - A "Quiet Instrument" visual language: untinted zinc neutrals, teal reserved as a signal color for
   selection and focus, ink/paper inversion for primary actions, status as a dot plus quiet text.
 - A manual light / dark / system theme switch (persisted, mirrored by the native title-bar
-  buttons), plus a Mica window material on Windows 11 22H2+ (everything else falls back to solid
-  surfaces automatically).
+  buttons), plus a 中文 / English / System language switch (persisted; first paint already
+  matches the stored locale, no Chinese flash); plus a Mica window material on Windows 11
+  22H2+ (everything else falls back to solid surfaces automatically).
 - A custom title bar: the web topbar is the drag region with native overlay window buttons (Snap
   Layouts kept), and Mica reaches the top edge.
 - Provider cards: clicking the header only expands/collapses the model list (animated); an edit

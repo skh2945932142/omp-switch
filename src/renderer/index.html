@@ -19,6 +19,10 @@
       try {
         var stored = localStorage.getItem("omp.theme");
         if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+        var locale = localStorage.getItem("omp.locale");
+        var lang = locale === "zh" || locale === "en" ? locale
+          : ((navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "zh" : "en");
+        document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
       } catch (e) { /* private mode */ }
     </script>
   </head>

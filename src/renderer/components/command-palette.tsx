@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   Boxes,
@@ -67,40 +68,41 @@ function actionIcon(id: string): ReactElement {
 }
 
 export function CommandPalette({ open, onOpenChange, sections, profiles, providers, activeProfileId, onNavigate, onSwitchProfile, onSelectProvider, actions }: PaletteProps): ReactElement {
+  const { t } = useTranslation();
   return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="dl-overlay" />
-      <DialogPrimitive.Content className="palette-content" aria-label="命令面板">
-        <Command label="命令面板" className="palette">
+      <DialogPrimitive.Content className="palette-content" aria-label={t("palette.label")}>
+        <Command label={t("palette.label")} className="palette">
           <div className="pal-input-wrap">
             <Search size={15} className="pal-search" />
-            <Command.Input placeholder="搜索页面、Profile、供应商或动作…" autoFocus />
+            <Command.Input placeholder={t("palette.placeholder")} autoFocus />
           </div>
           <Command.List>
-            <Command.Empty>没有匹配项</Command.Empty>
-            <Command.Group heading="页面">
+            <Command.Empty>{t("palette.empty")}</Command.Empty>
+            <Command.Group heading={t("palette.headingPages")}>
               {sections.map((section) => <Command.Item key={section.id} onSelect={() => { onNavigate(section.id); onOpenChange(false); }}>
                 <span className="pal-icon">{sectionIcon(section.id)}</span>
                 <span className="pal-label">{section.label}</span>
                 <CornerDownLeft className="pal-enter" size={13} />
               </Command.Item>)}
             </Command.Group>
-            {profiles.length > 1 ? <Command.Group heading="Profile">
+            {profiles.length > 1 ? <Command.Group heading={t("palette.headingProfile")}>
               {profiles.map((profile) => <Command.Item key={profile.id} disabled={profile.id === activeProfileId} onSelect={() => { onSwitchProfile(profile.id); onOpenChange(false); }}>
                 <span className="pal-icon"><UserCircle2 size={15} /></span>
                 <span className="pal-label">{profile.name}</span>
-                {profile.id === activeProfileId ? <span className="pal-hint">当前</span> : <CornerDownLeft className="pal-enter" size={13} />}
+                {profile.id === activeProfileId ? <span className="pal-hint">{t("palette.current")}</span> : <CornerDownLeft className="pal-enter" size={13} />}
               </Command.Item>)}
             </Command.Group> : null}
-            {providers.length > 0 ? <Command.Group heading="供应商">
+            {providers.length > 0 ? <Command.Group heading={t("palette.headingProviders")}>
               {providers.map((provider) => <Command.Item key={provider.id} value={`provider ${provider.id}`} onSelect={() => { onSelectProvider(provider.id); onOpenChange(false); }}>
                 <span className="pal-icon"><Boxes size={15} /></span>
                 <span className="pal-label mono">{provider.id}</span>
-                <span className="pal-hint">{provider.modelCount} 模型</span>
+                <span className="pal-hint">{t("palette.modelCount", { count: provider.modelCount })}</span>
                 <CornerDownLeft className="pal-enter" size={13} />
               </Command.Item>)}
             </Command.Group> : null}
-            <Command.Group heading="动作">
+            <Command.Group heading={t("palette.headingActions")}>
               {actions.map((action) => <Command.Item key={action.id} onSelect={() => { action.run(); onOpenChange(false); }}>
                 <span className="pal-icon">{actionIcon(action.id)}</span>
                 <span className="pal-label">{action.label}</span>

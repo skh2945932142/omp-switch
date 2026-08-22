@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import { CircleAlert, Save } from "lucide-react";
 import type { OmpProvider } from "@omp-switch/core";
 import { findMisusedRoleThinkingSuffix, parseRoleSelector, type ParsedRoleSelector } from "@omp-switch/core/validation";
@@ -61,6 +62,7 @@ export interface RolesModuleProps {
 }
 
 export function RolesModule({ providers, roleIds, roles, baseline, readOnly, busy, onRoleChange, onSave, isEnabled }: RolesModuleProps): ReactElement {
+  const { t, i18n } = useTranslation();
   const providerIds = useMemo(() => providers.map(([id]) => id), [providers]);
   const pending = useMemo(() => roleIds.filter(([id]) => (roles[id] ?? "") !== (baseline[id] ?? "")).length, [roleIds, roles, baseline]);
 
@@ -68,14 +70,14 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
     <div className="workspace-heading module-heading">
       <div>
         <span className="eyebrow">ROLES</span>
-        <h1>角色{pending ? <span className="heading-dirty">{pending} 项未保存</span> : null}</h1>
+        <h1>{t("roles.heading")}{pending ? <span className="heading-dirty">{t("roles.dirtyCount", { count: pending })}</span> : null}</h1>
       </div>
       <div className="heading-actions">
-        <button className="primary-button" onClick={onSave} disabled={busy || readOnly || pending === 0}><Save size={15} />保存</button>
+        <button className="primary-button" onClick={onSave} disabled={busy || readOnly || pending === 0}><Save size={15} />{t("common.save")}</button>
       </div>
     </div>
 
-    {readOnly ? <div className="inline-status warning"><CircleAlert size={15} /><span>当前 Profile 为只读</span></div> : null}
+    {readOnly ? <div className="inline-status warning"><CircleAlert size={15} /><span>{t("surfaces.readonly")}</span></div> : null}
 
     <div className="roles-list">
       {roleIds.map(([role, gloss]) => {
@@ -89,7 +91,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
         return <div className={`role-card ${changed ? "changed" : ""}`} key={role}>
           <div className="role-id">
             <strong>{role}</strong>
-            <small>{gloss || "自定义角色"}</small>
+            <small>{i18n.exists(`roles.roleGloss.${role}`) ? t(`roles.roleGloss.${role}`) : (gloss || t("roles.customRole"))}</small>
           </div>
           <div className="role-meta">
             {value.trim() && resolution.chain.length > 0 ? <>
@@ -100,14 +102,14 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
                 <span className="role-final-arrow">=</span>
                 <span className="role-final-name">{finalModel.name ?? finalModel.id}</span>
                 <span className="mono role-final-id">{finalModel.id}</span>
-                {finalModel.reasoning ? <span className="capability on">思考</span> : null}
-                {finalModel.input?.includes("image") ? <span className="capability on">视觉</span> : null}
-              </span> : resolution.final?.kind === "wildcard" ? <span className="role-final"><span className="role-final-arrow">=</span><span className="role-final-name">任意可用模型</span></span> : resolution.final?.kind === "role" ? <span className="role-final"><span className="role-final-arrow">→</span><span className="role-final-name">@{resolution.final.role}</span></span> : null}
-            </> : <span className="role-unset">未设置 · 由 OMP 内置目录决定</span>}
-            {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />@引用出现循环</span> : null}
-            {invalid ? <span className="role-warning"><CircleAlert size={13} />无法解析的选择器</span> : null}
-            {misused ? <span className="role-warning"><CircleAlert size={13} />`:{misused}` 不是角色思考等级（OMP 不会剥离它），请改用 minimal–max</span> : null}
-            {filtered ? <span className="role-warning"><CircleAlert size={13} />enabledModels 未覆盖此模型，OMP 会将其过滤出目录（选择器中有标记）</span> : null}
+                {finalModel.reasoning ? <span className="capability on">{t("roles.thinking")}</span> : null}
+                {finalModel.input?.includes("image") ? <span className="capability on">{t("roles.vision")}</span> : null}
+              </span> : resolution.final?.kind === "wildcard" ? <span className="role-final"><span className="role-final-arrow">=</span><span className="role-final-name">{t("roles.wildcard")}</span></span> : resolution.final?.kind === "role" ? <span className="role-final"><span className="role-final-arrow">→</span><span className="role-final-name">@{resolution.final.role}</span></span> : null}
+            </> : <span className="role-unset">{t("roles.unset")}</span>}
+            {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />{t("roles.cycleWarning")}</span> : null}
+            {invalid ? <span className="role-warning"><CircleAlert size={13} />{t("roles.invalidWarning")}</span> : null}
+            {misused ? <span className="role-warning"><CircleAlert size={13} />{t("roles.misusedWarning", { suffix: misused })}</span> : null}
+            {filtered ? <span className="role-warning"><CircleAlert size={13} />{t("roles.filteredWarning")}</span> : null}
           </div>
           <div className="role-picker-cell">
             <ModelPicker
@@ -117,13 +119,13 @@ export function RolesModule({ providers, roleIds, roles, baseline, readOnly, bus
               allowSpecial
               allowLevel
               isEnabled={isEnabled}
-              ariaLabel={`${role} 角色的模型`}
+              ariaLabel={t("roles.ariaModel", { role })}
             />
           </div>
         </div>;
       })}
     </div>
 
-    <span className="muted-line">角色写入 config.yml 的 modelRoles；`@default` 跟随 default 角色，`*` 表示任意可用模型。修改后需保存。</span>
+    <span className="muted-line">{t("roles.footerHint")}</span>
   </section>;
 }

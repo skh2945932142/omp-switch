@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactElement } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { OmpModel, OmpProvider, RoleThinkingLevel } from "@omp-switch/core";
 import { ROLE_THINKING_LEVELS, findMisusedRoleThinkingSuffix, parseRoleSelector } from "@omp-switch/core/validation";
 
@@ -43,7 +44,10 @@ export function modelLabel(providers: Array<[string, OmpProvider]>, providerId: 
   return providers.find(([id]) => id === providerId)?.[1]?.models?.find((model) => model.id === modelId);
 }
 
-export function ModelPicker({ providers, value, onValueChange, allowSpecial, allowLevel, isEnabled, placeholder = "选择模型", ariaLabel }: ModelPickerProps): ReactElement {
+export function ModelPicker({ providers, value, onValueChange, allowSpecial, allowLevel, isEnabled, placeholder, ariaLabel }: ModelPickerProps): ReactElement {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("modelPicker.placeholderDefault");
+  const resolvedAriaLabel = ariaLabel ?? t("modelPicker.ariaDefault");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<RoleThinkingLevel | null>(null);
@@ -123,8 +127,8 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
   }
 
   const triggerLabel = (() => {
-    if (!value.trim()) return <span className="mp-plain mp-placeholder">{placeholder}</span>;
-    if (!parsed) return <span className="mp-plain mono warn-line" title="无法解析的选择器">{value}</span>;
+    if (!value.trim()) return <span className="mp-plain mp-placeholder">{resolvedPlaceholder}</span>;
+    if (!parsed) return <span className="mp-plain mono warn-line" title={t("modelPicker.unresolvableTitle")}>{value}</span>;
     if (parsed.kind === "model") {
       const model = modelLabel(providers, parsed.provider, parsed.model);
       return <>
@@ -136,13 +140,13 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
     if (parsed.kind === "role") {
       return <>
         <span className="mp-provider-chip">@{parsed.role}</span>
-        <span className="mp-plain">跟随 @{parsed.role}</span>
+        <span className="mp-plain">{t("modelPicker.followsRole", { role: parsed.role })}</span>
         {parsed.thinking ? <span className="mp-level-chip">{parsed.thinking}</span> : null}
       </>;
     }
     return <>
       <span className="mp-provider-chip">*</span>
-      <span className="mp-plain">任意模型</span>
+      <span className="mp-plain">{t("modelPicker.anyModel")}</span>
       {parsed.thinking ? <span className="mp-level-chip">{parsed.thinking}</span> : null}
     </>;
   })();
@@ -151,7 +155,7 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
 
   return <Popover.Root open={open} onOpenChange={handleOpenChange}>
     <Popover.Trigger asChild>
-      <button className="mp-trigger" aria-label={ariaLabel ?? "选择模型"}>
+      <button className="mp-trigger" aria-label={resolvedAriaLabel}>
         {triggerLabel}
         <ChevronDown size={15} className="chevron" />
       </button>
@@ -160,15 +164,15 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
       <Popover.Content className="mp-popover" align="start" sideOffset={6} collisionPadding={10} onOpenAutoFocus={(event) => { event.preventDefault(); searchRef.current?.focus(); }} onKeyDown={handleKeyDown}>
         <div className="mp-search">
           <Search size={14} />
-          <input ref={searchRef} value={query} placeholder="搜索供应商、模型 ID 或名称" aria-label="搜索模型" onChange={(event) => { setQuery(event.target.value); setHighlight(options.length ? 0 : -1); }} />
+          <input ref={searchRef} value={query} placeholder={t("modelPicker.searchPlaceholder")} aria-label={t("modelPicker.searchAria")} onChange={(event) => { setQuery(event.target.value); setHighlight(options.length ? 0 : -1); }} />
         </div>
         {allowSpecial ? <div className="mp-special">
-          <button type="button" data-active={parsed?.kind === "role" && parsed.role === "default"} onClick={() => pickSpecial("role")} title="跟随 default 角色的选择">@default</button>
-          <button type="button" data-active={parsed?.kind === "wildcard"} onClick={() => pickSpecial("wildcard")} title="任意可用模型">*</button>
-          <button type="button" onClick={() => pickSpecial("none")} title="清除该角色">清除</button>
+          <button type="button" data-active={parsed?.kind === "role" && parsed.role === "default"} onClick={() => pickSpecial("role")} title={t("modelPicker.specialDefaultTitle")}>@default</button>
+          <button type="button" data-active={parsed?.kind === "wildcard"} onClick={() => pickSpecial("wildcard")} title={t("modelPicker.specialWildcardTitle")}>*</button>
+          <button type="button" onClick={() => pickSpecial("none")} title={t("modelPicker.specialClearTitle")}>{t("modelPicker.specialClear")}</button>
         </div> : null}
-        <div className="mp-list" role="listbox" aria-label="模型列表">
-          {options.length === 0 ? <div className="mp-empty">没有匹配的模型</div> : groups.map(([providerId, groupOptions]) => <div key={providerId}>
+        <div className="mp-list" role="listbox" aria-label={t("modelPicker.listAria")}>
+          {options.length === 0 ? <div className="mp-empty">{t("modelPicker.noMatch")}</div> : groups.map(([providerId, groupOptions]) => <div key={providerId}>
             <div className="mp-group-title">{providerId}<small>{groupOptions.length}</small></div>
             {groupOptions.map((option) => {
               flatIndex += 1;
@@ -185,26 +189,26 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
                 data-active={index === highlight}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => pick(option)}
-                title={blocked ? "enabledModels 未覆盖此模型，OMP 会将其过滤出目录" : undefined}
+                title={blocked ? t("modelPicker.blockedTitle") : undefined}
               >
                 <span className="mp-option-main">
                   <strong>{option.model.name ?? option.model.id}</strong>
                   <small>{option.providerId}/{option.model.id}</small>
                 </span>
                 <span className="mp-option-side">
-                  {blocked ? <span className="capability cap-blocked" title="enabledModels 未覆盖">过滤</span> : null}
+                  {blocked ? <span className="capability cap-blocked" title={t("modelPicker.blockedBadgeTitle")}>{t("modelPicker.blockedBadge")}</span> : null}
                   {typeof option.model.contextWindow === "number" ? <span className="capability">{Math.round(option.model.contextWindow / 1000)}k</span> : null}
-                  <span className={option.model.reasoning ? "capability on" : "capability"}>{option.model.reasoning ? "思考" : "标准"}</span>
-                  <span className="capability">{option.model.input?.includes("image") ? "视觉" : "文本"}</span>
+                  <span className={option.model.reasoning ? "capability on" : "capability"}>{option.model.reasoning ? t("models.capabilityReasoning") : t("models.capabilityStandard")}</span>
+                  <span className="capability">{option.model.input?.includes("image") ? t("models.capabilityVision") : t("models.capabilityText")}</span>
                 </span>
               </button>;
             })}
           </div>)}
         </div>
         {allowLevel ? <div className="mp-level">
-          <span className="mp-level-label">思考</span>
+          <span className="mp-level-label">{t("modelPicker.levelLabel")}</span>
           <div className="mp-seg">
-            <button type="button" data-active={level === null && !findMisusedRoleThinkingSuffix(value)} onClick={() => applyLevel(null)}>默认</button>
+            <button type="button" data-active={level === null && !findMisusedRoleThinkingSuffix(value)} onClick={() => applyLevel(null)}>{t("modelPicker.levelDefault")}</button>
             {ROLE_THINKING_LEVELS.map((candidate) => <button type="button" key={candidate} data-active={parsed?.thinking === candidate && level === candidate} onClick={() => applyLevel(candidate)}>{candidate}</button>)}
           </div>
         </div> : null}

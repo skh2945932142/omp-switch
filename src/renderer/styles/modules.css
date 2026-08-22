@@ -323,7 +323,7 @@
   .model-row { grid-template-columns: minmax(150px, 1.5fr) minmax(120px, 1fr) 80px minmax(90px, 0.8fr) 32px; padding-left: 36px; }
   .module-columns, .gateway-layout { grid-template-columns: minmax(230px, 0.9fr) minmax(320px, 1.1fr); }
   .upstream-row { grid-template-columns: 0.7fr 1.2fr 0.8fr 28px; }
-  .upstream-row input[placeholder="凭据 ID"] { grid-column: 1 / -1; }
+  .upstream-row .upstream-credential { grid-column: 1 / -1; }
 }
 
 @media (max-width: 760px) {

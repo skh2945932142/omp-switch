@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ListChecks, Target } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { parseRoleSelector } from "@omp-switch/core/validation";
 
 /**
@@ -20,12 +21,13 @@ interface QuickAssignProps {
 }
 
 export function QuickAssign({ roles, assignments, providerId, modelId, providerIds, onAssign, onOpenRoles }: QuickAssignProps): ReactElement {
+  const { t } = useTranslation();
   return <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild>
       <button
         className="qa-trigger"
-        title="分配到角色"
-        aria-label={`将 ${providerId}/${modelId} 分配到角色`}
+        title={t("quickAssign.title")}
+        aria-label={t("quickAssign.aria", { provider: providerId, model: modelId })}
         onClick={(event) => event.stopPropagation()}
       >
         <Target size={15} />
@@ -33,8 +35,8 @@ export function QuickAssign({ roles, assignments, providerId, modelId, providerI
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal>
       <DropdownMenu.Content className="dd-menu" align="end" sideOffset={6} collisionPadding={10}>
-        <div className="dd-label">设为角色</div>
-        {roles.length === 0 ? <div className="dd-item" style={{ cursor: "default", color: "var(--muted)" }}>暂无角色</div> : roles.map(([roleId, label]) => {
+        <div className="dd-label">{t("quickAssign.setRole")}</div>
+        {roles.length === 0 ? <div className="dd-item" style={{ cursor: "default", color: "var(--muted)" }}>{t("quickAssign.noRoles")}</div> : roles.map(([roleId, label]) => {
           const selector = (assignments[roleId] ?? "").trim();
           const parsed = selector ? parseRoleSelector(selector, providerIds) : null;
           const active = parsed?.kind === "model" && parsed.provider === providerId && parsed.model === modelId;
@@ -46,7 +48,7 @@ export function QuickAssign({ roles, assignments, providerId, modelId, providerI
         })}
         {onOpenRoles ? <>
           <DropdownMenu.Separator className="dd-separator" />
-          <DropdownMenu.Item className="dd-item" onSelect={onOpenRoles}><ListChecks size={13} />管理角色…</DropdownMenu.Item>
+          <DropdownMenu.Item className="dd-item" onSelect={onOpenRoles}><ListChecks size={13} />{t("quickAssign.manage")}</DropdownMenu.Item>
         </> : null}
       </DropdownMenu.Content>
     </DropdownMenu.Portal>

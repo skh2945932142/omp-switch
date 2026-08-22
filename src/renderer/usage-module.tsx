@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import { Coins, ChevronRight, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import type { ModelPrice, UsageBucket } from "@omp-switch/core";
 import { Tip } from "./components/ui-primitives";
@@ -55,9 +56,9 @@ function cacheHitRate(bucket: UsageBucket): number | null {
 type TrendMetric = "cost" | "requests" | "tokens";
 
 const TREND_METRICS: Array<{ key: TrendMetric; label: string }> = [
-  { key: "cost", label: "花费" },
-  { key: "requests", label: "请求" },
-  { key: "tokens", label: "Tokens" },
+  { key: "cost", label: "usage.metricCost" },
+  { key: "requests", label: "usage.metricRequests" },
+  { key: "tokens", label: "usage.metricTokens" },
 ];
 
 function dayMetric(day: UsageBucket, metric: TrendMetric): number {
@@ -72,6 +73,7 @@ function dayMetric(day: UsageBucket, metric: TrendMetric): number {
  * value still get a hit target so the tooltip can explain a quiet day instead of being unhoverable.
  */
 function TrendArea({ days, metric }: { days: UsageBucket[]; metric: TrendMetric }): ReactElement | null {
+  const { t } = useTranslation();
   const [hover, setHover] = useState<number | null>(null);
   if (days.length === 0) return null;
 
@@ -98,7 +100,7 @@ function TrendArea({ days, metric }: { days: UsageBucket[]; metric: TrendMetric 
   const showLabel = (i: number) => i % labelEvery === 0 || i === days.length - 1;
 
   return <div className="usage-trend">
-    <svg className="usage-trend-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`按日${TREND_METRICS.find((m) => m.key === metric)!.label}趋势`}>
+    <svg className="usage-trend-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={t("usage.trendAria", { metric: t(TREND_METRICS.find((m) => m.key === metric)!.label) })}>
       <defs>
         <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
           <stop className="trend-stop-top" offset="0%" stopColor="var(--trend-top)" />
@@ -120,14 +122,14 @@ function TrendArea({ days, metric }: { days: UsageBucket[]; metric: TrendMetric 
       {days.map((day, i) => {
         const value = dayMetric(day, metric);
         const metricText = metric === "cost" ? formatUsd(value)
-          : metric === "requests" ? `${formatCount(value)} 次`
+          : metric === "requests" ? `${formatCount(value)}${t("usage.requestsUnit") ? ` ${t("usage.requestsUnit")}` : ""}`
           : `${formatTokens(value)} tokens`;
         return <Tip
           key={day.key}
           label={<div className="tip-stack">
             <span className="tip-stack-date">{day.key}</span>
             <span className="tip-stack-value">{metricText}</span>
-            <span className="tip-stack-sub">{formatCount(day.requests)} 次 · {formatTokens(day.tokens.total)} tokens</span>
+            <span className="tip-stack-sub">{t("usage.tipRequests", { count: formatCount(day.requests), tokens: formatTokens(day.tokens.total) })}</span>
           </div>}
         >
           <button
@@ -149,7 +151,8 @@ function TrendArea({ days, metric }: { days: UsageBucket[]; metric: TrendMetric 
 }
 
 function MiniSpark({ values }: { values: number[] }): ReactElement {
-  if (values.length === 0) return <span className="muted-line">无趋势</span>;
+  const { t } = useTranslation();
+  if (values.length === 0) return <span className="muted-line">{t("usage.noTrend")}</span>;
   const width = 120;
   const height = 28;
   const peak = Math.max(...values, Number.EPSILON);
@@ -170,12 +173,13 @@ function ExpandableRow({ bucket, totalCost, daySeries, onPrice, isLast }: {
   onPrice?: (key: string) => void;
   isLast: boolean;
 }): ReactElement {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const cost = bucketCost(bucket);
-  const costTitle = cost.source === "computed" ? "本地定价推算" : cost.source === "none" ? "无成本数据" : "OMP 记录";
+  const costTitle = cost.source === "computed" ? t("usage.costComputed") : cost.source === "none" ? t("usage.costNone") : t("usage.costRecorded");
   const share = totalCost > 0 && cost.source !== "none" ? cost.value / totalCost : 0;
   const hit = cacheHitRate(bucket);
-  const t = bucket.tokens;
+  const tokens = bucket.tokens;
   const computedDelta = bucket.recordedCost > 0 && bucket.pricedRequests > 0
     ? Math.abs(bucket.recordedCost - bucket.computedCost)
     : null;
@@ -203,24 +207,24 @@ function ExpandableRow({ bucket, totalCost, daySeries, onPrice, isLast }: {
     </button>
     <div className="usage-row-detail"><div className="detail-inner-clip"><div className="detail-inner">
       <div className="detail-grid">
-        <div className="detail-cell"><span className="detail-label">输入</span><span className="mono">{formatTokens(t.input)}</span></div>
-        <div className="detail-cell"><span className="detail-label">输出</span><span className="mono">{formatTokens(t.output)}</span></div>
-        <div className="detail-cell"><span className="detail-label">缓存读取</span><span className="mono">{formatTokens(t.cacheRead)}</span></div>
-        <div className="detail-cell"><span className="detail-label">缓存写入</span><span className="mono">{formatTokens(t.cacheWrite)}</span></div>
-        <div className="detail-cell"><span className="detail-label">推理</span><span className="mono">{formatTokens(t.reasoning)}</span></div>
+        <div className="detail-cell"><span className="detail-label">{t("usage.detailInput")}</span><span className="mono">{formatTokens(tokens.input)}</span></div>
+        <div className="detail-cell"><span className="detail-label">{t("usage.detailOutput")}</span><span className="mono">{formatTokens(tokens.output)}</span></div>
+        <div className="detail-cell"><span className="detail-label">{t("usage.detailCacheRead")}</span><span className="mono">{formatTokens(tokens.cacheRead)}</span></div>
+        <div className="detail-cell"><span className="detail-label">{t("usage.detailCacheWrite")}</span><span className="mono">{formatTokens(tokens.cacheWrite)}</span></div>
+        <div className="detail-cell"><span className="detail-label">{t("usage.detailReasoning")}</span><span className="mono">{formatTokens(tokens.reasoning)}</span></div>
         <div className="detail-cell">
-          <span className="detail-label">缓存命中率</span>
+          <span className="detail-label">{t("usage.cacheHitRate")}</span>
           <span className="mono">{hit === null ? "—" : `${(hit * 100).toFixed(1)}%`}</span>
         </div>
       </div>
       <div className="detail-line">
-        <span className="detail-label">日趋势（花费）</span>
+        <span className="detail-label">{t("usage.dailyTrend")}</span>
         <MiniSpark values={daySeries} />
       </div>
       <div className="detail-meta">
-        <span>成本来源：<strong className={cost.source === "computed" ? "warn-line" : ""}>{costTitle}</strong></span>
-        {computedDelta !== null ? <span>本地推算 {formatUsd(bucket.computedCost)} · 差 {formatUsd(computedDelta)}</span> : null}
-        <span>{bucket.failures > 0 ? <span className="warn-line">{bucket.failures} 次失败</span> : "无失败"}</span>
+        <span>{t("usage.costSource")}<strong className={cost.source === "computed" ? "warn-line" : ""}>{costTitle}</strong></span>
+        {computedDelta !== null ? <span>{t("usage.localComputed", { cost: formatUsd(bucket.computedCost), delta: formatUsd(computedDelta) })}</span> : null}
+        <span>{bucket.failures > 0 ? <span className="warn-line">{t("usage.failures", { count: bucket.failures })}</span> : t("usage.noFailures")}</span>
         {bucket.firstAt ? <span>{bucket.firstAt.slice(0, 10)} → {bucket.lastAt?.slice(0, 10)}</span> : null}
       </div>
     </div></div></div>
@@ -234,19 +238,20 @@ function BreakdownTable({ title, buckets, totalCost, daySeriesByKey, onPrice }: 
   daySeriesByKey?: Record<string, UsageBucket[]>;
   onPrice?: (key: string) => void;
 }): ReactElement {
+  const { t } = useTranslation();
   return <div className="usage-table">
     <div className="drawer-section-title"><span>{title}</span><span className="status-chip neutral">{buckets.length}</span></div>
     <div className="usage-row-head">
       <span className="usage-row-head-spacer" />
-      <span>模型</span>
-      <span className="usage-row-num">请求</span>
-      <span className="usage-row-num">Tokens</span>
-      <span className="usage-row-num">成本</span>
-      <span>占比</span>
+      <span>{t("usage.colModel")}</span>
+      <span className="usage-row-num">{t("usage.colRequests")}</span>
+      <span className="usage-row-num">{t("usage.metricTokens")}</span>
+      <span className="usage-row-num">{t("usage.colCost")}</span>
+      <span>{t("usage.colShare")}</span>
       <span />
     </div>
     <div className="usage-rows">
-      {buckets.length === 0 ? <span className="muted-line">暂无数据</span> : buckets.map((bucket, index) =>
+      {buckets.length === 0 ? <span className="muted-line">{t("usage.noData")}</span> : buckets.map((bucket, index) =>
         <ExpandableRow
           key={bucket.key}
           bucket={bucket}
@@ -260,6 +265,7 @@ function BreakdownTable({ title, buckets, totalCost, daySeriesByKey, onPrice }: 
 }
 
 export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): ReactElement {
+  const { t } = useTranslation();
   const [data, setData] = useState<Awaited<ReturnType<AppApi["usageSummary"]>> | null>(null);
   const [loading, setLoading] = useState(false);
   const [from, setFrom] = useState("");
@@ -321,7 +327,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
           const raw = pricing[field].trim();
           if (!raw) continue;
           const parsed = Number(raw);
-          if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${field} 必须是非负数`);
+          if (!Number.isFinite(parsed) || parsed < 0) throw new Error(t("usage.priceNonNegative", { field }));
           next[field] = parsed;
         }
         price = Object.keys(next).length > 0 ? next : null;
@@ -329,7 +335,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
       await api.setUsagePrice(pricing.key, price);
       setPricing(null);
       await load();
-      onNotice({ tone: "success", text: price === null ? "已清除本地单价" : "本地单价已保存" });
+      onNotice({ tone: "success", text: price === null ? t("usage.priceCleared") : t("usage.priceSaved") });
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -339,8 +345,8 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
 
   const totals = data?.report.totals;
   const totalCost = totals ? bucketCost(totals) : null;
-  const costLabel = totalCost?.source === "recorded" ? "OMP 记录"
-    : totalCost?.source === "computed" ? "本地定价推算" : "无成本数据";
+  const costLabel = totalCost?.source === "recorded" ? t("usage.costRecorded")
+    : totalCost?.source === "computed" ? t("usage.costComputed") : t("usage.costNone");
   const cacheHit = totals ? cacheHitRate(totals) : null;
   // Per-model / per-provider daily series drive the in-row cost sparklines. The data layer only
   // carries days with traffic, so quiet gaps simply do not appear — a sparse series is fine for a
@@ -350,38 +356,38 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
 
   return <section className="module-view module-shell">
     <div className="workspace-heading module-heading">
-      <div><span className="eyebrow">PROFILE</span><h1>用量{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
+      <div><span className="eyebrow">PROFILE</span><h1>{t("usage.heading")}{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
       <div className="heading-actions">
         <div className="mp-seg usage-range">
-          {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{days}天</button>)}
-          <button type="button" data-active={!from && !to} onClick={() => { setFrom(""); setTo(""); void load(false, {}); }}>全部</button>
+          {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{t("usage.days", { days })}</button>)}
+          <button type="button" data-active={!from && !to} onClick={() => { setFrom(""); setTo(""); void load(false, {}); }}>{t("usage.all")}</button>
         </div>
-        <input className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="起始日期" />
-        <input className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="结束日期" />
-        <button className="icon-button" title="应用筛选" onClick={() => void load()} disabled={loading}><Search size={16} /></button>
-        <button className="secondary-button" onClick={() => void load(true)} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />重新索引</button>
+        <input className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("usage.startDate")} />
+        <input className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("usage.endDate")} />
+        <button className="icon-button" title={t("usage.applyFilter")} onClick={() => void load()} disabled={loading}><Search size={16} /></button>
+        <button className="secondary-button" onClick={() => void load(true)} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />{t("usage.reindex")}</button>
       </div>
     </div>
 
     {!data ? <div className="usage-cards">{[0, 1].map((index) => <div key={index} className="usage-card"><span className="eyebrow">&nbsp;</span><div className="skeleton skeleton-num" /><div className="skeleton skeleton-line" /></div>)}</div> : <div className="usage-layout">
       <div className="usage-cards usage-cards-composite">
         <div className="usage-card usage-card-primary">
-          <span className="eyebrow">花费</span>
+          <span className="eyebrow">{t("usage.metricCost")}</span>
           <strong>{totalCost && totalCost.source !== "none" ? formatUsd(totalCost.value) : "—"}</strong>
-          <small>{costLabel}{totals && totals.pricedRequests > 0 && totals.recordedCost > 0 ? ` · 推算 ${formatUsd(totals.computedCost)}` : ""}</small>
-          <div className="token-stack" title="token 构成">
+          <small>{costLabel}{totals && totals.pricedRequests > 0 && totals.recordedCost > 0 ? ` · ${t("usage.estimateSuffix", { cost: formatUsd(totals.computedCost) })}` : ""}</small>
+          <div className="token-stack" title={t("usage.tokenBreakdown")}>
             {(() => {
-              const t = totals?.tokens;
-              if (!t) return null;
-              const totalForStack = Math.max(t.input + t.output + t.cacheRead + t.cacheWrite + t.reasoning, 1);
+              const tokens = totals?.tokens;
+              if (!tokens) return null;
+              const totalForStack = Math.max(tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite + tokens.reasoning, 1);
               const segments: Array<{ key: string; value: number; label: string; cls: string }> = [
-                { key: "input", value: t.input, label: `输入 ${formatTokens(t.input)}`, cls: "ts-input" },
-                { key: "output", value: t.output, label: `输出 ${formatTokens(t.output)}`, cls: "ts-output" },
-                { key: "cacheRead", value: t.cacheRead, label: `缓存读 ${formatTokens(t.cacheRead)}`, cls: "ts-cache" },
-                { key: "cacheWrite", value: t.cacheWrite, label: `缓存写 ${formatTokens(t.cacheWrite)}`, cls: "ts-cachew" },
-                { key: "reasoning", value: t.reasoning, label: `推理 ${formatTokens(t.reasoning)}`, cls: "ts-reason" },
+                { key: "input", value: tokens.input, label: t("usage.tokenInput", { tokens: formatTokens(tokens.input) }), cls: "ts-input" },
+                { key: "output", value: tokens.output, label: t("usage.tokenOutput", { tokens: formatTokens(tokens.output) }), cls: "ts-output" },
+                { key: "cacheRead", value: tokens.cacheRead, label: t("usage.tokenCacheRead", { tokens: formatTokens(tokens.cacheRead) }), cls: "ts-cache" },
+                { key: "cacheWrite", value: tokens.cacheWrite, label: t("usage.tokenCacheWrite", { tokens: formatTokens(tokens.cacheWrite) }), cls: "ts-cachew" },
+                { key: "reasoning", value: tokens.reasoning, label: t("usage.tokenReasoning", { tokens: formatTokens(tokens.reasoning) }), cls: "ts-reason" },
               ].filter((segment) => segment.value > 0);
-              if (segments.length === 0) return <span className="muted-line">无 token 数据</span>;
+              if (segments.length === 0) return <span className="muted-line">{t("usage.noTokenData")}</span>;
               return <>
                 <div className="token-stack-bar">
                   {segments.map((segment) => <span
@@ -398,42 +404,42 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
           </div>
         </div>
         <div className="usage-card">
-          <span className="eyebrow">请求</span>
+          <span className="eyebrow">{t("usage.metricRequests")}</span>
           <strong>{formatCount(totals?.requests ?? 0)}</strong>
-          <small>{totals?.failures ? `${totals.failures} 次失败（${(totals.failures / Math.max(totals.requests, 1) * 100).toFixed(1)}%）` : "无失败"}</small>
+          <small>{totals?.failures ? t("usage.failuresWithRate", { count: totals.failures, rate: (totals.failures / Math.max(totals.requests, 1) * 100).toFixed(1) }) : t("usage.noFailures")}</small>
         </div>
         <div className="usage-card">
-          <span className="eyebrow">缓存命中</span>
+          <span className="eyebrow">{t("usage.cacheHit")}</span>
           <strong>{cacheHit === null ? "—" : `${(cacheHit * 100).toFixed(1)}%`}</strong>
-          <small>读 {formatTokens(totals?.tokens.cacheRead ?? 0)} · 写 {formatTokens(totals?.tokens.cacheWrite ?? 0)}</small>
+          <small>{t("usage.cacheRead", { tokens: formatTokens(totals?.tokens.cacheRead ?? 0) })} · {t("usage.cacheWrite", { tokens: formatTokens(totals?.tokens.cacheWrite ?? 0) })}</small>
         </div>
       </div>
 
       {data.report.unpriced.length > 0 ? <span className="muted-line warn-line">
-        {data.report.unpriced.length} 个模型没有本地单价（models.yml 未配置 cost），成本以 OMP 记录为准。可点击表格中的硬币图标设置单价用于核对。
+        {t("usage.unpricedHint", { count: data.report.unpriced.length })}
       </span> : null}
 
       <div className="usage-trend-wrap">
         <div className="mp-seg usage-metric-seg">
-          {TREND_METRICS.map((m) => <button type="button" key={m.key} data-active={metric === m.key} onClick={() => setMetric(m.key)}>{m.label}</button>)}
+          {TREND_METRICS.map((m) => <button type="button" key={m.key} data-active={metric === m.key} onClick={() => setMetric(m.key)}>{t(m.label)}</button>)}
         </div>
         <TrendArea days={data.report.byDay} metric={metric} />
       </div>
 
       <div className="usage-breakdowns">
-        <BreakdownTable title="按模型" buckets={data.report.byModel} totalCost={totalCost?.value ?? 0} daySeriesByKey={modelDaySeries} onPrice={openPricing} />
-        <BreakdownTable title="按供应商" buckets={data.report.byProvider} totalCost={totalCost?.value ?? 0} daySeriesByKey={providerDaySeries} />
+        <BreakdownTable title={t("usage.byModel")} buckets={data.report.byModel} totalCost={totalCost?.value ?? 0} daySeriesByKey={modelDaySeries} onPrice={openPricing} />
+        <BreakdownTable title={t("usage.byProvider")} buckets={data.report.byProvider} totalCost={totalCost?.value ?? 0} daySeriesByKey={providerDaySeries} />
       </div>
 
       <span className="muted-line">
-        已索引 {data.indexedEntries} 条事件{data.invalidLines ? ` · ${data.invalidLines} 行无法解析` : ""} · models.yml 中 {data.pricedModels} 条定价
+        {t("usage.indexed", { count: data.indexedEntries })}{data.invalidLines ? t("usage.invalidLines", { count: data.invalidLines }) : ""} · {t("usage.pricedModels", { count: data.pricedModels })}
       </span>
     </div>}
 
     {pricing ? <div className="usage-pricing-editor">
       <div className="editor-head">
-        <div><span className="eyebrow">单价 / 百万 token</span><strong className="mono">{pricing.key}</strong></div>
-        <div className="drawer-actions"><button className="secondary-button" onClick={() => setPricing(null)}>关闭</button></div>
+        <div><span className="eyebrow">{t("usage.pricePerMillion")}</span><strong className="mono">{pricing.key}</strong></div>
+        <div className="drawer-actions"><button className="secondary-button" onClick={() => setPricing(null)}>{t("common.close")}</button></div>
       </div>
       <div className="form-two">
         {(["input", "output", "cacheRead", "cacheWrite"] as const).map((field) => <label className="module-field" key={field}>
@@ -441,14 +447,14 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
           <input
             inputMode="decimal"
             value={pricing[field]}
-            placeholder="留空表示不计"
+            placeholder={t("usage.pricePlaceholder")}
             onChange={(event) => setPricing((current) => current ? { ...current, [field]: event.target.value } : current)}
           />
         </label>)}
       </div>
       <div className="drawer-actions">
-        <button className="primary-button" onClick={() => void savePricing()} disabled={loading}><Save size={15} />保存</button>
-        <button className="secondary-button" onClick={() => void savePricing(true)} disabled={loading}><Trash2 size={14} />清除</button>
+        <button className="primary-button" onClick={() => void savePricing()} disabled={loading}><Save size={15} />{t("common.save")}</button>
+        <button className="secondary-button" onClick={() => void savePricing(true)} disabled={loading}><Trash2 size={14} />{t("usage.clearPrice")}</button>
       </div>
     </div> : null}
   </section>;

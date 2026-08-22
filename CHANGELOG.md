@@ -4,6 +4,34 @@ All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.
 
+## 0.4.5 - 2026-08-23
+
+### Added
+
+- **Renderer i18n** (i18next + react-i18next): every chrome string is keyed in
+  `src/renderer/i18n/locales/{zh,en}.json` (465 keys, interpolations aligned). The top bar
+  gains a language switch (中文 / English / 跟随系统) persisted as `omp.locale`. `system`
+  follows `navigator.language` (`zh*` → zh, otherwise en) and a `languagechange` listener
+  re-applies when the OS language changes. First paint is already in the stored language:
+  `i18n.init` reads `omp.locale` synchronously (`initAsync: false`) and `index.html` sets
+  `<html lang>` before React mounts. Catalog parity is locked by `locales.test.ts`.
+
+### Changed
+
+- Surfaces empty CTA interpolates the surface label (`surfaces.newWithLabel`) instead of
+  concatenating `t("surfaces.new")` with the English kind name.
+- Surfaces delete confirmation uses `ConfirmDialog` (`window.confirm` is banned).
+- Gateway credential field layout keys off `.upstream-credential`, not a localized
+  placeholder.
+
+### Fixed
+
+- English `providerEditor.providerIdUrlRequired` no longer inverts the check
+  (`!id || !url` is "cannot be empty", not "cannot both be empty").
+- Roles dirty-dot tooltip no longer interpolates `roles.dirtyCount` with `count: 0`.
+- Browser-preview mock diagnostics are translated at `get()` time so a language switch
+  does not freeze them in Chinese.
+
 ## 0.4.4 - 2026-08-22
 
 ### Added
