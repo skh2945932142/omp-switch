@@ -100,8 +100,13 @@ export function ProviderDrawer({
               <datalist id="omp-api-options">
                 <option value="openai-completions" />
                 <option value="openai-responses" />
-                <option value="anthropic-messages" />
                 <option value="openai-codex-responses" />
+                <option value="azure-openai-responses" />
+                <option value="anthropic-messages" />
+                <option value="bedrock-converse-stream" />
+                <option value="google-generative-ai" />
+                <option value="google-gemini-cli" />
+                <option value="google-vertex" />
               </datalist>
             </label>
           </div>
@@ -237,6 +242,7 @@ export function ProviderDrawer({
                     <label>
                       {t("providerEditor.api")}
                       <input
+                        list="omp-api-options"
                         value={entry.api}
                         onChange={(event) => updateModelEntry(index, { api: event.target.value })}
                         placeholder={t("providerEditor.inheritProvider")}
