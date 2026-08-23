@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   CloudDownload,
+  Copy,
   LoaderCircle,
   Pencil,
   Plus,
@@ -49,6 +50,7 @@ export interface ModelsModuleProps {
   onAssignModelToRole: (roleId: string, providerId: string, modelId: string) => void;
   onOpenRoles: () => void;
   coverageFor: (provider: OmpProvider, id: string) => number;
+  onNotice?: (notice: { tone: "info" | "success" | "error"; text: string }) => void;
 }
 
 export function ModelsModule({
@@ -77,6 +79,7 @@ export function ModelsModule({
   onAssignModelToRole,
   onOpenRoles,
   coverageFor,
+  onNotice,
 }: ModelsModuleProps): ReactElement {
   const { t } = useTranslation();
   const catalogInput = useRef<HTMLInputElement | null>(null);
@@ -301,6 +304,21 @@ export function ModelsModule({
                           onAssign={(roleId) => onAssignModelToRole(roleId, id, model.id ?? "")}
                           onOpenRoles={onOpenRoles}
                         />
+                        <IconButtonTip label={t("models.copyModelId", { model: `${id}/${model.id}` })}>
+                          <button
+                            type="button"
+                            className="icon-button subtle"
+                            aria-label={t("models.copyModelId", { model: `${id}/${model.id}` })}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const identifier = `${id}/${model.id}`;
+                              void navigator.clipboard.writeText(identifier);
+                              onNotice?.({ tone: "success", text: t("models.copiedModelId", { model: identifier }) });
+                            }}
+                          >
+                            <Copy size={13} />
+                          </button>
+                        </IconButtonTip>
                       </div>
                     ))}
                     {models.length === 0 ? <div className="model-empty">{t("models.emptyModels")}</div> : null}

@@ -701,6 +701,7 @@ export default function App(): ReactElement {
                     setDrawerOpen(false);
                   }}
                   coverageFor={coverageFor}
+                  onNotice={notify}
                 />
               ) : section === "roles" ? (
                 <RolesModule

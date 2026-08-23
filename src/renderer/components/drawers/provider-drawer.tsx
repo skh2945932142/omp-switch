@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, CloudDownload, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, CloudDownload, Copy, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import type { OmpModel, OmpProvider, ProviderPreset } from "@omp-switch/core";
 import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES } from "@omp-switch/core/validation";
 import { StyledSelect } from "../ui-primitives";
@@ -185,6 +185,23 @@ export function ProviderDrawer({
                       placeholder={t("models.name")}
                     />
                   </div>
+                  <button
+                    type="button"
+                    className="icon-button subtle model-editor-clone"
+                    title={t("providerEditor.cloneModel")}
+                    onClick={() => {
+                      const suffix = "-copy";
+                      const clonedId = entry.id ? `${entry.id}${suffix}` : "";
+                      const cloned = { ...entry, id: clonedId, raw: { ...entry.raw, id: clonedId } };
+                      setModelEntries((current) => [
+                        ...current.slice(0, index + 1),
+                        cloned,
+                        ...current.slice(index + 1),
+                      ]);
+                    }}
+                  >
+                    <Copy size={14} />
+                  </button>
                   <button
                     type="button"
                     className="icon-button subtle danger model-editor-delete"

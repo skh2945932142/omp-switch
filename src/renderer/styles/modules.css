@@ -316,7 +316,26 @@
 .gateway-editor { min-height: 400px; }
 .module-check { min-height: 28px; }
 .upstream-list { display: grid; gap: 6px; }
-.upstream-row { display: grid; grid-template-columns: 0.7fr 1.3fr 0.8fr 0.9fr auto 28px; gap: 6px; align-items: center; }
+.upstream-row { display: grid; grid-template-columns: auto 0.7fr 1.3fr 0.8fr 0.9fr auto 28px; gap: 6px; align-items: center; }
+.upstream-reorder-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+}
+.upstream-reorder-buttons .icon-button {
+  width: 20px;
+  height: 13px;
+  padding: 0;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.upstream-reorder-buttons .icon-button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
 .upstream-row input {
   width: 100%;
   min-width: 0;
