@@ -129,6 +129,7 @@ pnpm render:packaging   # 用真实 release 哈希渲染 winget / Scoop / Chocol
 - [docs/install.md](docs/install.md) — 所有安装方式与平台限制
 - [docs/security.md](docs/security.md) — 威胁模型与凭据处理
 - [docs/releasing.md](docs/releasing.md) — 发布流程
+- [docs/antigravity-goal-loop.md](docs/antigravity-goal-loop.md) — Antigravity Goal Mode 持续迭代提示词
 - [CHANGELOG.md](CHANGELOG.md) — 版本变更记录
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 贡献流程
 
