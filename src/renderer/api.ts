@@ -74,7 +74,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
 
   return {
     getInfo: async () => ({
-      version: "0.5.2",
+      version: "0.5.3",
       platform: "win32",
       installation: {
         executable: "omp",
@@ -224,14 +224,14 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
     authLogin: async () => ({ ok: false, output: "", error: "Run the packaged app to invoke omp auth login" }),
     checkForUpdates: async () => ({
       available: true,
-      currentVersion: "0.5.2",
+      currentVersion: "0.5.3",
       checkedAt: new Date().toISOString(),
       manifest: {
         version: 1,
         name: "OMP Switch",
-        release: "0.5.2",
-        url: "https://github.com/skh2945932142/omp-switch/releases/tag/v0.5.2",
-        summary: "新增模型供应商删除与级联清理保护，完成前端工程架构模块化重构",
+        release: "0.5.3",
+        url: "https://github.com/skh2945932142/omp-switch/releases/tag/v0.5.3",
+        summary: "修复模型供应商模型配置与主工作区中的长模型名与标识截断显示问题",
         publishedAt: new Date().toISOString(),
       },
     }),

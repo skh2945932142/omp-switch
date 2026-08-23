@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 - 2026-08-23
+
+### Fixed
+- **Model Name & ID Full Display Layout**:
+  - Restructured the Provider Editor Drawer (`.model-editor-card`) into a spacious two-tier layout, allocating 100% of row width to `Model ID` and `Display Name` inputs to prevent long identifier truncation.
+  - Added full `title` hover tooltips across model names and IDs in both the main Provider workspace card lists and the drawer view-mode mini-model list.
+  - Added word-wrapping (`word-break: break-word` / `word-break: break-all`) to handle multi-segment path names gracefully.
+
 ## 0.5.2 - 2026-08-23
 
 ### Added
