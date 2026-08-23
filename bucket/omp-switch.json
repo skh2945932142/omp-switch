@@ -6,7 +6,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.5.0/OMP-Switch-0.5.0-win.zip",
-      "hash": "b6f8aafc61ce833a8c3651e514a296e7571241037bd96008f054f85bb218475d"
+      "hash": "c8e72d6718bd9387b8f689a4b5642f4239ec3227df8904059b747ed3928eaca4"
     }
   },
   "bin": "omp-switch-cli.exe",
