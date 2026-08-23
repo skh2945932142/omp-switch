@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-08-23
+
+### Added
+- **Apple × OpenAI Hybrid UI/UX Overhaul**:
+  - Re-architected design tokens in `tokens.css` with dark charcoal palette (`#0d0d10`), pure paper light mode (`#fbfbfc`), and Windows 11 Mica translucent headers with `backdrop-filter: blur()`.
+  - Upgraded high-density Model and Role lists with compact `40px` rows, `tabular-nums` context sizes, and legible hop chain arrows (`@default → provider/model`).
+  - Added Command Palette quick trigger (`Ctrl+K`) in the top bar actions.
+- **Fluid Physics & Micro-Haptic Motion**:
+  - Added macOS Sequoia style drawer depth scaling: main workspace gracefully scales to `0.992` with `0.96` opacity when floating sheet drawers are open.
+  - Implemented staggered entrance transitions for cards, charts, and table rows across all 7 workspace modules.
+  - Added Linear-style tactile press scaling (`scale(0.985)`), glowing hairline focus rings, and left rail vertical active indicators.
+
 ## 0.4.8 - 2026-08-23
 
 ### Added

@@ -1316,14 +1316,15 @@ export default function App() {
           </button>
         </div>
         <div className="topbar-actions">
-            <IconButtonTip label={t("topbar.refresh")}><button className="icon-button" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={17} className={busy ? "spin" : ""} /></button></IconButtonTip>
-            <IconButtonTip label={t("topbar.createSnapshot")}><button className="icon-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={17} /></button></IconButtonTip>
+            <IconButtonTip label={`${t("shortcuts.palette")} (Ctrl+K)`}><button className="icon-button" onClick={() => setPaletteOpen(true)}><Search size={16} /></button></IconButtonTip>
+            <IconButtonTip label={t("topbar.refresh")}><button className="icon-button" onClick={() => void load(profileId)} disabled={busy}><RefreshCw size={16} className={busy ? "spin" : ""} /></button></IconButtonTip>
+            <IconButtonTip label={t("topbar.createSnapshot")}><button className="icon-button" onClick={() => void createSnapshot()} disabled={busy}><ArchiveRestore size={16} /></button></IconButtonTip>
             <LocaleSwitch value={localeChoice} onChange={setLocaleChoiceState} />
             <ThemeSwitch value={themeChoice} onChange={setThemeChoice} />
             {updateInfo.lastResult?.available ? (
-              <button className="icon-button update-badge" title={t("topbar.newVersionAvailable", { version: updateInfo.lastResult.manifest.release })} onClick={() => { setProfileTab("about"); setProfileDrawerOpen(true); setDrawerOpen(true); }}><Zap size={17} /><span className="update-badge-dot" /></button>
+              <button className="icon-button update-badge" title={t("topbar.newVersionAvailable", { version: updateInfo.lastResult.manifest.release })} onClick={() => { setProfileTab("about"); setProfileDrawerOpen(true); setDrawerOpen(true); }}><Zap size={16} /><span className="update-badge-dot" /></button>
             ) : null}
-            <button className="primary-button compact" title={t("topbar.saveAll")} onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={15} />{t("common.save")}</button>
+            <button className="primary-button compact" title={t("topbar.saveAll")} onClick={() => void saveDirty()} disabled={busy || readOnly || (!rolesDirty && !settingsDirty)}><Save size={14} />{t("common.save")}</button>
         </div>
       </header>
 
@@ -1358,7 +1359,7 @@ export default function App() {
           </div>
         </aside>
 
-        <section className="workspace-main">
+        <section className={`workspace-main ${drawerOpen || formOpen || profileDrawerOpen || diagnosticsOpen ? "drawer-active" : ""}`}>
           <div className="section-view" key={section}>
           {section === "models" ? (
             <>

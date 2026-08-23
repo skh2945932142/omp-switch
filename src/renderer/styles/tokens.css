@@ -1,115 +1,118 @@
 /*
- * Design tokens — "Quiet Instrument".
+ * Design tokens — "Quiet Instrument" (Apple × OpenAI Hybrid).
  *
  * Untinted zinc neutrals carry the chrome. Teal (--signal) is reserved for selection,
- * focus, and links — never buttons, chips, or icons. Primary actions use ink/paper
- * inversion. State is a colored dot plus quiet text, not a filled pill.
+ * focus, and links. Primary actions use ink/paper inversion.
+ * State is a refined colored dot plus quiet micro text.
  *
- * Theming is dual-track: `light-dark()` resolves against `color-scheme`, which the theme
- * controller (theme.ts) pins to "light" / "dark" for a manual choice and leaves as
- * "light dark" when following the OS. One definition serves both tracks. Shadows are
- * composed from shadow-color tokens because `light-dark()` accepts colors only.
- * A hex outside this file is a bug.
+ * Theming is dual-track: `light-dark()` resolves against `color-scheme`.
+ * All colors resolve through tokens. A hex outside this file is a bug.
  */
 
 :root {
   color-scheme: light dark;
-  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", "Cascadia Mono", Menlo, Consolas, monospace;
 
-  /* Type scale. Body is 14px; micro is reserved for eyebrows, chips, and mono captions.
-     Display is the page-title size (Apple/OpenAI confident heading), kept off body text. */
+  /* Type scale with tight tracking for confident headings and crisp data density. */
   --fs-micro: 11px;
-  --fs-small: 13px;
-  --fs-body: 14px;
-  --fs-strong: 15px;
+  --fs-small: 12.5px;
+  --fs-body: 13.5px;
+  --fs-strong: 14.5px;
   --fs-title: 16px;
-  --fs-display: 28px;
+  --fs-display: 24px;
 
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 16px;
-  --radius-pill: 999px;
+  --radius-xs: 4px;
+  --radius-s: 7px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
 
-  /* Surfaces. --panel is a raised card on --paper; --sunken is the recessed tier for inset
-     fields, meta bars, and chips (Apple Settings: grouped background one step below the card). */
-  --paper: light-dark(#fafafa, #101013);
-  --panel: light-dark(#ffffff, #1a1a1e);
-  --sunken: light-dark(#f4f4f5, #222227);
-  --hover: light-dark(#f4f4f5, #242429);
-  --selected: light-dark(#ededf0, #2b2b32);
-  --rail: light-dark(#f6f6f7, #141417);
-  --topbar: light-dark(rgba(250, 250, 250, 0.85), rgba(16, 16, 19, 0.85));
-  --veil: light-dark(rgba(255, 255, 255, 0.6), rgba(26, 26, 30, 0.6));
+  /* Surfaces.
+     --paper: window background canvas.
+     --panel: elevated card/inset surface.
+     --sunken: recessed tier for inset inputs, search bars, chips.
+     --rail: sleek left navigation panel.
+     --topbar: translucent titlebar header. */
+  --paper: light-dark(#fbfbfc, #0d0d10);
+  --panel: light-dark(#ffffff, #16161a);
+  --sunken: light-dark(#f2f2f5, #1e1e23);
+  --hover: light-dark(#ededf1, #24242b);
+  --selected: light-dark(#e4e4eb, #2b2b34);
+  --rail: light-dark(#f7f7f9, #121215);
+  --topbar: light-dark(rgba(251, 251, 252, 0.84), rgba(13, 13, 16, 0.84));
+  --veil: light-dark(rgba(255, 255, 255, 0.72), rgba(22, 22, 26, 0.72));
 
-  /* Ink */
-  --ink: light-dark(#18181b, #f4f4f5);
-  --ink-soft: light-dark(#3f3f46, #d4d4d8);
-  --muted: light-dark(#71717a, #96969e);
+  /* Ink typography hierarchy */
+  --ink: light-dark(#111114, #f4f4f7);
+  --ink-soft: light-dark(#383842, #c8c8d2);
+  --muted: light-dark(#6e6e7c, #848494);
 
-  /* Lines. Hairlines live inside lists; an outer border is rare and uses --line. Light-mode
-     hairline is lifted toward a cooler, lower-contrast neutral so panels separate by tone +
-     a hair, not a hard gray rule (Apple). Dark-mode hairline sits barely above the panel. */
-  --hairline: light-dark(#e9e9ec, #2c2c33);
-  --line: light-dark(#d4d4d8, #3a3a41);
+  /* Hairlines & structural borders */
+  --hairline: light-dark(#e6e6ec, #26262e);
+  --line: light-dark(#d0d0d8, #363640);
 
-  /* Signal: selection, focus, links. Nothing else. Dark mode desaturated toward a teal-mint so
-     it reads as a highlight, not a saturated accent — matching the restrained dark palette. */
-  --signal: light-dark(#0f766e, #3fb6a6);
-  --signal-soft: light-dark(rgba(15, 118, 110, 0.1), rgba(63, 182, 166, 0.14));
+  /* Signal: selection, focus ring, active links. */
+  --signal: light-dark(#0d766e, #3ec5b4);
+  --signal-soft: light-dark(rgba(13, 118, 110, 0.09), rgba(62, 197, 180, 0.13));
 
-  /* Primary action = ink/paper inversion. */
-  --invert-bg: light-dark(#18181b, #fafafa);
-  --invert-bg-hover: light-dark(#2c2c31, #d4d4d8);
-  --invert-ink: light-dark(#fafafa, #18181b);
+  /* Primary action = ink/paper inversion with subtle button depth. */
+  --invert-bg: light-dark(#111114, #f4f4f7);
+  --invert-bg-hover: light-dark(#26262e, #e2e2ea);
+  --invert-ink: light-dark(#ffffff, #111114);
 
-  /* Semantic state, used as dots and quiet text. */
-  --ok: light-dark(#16a34a, #35b871);
-  --danger: light-dark(#dc2626, #ee6f62);
-  --warn: light-dark(#c77d10, #dda23c);
-  --ok-soft: light-dark(rgba(22, 163, 74, 0.1), rgba(53, 184, 113, 0.12));
-  --danger-soft: light-dark(rgba(220, 38, 38, 0.1), rgba(238, 111, 98, 0.12));
-  --warn-soft: light-dark(rgba(199, 125, 16, 0.12), rgba(221, 162, 60, 0.14));
+  /* Semantic state colors */
+  --ok: light-dark(#15803d, #34d399);
+  --danger: light-dark(#dc2626, #f87171);
+  --warn: light-dark(#d97706, #fbbf24);
+  --ok-soft: light-dark(rgba(21, 128, 61, 0.08), rgba(52, 211, 153, 0.12));
+  --danger-soft: light-dark(rgba(220, 38, 38, 0.08), rgba(248, 113, 113, 0.12));
+  --warn-soft: light-dark(rgba(217, 119, 6, 0.08), rgba(251, 191, 36, 0.12));
 
-  /* Usage trend. Dark mode lifts to a clearer mint so the line reads on the dark panel instead
-     of fading into it; the area gradient opacity is also nudged up in the SVG. */
-  --trend-top: light-dark(#4c8f6b, #5fb886);
-  --trend-bottom: light-dark(#2f6b4c, #3a8a64);
+  /* Usage trend & visualization */
+  --trend-top: light-dark(#3b82f6, #60a5fa);
+  --trend-bottom: light-dark(#1d4ed8, #2563eb);
 
-  /* Shadow colors — light mode shadows are ink-tinted, dark mode pure black. */
-  --shadow-tint: light-dark(rgba(24, 24, 27, 0.05), rgba(0, 0, 0, 0.3));
-  --shadow-tint-float: light-dark(rgba(24, 24, 27, 0.12), rgba(0, 0, 0, 0.5));
-  --shadow-tint-soft: light-dark(rgba(24, 24, 27, 0.06), rgba(0, 0, 0, 0.4));
-  --shadow-tint-lift: light-dark(rgba(24, 24, 27, 0.07), rgba(0, 0, 0, 0.35));
-  --shadow-tint-overlay: light-dark(rgba(24, 24, 27, 0.2), rgba(0, 0, 0, 0.6));
+  /* Layered elevation & ambient diffusion shadows */
+  --shadow-tint: light-dark(rgba(17, 17, 20, 0.04), rgba(0, 0, 0, 0.28));
+  --shadow-tint-float: light-dark(rgba(17, 17, 20, 0.1), rgba(0, 0, 0, 0.55));
+  --shadow-tint-soft: light-dark(rgba(17, 17, 20, 0.05), rgba(0, 0, 0, 0.35));
+  --shadow-tint-lift: light-dark(rgba(17, 17, 20, 0.07), rgba(0, 0, 0, 0.38));
+  --shadow-tint-overlay: light-dark(rgba(17, 17, 20, 0.18), rgba(0, 0, 0, 0.65));
 
-  /* Elevation: separation comes from tone plus these, not from borders. */
   --shadow-card: 0 1px 2px var(--shadow-tint);
-  --shadow-float: 0 8px 30px var(--shadow-tint-float), 0 1px 3px var(--shadow-tint-soft);
+  --shadow-float: 0 10px 30px var(--shadow-tint-float), 0 2px 6px var(--shadow-tint-soft);
   --shadow-lift: -8px 0 30px var(--shadow-tint-lift);
-  --shadow-overlay: -14px 0 40px var(--shadow-tint-overlay);
+  --shadow-overlay: -16px 0 44px var(--shadow-tint-overlay);
+  --shadow-sheet: -12px 0 36px var(--shadow-tint-overlay);
   --shadow-switch: 0 1px 2px light-dark(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.4));
 
-  /* Switch thumb stays paper-white in both schemes so the ON teal reads as the signal. */
   --switch-thumb: #ffffff;
+  --scrim: light-dark(rgba(17, 17, 20, 0.32), rgba(0, 0, 0, 0.56));
 
-  /* Modal scrim. Darker in dark mode so the sheet still lifts off the panel. */
-  --scrim: light-dark(rgba(24, 24, 27, 0.38), rgba(0, 0, 0, 0.52));
+  /* Motion & easing */
+  --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-medium: 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Manual theme override. Absent attribute = follow the OS (color-scheme above). */
+/* Manual theme overrides */
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 
 /*
- * Mica experiment (Windows 11 22H2+). electron/main.ts sets backgroundMaterial and adds
- * `mica` to <html> once the window finishes loading. Chrome regions go transparent so the
- * desktop material shows through; panels stay opaque for readability. Without the class
- * (older Windows, browser preview) everything renders solid and nothing changes.
+ * Windows 11 Mica material integration.
  */
 :root.mica { background: transparent; }
 :root.mica body,
 :root.mica .app-shell { background: transparent; }
 :root.mica .workspace-main { background: transparent; }
-:root.mica .topbar { background: light-dark(rgba(250, 250, 250, 0.72), rgba(16, 16, 19, 0.72)); }
-:root.mica .left-rail { background: light-dark(rgba(255, 255, 255, 0.42), rgba(20, 20, 23, 0.48)); }
+:root.mica .topbar {
+  background: light-dark(rgba(251, 251, 252, 0.72), rgba(13, 13, 16, 0.72));
+  backdrop-filter: blur(20px);
+}
+:root.mica .left-rail {
+  background: light-dark(rgba(247, 247, 249, 0.5), rgba(18, 18, 21, 0.52));
+  backdrop-filter: blur(20px);
+}
