@@ -39,8 +39,10 @@ jobs:
           set -euo pipefail
           version="${TAG_NAME#v}"
           gh release download "$TAG_NAME" --repo "$REPO" --pattern "SHA256SUMS.txt" --dir sums --clobber
-          hash="$(awk '/-win\.zip$/ {print $1}' sums/SHA256SUMS.txt)"
-          name="$(awk '/-win\.zip$/ {print $2}' sums/SHA256SUMS.txt)"
+          # Release assets may be generated on Windows, so normalize CRLF before matching the
+          # portable filename. Without this, awk's $ anchor sees a trailing \r and misses the row.
+          portable_line="$(awk '{ sub(/\r$/, "", $2); if ($2 ~ /-win\.zip$/) { print $1 "\t" $2; exit } }' sums/SHA256SUMS.txt)"
+          IFS=$'\t' read -r hash name <<< "$portable_line"
           if [ -z "$hash" ] || [ -z "$name" ]; then
             echo "No portable ZIP line in the published SHA256SUMS.txt" >&2
             exit 1
