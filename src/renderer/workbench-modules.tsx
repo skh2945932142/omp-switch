@@ -6,6 +6,7 @@ import {
   Check,
   ChevronUp,
   CircleAlert,
+  Copy,
   Download,
   FileCheck2,
   FilePlus2,
@@ -16,9 +17,11 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Square,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import type {
   GatewayPool,
@@ -407,6 +410,68 @@ export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "
     }
   }
 
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredEntries = useMemo(() => {
+    if (!searchQuery.trim()) return entries;
+    const query = searchQuery.trim().toLowerCase();
+    return entries.filter((e) =>
+      (e.title && e.title.toLowerCase().includes(query)) ||
+      (e.model && e.model.toLowerCase().includes(query)) ||
+      (e.provider && e.provider.toLowerCase().includes(query)) ||
+      e.id.toLowerCase().includes(query)
+    );
+  }, [entries, searchQuery]);
+
+  function generateSessionMarkdown(session: SessionSummary, msgs: SessionMessagePreview[]): string {
+    const lines: string[] = [
+      `# ${session.title ?? session.model ?? "OMP Session"}`,
+      ``,
+      `- **Session ID**: \`${session.id}\``,
+      `- **Model**: \`${session.provider ?? "—"}/${session.model ?? "—"}\``,
+      `- **Started**: ${session.startedAt ? formatDateTime(session.startedAt) : "—"}`,
+      `- **Messages**: ${session.messageCount}`,
+      `- **Tokens**: ${Object.entries(session.tokens).map(([k, v]) => `${k}: ${v}`).join(", ") || "—"}`,
+      `- **Cost**: $${session.cost.toFixed(4)}`,
+      ``,
+      `---`,
+      ``,
+    ];
+    for (const msg of msgs) {
+      const roleLabel = msg.role === "user" ? "👤 User" : msg.role === "assistant" ? "🤖 Assistant" : `⚙️ ${msg.role}`;
+      const time = msg.timestamp ? ` (${formatClock(msg.timestamp)})` : "";
+      const modelTag = msg.provider && msg.model ? ` [${msg.provider}/${msg.model}]` : "";
+      lines.push(`### ${roleLabel}${modelTag}${time}`);
+      lines.push(``);
+      lines.push(msg.text || "(empty)");
+      lines.push(``);
+    }
+    return lines.join("\n");
+  }
+
+  async function copySessionMarkdown(): Promise<void> {
+    if (!selected) return;
+    const md = generateSessionMarkdown(selected, messages);
+    try {
+      await navigator.clipboard.writeText(md);
+      onNotice({ tone: "success", text: t("sessions.copiedMarkdown") });
+    } catch (err) {
+      onNotice({ tone: "error", text: String(err) });
+    }
+  }
+
+  function downloadSessionMarkdown(): void {
+    if (!selected) return;
+    const md = generateSessionMarkdown(selected, messages);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `session-${selected.id.slice(0, 8)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const summary = useMemo(() => entries.reduce((result, entry) => {
     for (const [key, value] of Object.entries(entry.tokens)) result.tokens[key] = (result.tokens[key] ?? 0) + value;
     result.cost += entry.cost;
@@ -419,8 +484,24 @@ export function SessionsModule({ api, profileId, onNotice }: Omit<CommonProps, "
     <div className="metric-strip"><span><strong>{entries.length}</strong>{t("sessions.metricSessions")}</span><span><strong>{Object.values(summary.tokens).reduce((a, b) => a + b, 0).toLocaleString()}</strong>{t("sessions.metricTokens")}</span><span><strong>${summary.cost.toFixed(4)}</strong>{t("sessions.metricCost")}</span><span className={summary.failures ? "metric-danger" : ""}><strong>{summary.failures}</strong>{t("sessions.metricFailures")}</span>{invalidLines ? <span className="metric-warning"><strong>{invalidLines}</strong>{t("sessions.metricInvalidLines")}</span> : null}{refreshStats?.errors ? <span className="metric-warning"><strong>{refreshStats.errors}</strong>{t("sessions.metricFileErrors")}</span> : null}</div>
     {refreshStats ? <span className="muted-line">{(() => { const parts = [`${t("sessions.statsDiscovered")} ${refreshStats.discovered}`, `${t("sessions.statsSkipped")} ${refreshStats.skipped}`, `${t("sessions.statsReused")} ${refreshStats.reused}`, `${t("sessions.statsChanged")} ${refreshStats.changed}`, `${t("sessions.statsRebuilt")} ${refreshStats.rebuilt}`, `${t("sessions.statsScanned")} ${formatBytes(refreshStats.scannedBytes)}`]; if (refreshStats.diagnostics?.[0]) parts.push(refreshStats.diagnostics[0].message); return parts.join(" · "); })()}</span> : null}
     <div className="module-columns sessions-columns">
-      <div className="module-list-panel session-list">{entries.length === 0 && loading ? <div className="list-skel">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="skeleton skeleton-row" />)}</div> : entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><Archive size={26} /></span><strong>{refreshStats?.rootMissing ? t("sessions.emptyRootMissing") : refreshStats?.phase === "quick" ? t("sessions.emptyIndexing") : refreshStats?.errors ? t("sessions.emptyPartialErrors") : t("sessions.emptyNoSessions")}</strong><span className="empty-desc">{refreshStats?.rootMissing ? t("sessions.emptyRootMissingHint") : t("sessions.emptyHint")}</span><div className="empty-actions"><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />{t("sessions.scan")}</button></div></div> : <>{entries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? t("sessions.unnamed")}</strong><small>{entry.provider ?? "—"} · {formatDateTime(entry.lastActiveAt ?? entry.startedAt)} · {t("sessions.messageCount", { count: entry.messageCount })}</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? t("sessions.stale") : entry.failures ? t("sessions.failures", { count: entry.failures }) : t("sessions.indexed")}</span></button>)}{listCursor ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>{t("sessions.loadMore")}</button> : null}</>}</div>
-      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">{t("sessions.heading")}</span><strong>{selected.title ?? selected.model ?? t("sessions.heading")}</strong></div><span className="muted-line">{formatBytes(selected.fileSize)} · {formatDateTime(selected.lastActiveAt ?? selected.startedAt)}</span></div><div className="session-messages">{hasMoreMessages ? <div className="session-load-earlier"><button className="secondary-button compact" onClick={() => void loadEarlier()} disabled={loading}><ChevronUp size={14} />{t("sessions.loadEarlier")}</button></div> : null}{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">{t("common.loading")}…</div>}</div></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>{t("sessions.selectPrompt")}</strong><span className="empty-desc">{t("sessions.selectHint")}</span></div>}</div>
+      <div className="module-list-panel session-list">
+        <div className="session-search-bar">
+          <Search size={14} className="session-search-icon" />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={t("sessions.searchSessions")}
+            aria-label={t("sessions.searchSessions")}
+          />
+          {searchQuery ? (
+            <button className="icon-button subtle" onClick={() => setSearchQuery("")} title={t("common.clear")}>
+              <X size={13} />
+            </button>
+          ) : null}
+        </div>
+        {entries.length === 0 && loading ? <div className="list-skel">{[0, 1, 2, 3, 4].map((index) => <div key={index} className="skeleton skeleton-row" />)}</div> : entries.length === 0 ? <div className="module-empty compact-empty"><span className="empty-glyph"><Archive size={26} /></span><strong>{refreshStats?.rootMissing ? t("sessions.emptyRootMissing") : refreshStats?.phase === "quick" ? t("sessions.emptyIndexing") : refreshStats?.errors ? t("sessions.emptyPartialErrors") : t("sessions.emptyNoSessions")}</strong><span className="empty-desc">{refreshStats?.rootMissing ? t("sessions.emptyRootMissingHint") : t("sessions.emptyHint")}</span><div className="empty-actions"><button className="secondary-button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} />{t("sessions.scan")}</button></div></div> : <>{filteredEntries.map((entry) => <button key={entry.id} className={"module-list-row session-row " + (selected?.id === entry.id ? "active" : "")} onClick={() => void openEntry(entry)}><span className="module-row-main"><strong>{entry.title ?? entry.model ?? t("sessions.unnamed")}</strong><small>{entry.provider ?? "—"} · {formatDateTime(entry.lastActiveAt ?? entry.startedAt)} · {t("sessions.messageCount", { count: entry.messageCount })}</small></span><span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>{entry.stale ? t("sessions.stale") : entry.failures ? t("sessions.failures", { count: entry.failures }) : t("sessions.indexed")}</span></button>)}{listCursor && !searchQuery ? <button className="secondary-button full-width" onClick={() => void loadMoreSessions()} disabled={loading}>{t("sessions.loadMore")}</button> : null}</>}
+      </div>
+      <div className="module-editor-panel session-detail">{selected ? <><div className="editor-head"><div><span className="eyebrow">{t("sessions.heading")}</span><strong>{selected.title ?? selected.model ?? t("sessions.heading")}</strong></div><div className="drawer-actions"><button className="secondary-button" onClick={() => void copySessionMarkdown()} title={t("sessions.copyMarkdown")}><Copy size={14} />{t("sessions.copyMarkdown")}</button><button className="icon-button" onClick={() => downloadSessionMarkdown()} title={t("sessions.downloadMarkdown")}><Download size={15} /></button></div></div><div className="session-messages">{hasMoreMessages ? <div className="session-load-earlier"><button className="secondary-button compact" onClick={() => void loadEarlier()} disabled={loading}><ChevronUp size={14} />{t("sessions.loadEarlier")}</button></div> : null}{messages.length ? messages.map((message) => <MessageBubble key={message.id} message={message} />) : <div className="muted-line session-msg-loading">{t("common.loading")}…</div>}</div><span className="muted-line session-detail-footer">{formatBytes(selected.fileSize)} · {formatDateTime(selected.lastActiveAt ?? selected.startedAt)}</span></> : <div className="module-empty compact-empty"><span className="empty-glyph"><CircleAlert size={26} /></span><strong>{t("sessions.selectPrompt")}</strong><span className="empty-desc">{t("sessions.selectHint")}</span></div>}</div>
     </div>
   </section>;
 }

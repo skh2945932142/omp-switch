@@ -253,9 +253,14 @@
 .metric-strip .metric-danger strong { color: var(--danger); }
 .metric-strip .metric-warning strong { color: var(--warn); }
 .session-list { max-height: 580px; overflow-y: auto; }
+.session-search-bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--hairline); background: var(--sunken); }
+.session-search-bar input { width: 100%; min-width: 0; height: 26px; padding: 0 4px; border: 0; color: var(--ink); background: transparent; font-size: var(--fs-micro); }
+.session-search-bar input:focus { outline: none; }
+.session-search-icon { color: var(--muted); flex-shrink: 0; }
 .session-row { min-height: 42px; }
 .session-row.active { background: var(--selected); }
 .session-detail { min-height: 420px; }
+.session-detail-footer { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--hairline); font-size: var(--fs-micro); }
 .session-messages {
   display: flex;
   flex-direction: column;

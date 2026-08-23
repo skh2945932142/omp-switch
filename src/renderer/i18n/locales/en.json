@@ -422,7 +422,11 @@
     "loadMore": "Load more sessions",
     "loadEarlier": "Load earlier messages",
     "selectPrompt": "Select a session",
-    "selectHint": "Pick a session from the left to view the conversation."
+    "selectHint": "Pick a session from the left to view the conversation.",
+    "searchSessions": "Search session title, model or provider...",
+    "copyMarkdown": "Copy as Markdown",
+    "copiedMarkdown": "Session Markdown copied to clipboard",
+    "downloadMarkdown": "Export .md file"
   },
   "gateway": {
     "poolIdVirtualModelRequired": "Gateway pool ID and virtual model cannot be empty",
