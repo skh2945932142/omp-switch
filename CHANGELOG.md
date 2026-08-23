@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.7 - 2026-08-23
+
+### Added
+- Provider direct apply: quick-apply button on provider cards to set as preferred provider in `modelProviderOrder` with immediate save and draft merging.
+- Micro-interactions: haptic-feel tactile press physics and smooth expand/collapse transition on model lists.
+
+### Changed
+- Apple Settings and Quiet Instrument visual refinement for preferred provider cards with 2px hairline signal indicator.
+- Detail drawer motion: eliminated keyframe animation collision, unified with spring physics.
+- Responsive provider card actions: seamless icon-only degradation on compact displays.
+
 All notable changes to OMP Switch will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version tags use `vMAJOR.MINOR.PATCH`.

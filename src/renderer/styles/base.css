@@ -139,8 +139,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ---- Drawer: a floating sheet over the workspace, never squeezing it ---- */
 
-.detail-drawer { position: fixed; inset: 64px 0 0 auto; z-index: 10; width: min(440px, 94vw); border-left: 1px solid var(--hairline); border-radius: var(--radius-l) 0 0 0; background: var(--panel); box-shadow: var(--shadow-overlay); overflow: auto; animation: sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes sheet-in { from { opacity: 0; transform: translateX(28px); } }
+.detail-drawer { position: fixed; inset: 64px 0 0 auto; z-index: 10; width: min(440px, 94vw); border-left: 1px solid var(--hairline); border-radius: var(--radius-l) 0 0 0; background: var(--panel); box-shadow: var(--shadow-overlay); overflow: auto; }
 .drawer-head { justify-content: space-between; gap: 12px; min-height: 64px; padding: 14px 20px 12px; border-bottom: 1px solid var(--hairline); }
 .drawer-head h2 { margin: 4px 0 0; overflow: hidden; font-size: 18px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-body { display: grid; gap: 18px; padding: 18px 20px 32px; }

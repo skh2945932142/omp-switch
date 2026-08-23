@@ -4,32 +4,59 @@
 /* ---- Providers: one rounded float per provider, model rows separated by internal hairlines ---- */
 
 .provider-stack { display: grid; gap: 8px; }
-.provider-card { overflow: hidden; border: 1px solid var(--hairline); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow-card); transition: box-shadow 160ms ease, border-color 160ms ease; }
+.provider-card { overflow: hidden; border: 1px solid var(--hairline); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow-card); transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease; }
+.provider-card.preferred { box-shadow: inset 2px 0 0 var(--signal), var(--shadow-card); }
 .provider-card-head { display: flex; align-items: center; gap: 10px; padding: 0 10px 0 0; }
 .provider-card-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 12px 0 16px; border: 0; color: var(--ink); background: transparent; text-align: left; }
 .provider-card-head:hover .provider-card-toggle, .provider-card-toggle:focus-visible { background: var(--hover); }
-.provider-led { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--line); }
+.provider-led { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--line); transition: background 180ms ease, box-shadow 180ms ease; }
+.provider-card.preferred .provider-led { background: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
 .provider-title { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .provider-title strong { font-size: var(--fs-title); font-weight: 650; letter-spacing: -0.01em; }
 .provider-title small { color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-mono); }
 /* Model count is a quiet badge on the header row; secondary info lives below in the meta bar. */
 .provider-model-count { flex: 0 0 auto; display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); color: var(--muted); background: var(--sunken); font-size: var(--fs-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
+.provider-preferred-label { flex: 0 0 auto; min-height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: var(--radius-pill); color: var(--signal); background: var(--signal-soft); font-size: var(--fs-micro); font-weight: 650; }
+.provider-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; min-width: 116px; }
+.provider-action-tip { display: inline-flex; }
+.provider-apply {
+  min-width: 72px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: var(--sunken);
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 100ms ease;
+}
+.provider-apply:hover:not(:disabled) { color: var(--ink); background: var(--selected); }
+.provider-apply:active:not(:disabled) { transform: scale(0.97); }
+.provider-apply:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+.provider-apply.applied { color: var(--signal); background: var(--signal-soft); }
+.provider-apply:disabled { cursor: default; opacity: 0.7; }
 .provider-edit {
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
-  margin-right: 12px;
+  margin-right: 0;
   display: inline-grid;
   place-items: center;
   border: 0;
   border-radius: 8px;
   color: var(--muted);
   background: transparent;
-  opacity: 0;
-  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+  transition: background 160ms ease, color 160ms ease, transform 100ms ease;
 }
-.provider-card-head:hover .provider-edit, .provider-card-head:focus-within .provider-edit, .provider-edit:focus-visible { opacity: 1; }
 .provider-edit:hover { background: var(--selected); color: var(--ink); }
+.provider-edit:active { transform: scale(0.94); }
+.provider-edit:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
 .provider-chevron { flex: 0 0 auto; color: var(--muted); transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1); }
 .provider-chevron.open { transform: rotate(0deg); }
 .provider-chevron:not(.open) { transform: rotate(-90deg); }
@@ -45,8 +72,8 @@
 .provider-meta-coverage { display: inline-flex; align-items: center; gap: 5px; }
 .provider-meta-coverage::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
 /* Expand/collapse animates via grid rows (0fr -> 1fr); the inner wrapper clips during the transition. */
-.model-list-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 200ms cubic-bezier(0.16, 1, 0.3, 1); }
-.model-list-wrap.open { grid-template-rows: 1fr; }
+.model-list-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transform: translateY(-4px); transition: grid-template-rows 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+.model-list-wrap.open { grid-template-rows: 1fr; opacity: 1; transform: translateY(0); }
 .model-list-wrap > .model-list-clip { overflow: hidden; min-height: 0; }
 .model-list { border-top: 1px solid var(--hairline); }
 .model-row { display: grid; grid-template-columns: minmax(190px, 1.5fr) minmax(150px, 1fr) 100px minmax(120px, 0.8fr) 32px; align-items: center; gap: 14px; width: 100%; min-height: 48px; padding: 0 16px 0 44px; border: 0; border-bottom: 1px solid var(--hairline); color: var(--ink); background: transparent; text-align: left; }
@@ -341,7 +368,11 @@
   .search-box { flex: 1; width: auto; }
   .model-row { grid-template-columns: minmax(150px, 1fr) 80px 28px; gap: 6px; padding-left: 20px; }
   .model-api, .model-context { display: none; }
-  .provider-card-head { padding-inline: 12px; }
+  .provider-card-head { padding-inline: 8px 10px; }
+  .provider-actions { min-width: 34px; }
+  .provider-apply { min-width: 30px; width: 30px; padding: 0; }
+  .provider-apply > span { display: none; }
+  .provider-preferred-label { display: none; }
   .provider-title { min-width: 0; }
   .row-status { display: none; }
   .model-editor-row { grid-template-columns: 1fr 1fr; }

@@ -7,7 +7,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  ArrowUp,
   ArchiveRestore,
+  Check,
   ChevronDown,
   CircleAlert,
   CloudDownload,
@@ -57,6 +59,14 @@ import { ThemeSwitch } from "./components/theme-switch";
 import { LocaleSwitch } from "./components/locale-switch";
 import { initTheme, type ThemeChoice } from "./theme";
 import { initLocale, formatDateTime, type LocaleChoice } from "./locale";
+import {
+  effectivePreferredProviderId,
+  isProviderDisabled,
+  mergeProviderApplyDraft,
+  providerApplyBlockReason,
+  type DisabledProviderRule,
+  type ProviderApplyBlockReason,
+} from "./provider-selection";
 import i18n from "./i18n";
 
 const FALLBACK_PRESETS: Array<Pick<ProviderPreset, "id" | "label" | "baseUrl" | "api" | "auth" | "discovery">> = [
@@ -624,6 +634,7 @@ export default function App() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [applyingProviderId, setApplyingProviderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -671,6 +682,20 @@ export default function App() {
   const errorDiagnostics = config?.diagnostics.filter((item) => item.severity === "error") ?? [];
   const readOnly = Boolean(readOnlyReason);
   const providerIds = providers.map(([id]) => id);
+  const draftProviderOrder = useMemo(
+    () => providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+    [providerOrder],
+  );
+  const preferredProviderId = effectivePreferredProviderId(providerIds, draftProviderOrder);
+  const draftDisabledProviders = useMemo<DisabledProviderRule[]>(() => {
+    try {
+      return parseDisabledProviderRules(disabledProviders);
+    } catch {
+      // The save path reports the localized parse error; the card stays actionable so the user
+      // can discover and correct the invalid draft instead of getting a silent disabled state.
+      return [];
+    }
+  }, [disabledProviders]);
   const roleIds = useMemo(() => {
     const extra = Object.keys(roles).filter((id) => !KNOWN_ROLES.some(([known]) => known === id)).map((id) => [id, ""] as [string, string]);
     return [...KNOWN_ROLES.map(([id, label]) => [id, label] as [string, string]), ...extra];
@@ -970,6 +995,25 @@ export default function App() {
     }
   }
 
+  /** Immediate save used by compact, low-risk actions such as choosing a preferred provider. */
+  async function saveImmediately(patch: ConfigPatch, done?: () => void): Promise<void> {
+    if (readOnly) {
+      notify({ tone: "error", text: readOnlyReason ?? t("toasts.readonlyConfig") });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.save(profileId, patch);
+      applyConfig(result.config);
+      setSnapshot(result.snapshot);
+      done?.();
+    } catch (error) {
+      handleSaveError(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmPendingSave(): Promise<void> {
     if (!pendingSave) return;
     setBusy(true);
@@ -992,7 +1036,7 @@ export default function App() {
     return requestSave(t("settings.saveSettingsTitle"), { settings: settingsPatch() }, () => notify({ tone: "success", text: t("settings.savedSettings") }));
   }
 
-  function settingsPatch(): NonNullable<ConfigPatch["settings"]> {
+  function settingsPatch(providerOrderOverride?: string[]): NonNullable<ConfigPatch["settings"]> {
     // An empty compaction string clears the key; a parseable object writes it. A non-empty string
     // that fails to parse throws in parseObjectJson and aborts the save before any filesystem effect.
     const compactionParsed = compactionJson.trim() ? parseObjectJson("compaction", compactionJson) : null;
@@ -1006,7 +1050,7 @@ export default function App() {
       ? undefined
       : { ...imagesBase, urls: { ...(typeof imagesBase.urls === "object" && imagesBase.urls ? imagesBase.urls : {}), enabled: urlsEnabled } };
     return {
-      modelProviderOrder: providerOrder.split(",").map((value) => value.trim()).filter(Boolean),
+      modelProviderOrder: providerOrderOverride ?? draftProviderOrder,
       enabledModels: parseEnabledModelRules(enabledModels),
       disabledProviders: parseDisabledProviderRules(disabledProviders),
       defaultThinkingLevel,
@@ -1016,6 +1060,58 @@ export default function App() {
       personality,
       ...(images ? { images } : {}),
     };
+  }
+
+  function providerApplyReason(id: string, provider: OmpProvider): ProviderApplyBlockReason | null {
+    return providerApplyBlockReason({
+      readOnly,
+      disabled: isProviderDisabled(id, draftDisabledProviders, config?.profile.agentDir ?? ""),
+      modelCount: providerModels(provider).length,
+      auth: provider.auth ?? "apiKey",
+      apiKey: provider.apiKey,
+    });
+  }
+
+  function applyProvider(providerId: string): void {
+    const provider = config?.models.value.providers[providerId];
+    if (!provider || busy || pendingSave) return;
+    const reason = providerApplyReason(providerId, provider);
+    if (reason) {
+      notify({ tone: "error", text: t(`models.applyBlocked.${reason}`) });
+      return;
+    }
+
+    let patch: ConfigPatch;
+    try {
+      const draft = mergeProviderApplyDraft(providerId, draftProviderOrder, settingsDirty ? settingsPatch() : {}, roles, rolesDirty);
+      patch = draft;
+    } catch (error) {
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+
+    const commit = (nextPatch: ConfigPatch) => {
+      setApplyingProviderId(providerId);
+      void saveImmediately(nextPatch, () => {
+        setApplyingProviderId(null);
+        setDrawerOpen(false);
+        setFormOpen(false);
+        setProfileDrawerOpen(false);
+        setDiagnosticsOpen(false);
+        notify({ tone: "success", text: t("toasts.providerApplied", { provider: providerId }) });
+      }).finally(() => setApplyingProviderId(null));
+    };
+
+    if (config.models.legacy) {
+      setConfirmAsk({
+        title: t("providerEditor.migrateLegacy"),
+        message: t("providerEditor.migrateConfirm"),
+        confirmLabel: t("providerEditor.migrateButton"),
+        action: () => commit({ ...patch, confirmLegacyMigration: true }),
+      });
+      return;
+    }
+    commit(patch);
   }
 
   /** One commit when both areas are dirty, otherwise whichever is — this is what Ctrl+S runs. */
@@ -1283,7 +1379,15 @@ export default function App() {
                   const expanded = expandedProviders[id] ?? false;
                   const models = providerModels(provider);
                   const coverage = models.filter((model) => enabledFilter(id, model.id ?? "")).length;
-                  return <article className="provider-card" key={id}>
+                  const preferred = preferredProviderId === id;
+                  const applyReason = providerApplyReason(id, provider);
+                  const applying = applyingProviderId === id;
+                  const applyTooltip = applyReason
+                    ? t(`models.applyBlocked.${applyReason}`)
+                    : preferred
+                      ? t("models.applied")
+                      : t("models.applyHint");
+                  return <article className={`provider-card${preferred ? " preferred" : ""}${applying ? " applying" : ""}`} key={id}>
                     <div className="provider-card-head">
                       <button
                         className="provider-card-toggle"
@@ -1294,11 +1398,28 @@ export default function App() {
                         <span className="provider-led" />
                         <span className="provider-title"><strong>{id}</strong><small>{provider.api ?? "custom"}</small></span>
                         <span className="provider-model-count">{models.length}</span>
+                        {preferred ? <span className="provider-preferred-label">{t("models.preferred")}</span> : null}
                         <ChevronDown size={16} className={`provider-chevron${expanded ? " open" : ""}`} />
                       </button>
-                      <IconButtonTip label={t("models.editAria", { id })}>
-                        <button className="provider-edit" aria-label={t("models.editAria", { id })} onClick={() => editProvider(id)}><Pencil size={15} /></button>
-                      </IconButtonTip>
+                      <div className="provider-actions">
+                        <IconButtonTip label={applyTooltip}>
+                          <span className="provider-action-tip">
+                            <button
+                              className={`provider-apply${preferred ? " applied" : ""}`}
+                              aria-label={applyTooltip}
+                              aria-pressed={preferred}
+                              disabled={Boolean(applyReason) || preferred || busy || Boolean(pendingSave)}
+                              onClick={(event) => { event.stopPropagation(); applyProvider(id); }}
+                            >
+                              {applying ? <LoaderCircle size={14} className="spin" /> : preferred ? <Check size={14} /> : <ArrowUp size={14} />}
+                              <span>{applying ? t("models.applying") : preferred ? t("models.applied") : t("models.apply")}</span>
+                            </button>
+                          </span>
+                        </IconButtonTip>
+                        <IconButtonTip label={t("models.editAria", { id })}>
+                          <button className="provider-edit" aria-label={t("models.editAria", { id })} onClick={() => editProvider(id)}><Pencil size={15} /></button>
+                        </IconButtonTip>
+                      </div>
                     </div>
                     <div className={`model-list-wrap${expanded ? " open" : ""}`}>
                       <div className="model-list-clip">

@@ -97,7 +97,18 @@
     "emptyNoMatchHint": "调整筛选，或新增一个供应商。",
     "emptyNone": "还没有供应商",
     "emptyNoneHint": "新增第一个供应商。",
-    "newProvider": "新增供应商"
+    "newProvider": "新增供应商",
+    "apply": "应用",
+    "applying": "应用中",
+    "applied": "已应用",
+    "preferred": "首选",
+    "applyHint": "将此供应商设为首选，并立即写入配置",
+    "applyBlocked": {
+      "readonly": "当前配置为只读",
+      "disabled": "此供应商已被当前 Profile 禁用",
+      "no-models": "此供应商暂无可应用的模型",
+      "missing-key": "此供应商尚未配置密钥"
+    }
   },
   "providerEditor": {
     "edit": "编辑",
@@ -502,6 +513,7 @@
     "readonlyConfig": "当前配置为只读",
     "snapshotCreated": "已创建本机快照 {{date}}",
     "quickAssign": "已将 {{provider}}/{{model}} 设为 {{role}} · 角色页保存后生效",
+    "providerApplied": "已将 {{provider}} 设为首选供应商",
     "catalogImported": "已导入 {{count}} 个预设",
     "catalogExported": "目录已导出",
     "ompUnsupported": "当前 OMP 版本不受支持",

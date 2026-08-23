@@ -97,7 +97,18 @@
     "emptyNoMatchHint": "Adjust the filter, or add a new provider.",
     "emptyNone": "No providers yet",
     "emptyNoneHint": "Add your first provider.",
-    "newProvider": "New provider"
+    "newProvider": "New provider",
+    "apply": "Apply",
+    "applying": "Applying",
+    "applied": "Applied",
+    "preferred": "Preferred",
+    "applyHint": "Make this provider preferred and write the setting immediately",
+    "applyBlocked": {
+      "readonly": "Current config is read-only",
+      "disabled": "This provider is disabled for the current profile",
+      "no-models": "This provider has no models to apply",
+      "missing-key": "This provider has no configured key"
+    }
   },
   "providerEditor": {
     "edit": "Edit",
@@ -502,6 +513,7 @@
     "readonlyConfig": "Current config is read-only",
     "snapshotCreated": "Local snapshot created {{date}}",
     "quickAssign": "Set {{provider}}/{{model}} as {{role}} · takes effect after saving the Roles page",
+    "providerApplied": "{{provider}} is now the preferred provider",
     "catalogImported": "Imported {{count}} presets",
     "catalogExported": "Catalog exported",
     "ompUnsupported": "Current OMP version is unsupported",
