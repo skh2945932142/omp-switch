@@ -284,6 +284,15 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       if (model.cost !== undefined && !validCost(model.cost)) {
         diagnostics.push({ severity: "error", code: "model.cost", path: `providers.${providerId}.models.${index}.cost`, message: "Model cost values must be finite non-negative numbers (a nested longContext tier mapping is accepted)" });
       }
+      if (model.name !== undefined && typeof model.name !== "string") {
+        diagnostics.push({ severity: "error", code: "model.name", path: `providers.${providerId}.models.${index}.name`, message: "model name must be a string" });
+      }
+      if (model.reasoning !== undefined && typeof model.reasoning !== "boolean") {
+        diagnostics.push({ severity: "error", code: "model.reasoning", path: `providers.${providerId}.models.${index}.reasoning`, message: "reasoning must be boolean" });
+      }
+      if (model.disableStrictTools !== undefined && typeof model.disableStrictTools !== "boolean") {
+        diagnostics.push({ severity: "error", code: "model.disableStrictTools", path: `providers.${providerId}.models.${index}.disableStrictTools`, message: "disableStrictTools must be boolean" });
+      }
       if (typeof model.tokenizer === "string" && !KNOWN_TOKENIZER_FAMILIES.has(model.tokenizer)) {
         diagnostics.push({ severity: "warning", code: "model.tokenizer-unknown", path: `providers.${providerId}.models.${index}.tokenizer`, message: `Unknown tokenizer "${model.tokenizer}" on model ${model.id}; OMP only ships ${[...KNOWN_TOKENIZER_FAMILIES].join(", ")} unless a future version adds more` });
       }

@@ -233,4 +233,36 @@ describe("OMP configuration validation", () => {
     expect(invalid.some((d) => d.code === "settings.unexpectedStopDetection")).toBe(true);
     expect(invalid.some((d) => d.code === "settings.updateChannel")).toBe(true);
   });
+
+  it("validates model name, reasoning, and disableStrictTools types", () => {
+    const invalid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "openai-completions",
+          auth: "none",
+          models: [
+            { id: "m1", name: 123 as any, reasoning: "true" as any, disableStrictTools: "no" as any },
+          ],
+        },
+      },
+    });
+    expect(invalid.some((d) => d.code === "model.name")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.reasoning")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.disableStrictTools")).toBe(true);
+
+    const valid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "openai-completions",
+          auth: "none",
+          models: [
+            { id: "m1", name: "Custom Name", reasoning: true, disableStrictTools: false },
+          ],
+        },
+      },
+    });
+    expect(valid).toHaveLength(0);
+  });
 });

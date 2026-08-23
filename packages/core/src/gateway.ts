@@ -231,7 +231,13 @@ function copyResponse(upstream: Response, response: ServerResponse): void {
     response.end();
     return;
   }
-  Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream).pipe(response);
+  const stream = Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream);
+  stream.on("error", () => {
+    if (!response.writableEnded) {
+      response.destroy();
+    }
+  });
+  stream.pipe(response);
 }
 
 export interface GatewayServerOptions {
