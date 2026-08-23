@@ -524,7 +524,9 @@
     "estimateSuffix": "推算 {{cost}}",
     "tokenBreakdown": "token 构成",
     "cacheHit": "缓存命中",
-    "clearPrice": "清除"
+    "clearPrice": "清除",
+    "exportUsage": "导出用量报表",
+    "exportedUsage": "已导出用量报表 JSON 文件"
   },
   "confirm": {
     "discardTitle": "放弃未保存的改动？",

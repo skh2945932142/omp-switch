@@ -524,7 +524,9 @@
     "estimateSuffix": "Estimate {{cost}}",
     "tokenBreakdown": "Token breakdown",
     "cacheHit": "Cache hit",
-    "clearPrice": "Clear"
+    "clearPrice": "Clear",
+    "exportUsage": "Export usage report",
+    "exportedUsage": "Usage report JSON exported"
   },
   "confirm": {
     "discardTitle": "Discard unsaved changes?",

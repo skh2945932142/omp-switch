@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { Coins, ChevronRight, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import { Coins, ChevronRight, Download, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import type { ModelPrice, UsageBucket } from "@omp-switch/core";
 import { Tip } from "./components/ui-primitives";
 
@@ -343,6 +343,26 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
     }
   }
 
+  function exportUsageReport(): void {
+    if (!data) return;
+    const report = {
+      profile: profileId,
+      exportedAt: new Date().toISOString(),
+      totals: data.report.totals,
+      byModel: data.report.byModel,
+      byProvider: data.report.byProvider,
+      byDay: data.report.byDay,
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `omp-usage-${profileId}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    onNotice({ tone: "success", text: t("usage.exportedUsage") });
+  }
+
   const totals = data?.report.totals;
   const totalCost = totals ? bucketCost(totals) : null;
   const costLabel = totalCost?.source === "recorded" ? t("usage.costRecorded")
@@ -365,6 +385,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
         <input className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("usage.startDate")} />
         <input className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("usage.endDate")} />
         <button className="icon-button" title={t("usage.applyFilter")} onClick={() => void load()} disabled={loading}><Search size={16} /></button>
+        <button className="icon-button" title={t("usage.exportUsage")} onClick={() => exportUsageReport()} disabled={loading || !data}><Download size={16} /></button>
         <button className="secondary-button" onClick={() => void load(true)} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />{t("usage.reindex")}</button>
       </div>
     </div>
