@@ -161,56 +161,75 @@ export function ProviderDrawer({
           <div className="model-editor">
             {modelEntries.map((entry, index) => (
               <div className="model-editor-card" key={`${entry.raw.id}-${index}`}>
-                <div className="model-editor-row">
-                  <input
-                    aria-label={t("models.modelField", { id: index + 1, field: "ID" })}
-                    value={entry.id}
-                    onChange={(event) => updateModelEntry(index, { id: event.target.value })}
-                    placeholder="Model ID"
-                  />
-                  <input
-                    aria-label={t("models.modelField", { id: index + 1, field: t("models.name") })}
-                    value={entry.name}
-                    onChange={(event) => updateModelEntry(index, { name: event.target.value })}
-                    placeholder={t("models.name")}
-                  />
-                  <input
-                    aria-label={t("models.modelField", { id: index + 1, field: "Context" })}
-                    inputMode="numeric"
-                    value={entry.contextWindow}
-                    onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })}
-                    placeholder="Context"
-                  />
-                  <input
-                    aria-label={t("models.modelField", { id: index + 1, field: "Max output" })}
-                    inputMode="numeric"
-                    value={entry.maxTokens}
-                    onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })}
-                    placeholder="Max"
-                  />
-                  <label className="check-line">
+                <div className="model-editor-top">
+                  <div className="model-editor-field model-id-field">
+                    <span className="model-field-label">ID</span>
                     <input
-                      type="checkbox"
-                      checked={entry.reasoning}
-                      onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })}
+                      aria-label={t("models.modelField", { id: index + 1, field: "ID" })}
+                      value={entry.id}
+                      onChange={(event) => updateModelEntry(index, { id: event.target.value })}
+                      placeholder="Model ID"
                     />
-                    {t("models.capabilityReasoning")}
-                  </label>
-                  <label className="check-line">
+                  </div>
+                  <div className="model-editor-field model-name-field">
+                    <span className="model-field-label">{t("models.name")}</span>
                     <input
-                      type="checkbox"
-                      checked={entry.vision}
-                      onChange={(event) => updateModelEntry(index, { vision: event.target.checked })}
+                      aria-label={t("models.modelField", { id: index + 1, field: t("models.name") })}
+                      value={entry.name}
+                      onChange={(event) => updateModelEntry(index, { name: event.target.value })}
+                      placeholder={t("models.name")}
                     />
-                    {t("models.capabilityVision")}
-                  </label>
+                  </div>
                   <button
-                    className="icon-button subtle danger"
+                    type="button"
+                    className="icon-button subtle danger model-editor-delete"
                     title={t("providerEditor.deleteModel")}
                     onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   >
                     <Trash2 size={15} />
                   </button>
+                </div>
+                <div className="model-editor-params">
+                  <div className="model-param-group">
+                    <label className="model-param-label">
+                      <span>Context</span>
+                      <input
+                        aria-label={t("models.modelField", { id: index + 1, field: "Context" })}
+                        inputMode="numeric"
+                        value={entry.contextWindow}
+                        onChange={(event) => updateModelEntry(index, { contextWindow: event.target.value })}
+                        placeholder="128000"
+                      />
+                    </label>
+                    <label className="model-param-label">
+                      <span>Max</span>
+                      <input
+                        aria-label={t("models.modelField", { id: index + 1, field: "Max output" })}
+                        inputMode="numeric"
+                        value={entry.maxTokens}
+                        onChange={(event) => updateModelEntry(index, { maxTokens: event.target.value })}
+                        placeholder="16384"
+                      />
+                    </label>
+                  </div>
+                  <div className="model-flags-group">
+                    <label className="check-line">
+                      <input
+                        type="checkbox"
+                        checked={entry.reasoning}
+                        onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })}
+                      />
+                      {t("models.capabilityReasoning")}
+                    </label>
+                    <label className="check-line">
+                      <input
+                        type="checkbox"
+                        checked={entry.vision}
+                        onChange={(event) => updateModelEntry(index, { vision: event.target.checked })}
+                      />
+                      {t("models.capabilityVision")}
+                    </label>
+                  </div>
                 </div>
                 <details className="model-advanced">
                   <summary>{t("providerEditor.advanced")}</summary>
@@ -482,8 +501,8 @@ export function ProviderDrawer({
           </div>
           {selectedModels.map((model) => (
             <div className="mini-model" key={model.id}>
-              <strong>{model.name ?? model.id}</strong>
-              <span>{model.id}</span>
+              <strong title={model.name ?? model.id}>{model.name ?? model.id}</strong>
+              <span title={model.id}>{model.id}</span>
             </div>
           ))}
         </div>

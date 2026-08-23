@@ -275,10 +275,12 @@ export function ModelsModule({
                     {models.map((model) => (
                       <div className="model-row" key={model.id}>
                         <span className="model-name">
-                          <strong>{model.name ?? model.id}</strong>
-                          <small>{model.id}</small>
+                          <strong title={model.name ?? model.id}>{model.name ?? model.id}</strong>
+                          <small title={model.id}>{model.id}</small>
                         </span>
-                        <span className="model-api">{model.api ?? provider.api ?? "—"}</span>
+                        <span className="model-api" title={model.api ?? provider.api ?? "—"}>
+                          {model.api ?? provider.api ?? "—"}
+                        </span>
                         <span className="model-context">
                           {typeof model.contextWindow === "number" ? model.contextWindow.toLocaleString() : "—"}
                         </span>

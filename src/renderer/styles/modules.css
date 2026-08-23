@@ -352,14 +352,27 @@
 .yml-punct { color: var(--muted); }
 .yml-text { color: var(--ink-soft); }
 
-.mini-model { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--sunken); }
-.mini-model strong { font-size: var(--fs-small); font-weight: 600; }
-.mini-model span { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.mini-model { display: grid; gap: 3px; padding: 8px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--sunken); min-width: 0; }
+.mini-model strong { font-size: var(--fs-small); font-weight: 600; word-break: break-word; }
+.mini-model span { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); word-break: break-all; }
 
 .model-editor { display: grid; gap: 8px; }
-.model-editor-card { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--sunken); }
-.model-editor-row { display: grid; grid-template-columns: 1.4fr 1fr 76px 68px auto auto 28px; gap: 5px; align-items: center; }
-.model-editor-row input { min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--radius-s); color: var(--ink); background: var(--panel); font-size: var(--fs-micro); }
+.model-editor-card { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-m); background: var(--sunken); transition: border-color 140ms ease; }
+.model-editor-card:hover { border-color: var(--border); }
+.model-editor-top { display: flex; gap: 8px; align-items: flex-end; width: 100%; min-width: 0; }
+.model-editor-field { display: grid; gap: 3px; min-width: 0; }
+.model-editor-field.model-id-field { flex: 1.25; }
+.model-editor-field.model-name-field { flex: 1; }
+.model-field-label { color: var(--muted); font-size: var(--fs-micro); font-weight: 500; }
+.model-editor-field input { width: 100%; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: var(--radius-s); color: var(--ink); background: var(--panel); font-size: var(--fs-small); font-family: var(--font-sans); }
+.model-editor-field.model-id-field input { font-family: var(--font-mono); font-size: var(--fs-micro); }
+.model-editor-delete { flex-shrink: 0; margin-bottom: 1px; }
+.model-editor-params { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 2px; }
+.model-param-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.model-param-label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--fs-micro); }
+.model-param-label input { width: 76px; height: 26px; padding: 0 6px; border: 1px solid var(--hairline); border-radius: var(--radius-s); color: var(--ink); background: var(--panel); font-family: var(--font-mono); font-size: var(--fs-micro); text-align: right; }
+.model-flags-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.model-flags-group .check-line { font-size: var(--fs-micro); }
 .model-advanced { border-top: 1px solid var(--hairline); padding-top: 6px; color: var(--muted); font-size: var(--fs-micro); }
 .model-advanced summary { cursor: pointer; font-weight: 600; }
 .model-advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 8px; }
@@ -575,10 +588,8 @@
   .provider-apply > span { display: none; }
   .provider-preferred-label { display: none; }
   .provider-title { min-width: 0; }
-  .row-status { display: none; }
-  .model-editor-row { grid-template-columns: 1fr 1fr; }
-  .model-editor-row .check-line { min-height: 24px; }
-  .model-advanced-grid { grid-template-columns: 1fr; }
+  .model-editor-top { flex-wrap: wrap; }
+  .model-editor-field.model-id-field, .model-editor-field.model-name-field { flex: 1 1 100%; }
   .module-columns, .gateway-layout { grid-template-columns: 1fr; }
   .module-editor-panel { min-height: 300px; }
   .module-list-panel { max-height: 340px; overflow: auto; }
