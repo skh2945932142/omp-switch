@@ -23,13 +23,16 @@ Commands:
   list                          List profiles
   get       --profile <name>    Print the effective configuration
   validate  --profile <name>    Print diagnostics
-  snapshot  --profile <name>    Create a snapshot of the current files
+  plan      --profile <name> --patch <json>
+                                Preview a ConfigPatch plan without applying
   apply     --profile <name> --patch <json>
                                 Apply a ConfigPatch
+  snapshot  --profile <name>    Create a snapshot of the current files
+  snapshots --profile <name>    List existing snapshots
 
 Options:
   --profile <name>              Profile to operate on (default: default)
-  --patch <json>                ConfigPatch JSON, required by apply
+  --patch <json>                ConfigPatch JSON, required by apply and plan
   -h, --help                    Show this help
 
 Environment:

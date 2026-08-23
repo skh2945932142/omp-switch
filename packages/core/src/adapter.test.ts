@@ -547,4 +547,17 @@ describe("OmpFilesystemAdapter", () => {
 
     await expect(adapter.commitPatch(current, preview)).rejects.toBeInstanceOf(ConfigValidationError);
   });
+
+  it("lists existing snapshots for a profile in descending order", async () => {
+    const { adapter } = await makeAdapter();
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    const snap1 = await adapter.createSnapshot(current);
+    const snap2 = await adapter.createSnapshot(current);
+
+    const snapshots = await adapter.listSnapshots(profile);
+    expect(snapshots.length).toBe(2);
+    expect(snapshots.map((s) => s.id)).toContain(snap1.id);
+    expect(snapshots.map((s) => s.id)).toContain(snap2.id);
+  });
 });

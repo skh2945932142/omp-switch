@@ -52,6 +52,7 @@ export interface OmpAdapter {
   previewPatch(config: EffectiveConfig, patch: ConfigPatch): { preview: PatchPreview; modelsText: string; settingsText: string };
   commitPatch(config: EffectiveConfig, preview: PatchPreview): Promise<CommitResult>;
   createSnapshot(config: EffectiveConfig): Promise<Snapshot>;
+  listSnapshots(profile: ProfileRef): Promise<Snapshot[]>;
 }
 
 export class OmpFilesystemAdapter implements OmpAdapter {
@@ -300,6 +301,30 @@ export class OmpFilesystemAdapter implements OmpAdapter {
       await this.restoreSnapshotFile(snapshot, modelsWritePath, snapshot.modelsWriteExisted ?? false, dir);
     }
     await this.restoreSnapshotFile(snapshot, snapshot.settingsPath, snapshot.settingsExisted, dir);
+  }
+
+  async listSnapshots(profile: ProfileRef): Promise<Snapshot[]> {
+    const profileDir = path.join(this.snapshotDir, profile.id);
+    try {
+      const entries = await fs.readdir(profileDir, { withFileTypes: true });
+      const snapshots: Snapshot[] = [];
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const snapshotFile = path.join(profileDir, entry.name, "snapshot.json");
+        try {
+          const content = await fs.readFile(snapshotFile, "utf8");
+          const parsed = JSON.parse(content) as Snapshot;
+          if (parsed && typeof parsed === "object" && parsed.id) {
+            snapshots.push(parsed);
+          }
+        } catch {
+          // ignore unreadable snapshot
+        }
+      }
+      return snapshots.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    } catch {
+      return [];
+    }
   }
 
   private async assertSnapshotStillApplies(snapshot: Snapshot, modelsWritePath: string | undefined): Promise<void> {
