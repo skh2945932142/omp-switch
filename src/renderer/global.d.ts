@@ -38,6 +38,7 @@ export interface OmpSwitchApi {
   listGatewayPools(profileId?: string): Promise<GatewayPool[]>;
   saveGatewayPool(pool: GatewayPool): Promise<GatewayPool>;
   gatewayStatus(): Promise<{ running: boolean; port: number | null; upstreams: GatewayUpstreamStat[] }>;
+  probeGatewayUpstream(poolId: string, upstreamId: string, timeoutMs?: number): Promise<{ ok: boolean; status?: number; latencyMs: number; error?: string }>;
   startGateway(profileId: string): Promise<{ running: boolean; port: number; token: string }>;
   stopGateway(): Promise<void>;
   updateOmp(profileId?: string): Promise<{ ok: boolean; output: string; installation?: { version: string | null; supported: boolean; reason?: string }; snapshot?: Snapshot }>;

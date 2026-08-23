@@ -327,6 +327,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
     listGatewayPools: async () => [],
     saveGatewayPool: async (pool) => pool,
     gatewayStatus: async () => ({ running: false, port: null, upstreams: [] }),
+    probeGatewayUpstream: async () => ({ ok: true, status: 200, latencyMs: 115 }),
     startGateway: async () => ({ running: true, port: 46831, token: "demo-gateway-token" }),
     stopGateway: async () => undefined,
     updateOmp: async () => ({ ok: false, output: "Demo mode" }),

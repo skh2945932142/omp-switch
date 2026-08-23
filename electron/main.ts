@@ -33,9 +33,11 @@ import {
   listProviderPresets,
   mergeCatalogBundle,
   parseJsonCliArguments,
+  probeGatewayUpstream,
   runJsonCli,
   validateGatewayPool,
   validateCatalogBundle,
+  type GatewayUpstream,
 } from "@omp-switch/core";
 import { MetadataStore } from "./metadata-store";
 import { blockRendererNavigation, denyRendererWindowOpen, mayUseDevRenderer } from "./renderer-security";
@@ -393,6 +395,26 @@ function registerIpc(): void {
     port: gateway?.running ? (metadata.getPreference<number>("gateway.port") ?? 46831) : null,
     upstreams: gateway?.getStats() ?? [],
   }));
+  ipcMain.handle("gateway:probe", async (_event, poolId: string, upstreamId: string, timeoutMs?: number) => {
+    const pools = metadata.listGatewayPools(gatewayProfileId);
+    const pool = pools.find((candidate) => candidate.id === poolId);
+    if (!pool) throw new Error("Unknown gateway pool");
+    const upstream = pool.upstreams.find((candidate) => candidate.id === upstreamId);
+    if (!upstream) throw new Error("Unknown gateway upstream");
+    const forwarder = {
+      resolve: async (target: GatewayUpstream) => {
+        const currentConfig = await adapter.loadProfile(adapterProfile(gatewayProfileId));
+        const provider = currentConfig.models.value.providers[target.providerId];
+        if (target.kind === "omp-auth-gateway") {
+          return { baseUrl: process.env.OMP_AUTH_GATEWAY_URL?.trim() || "http://127.0.0.1:4000", apiKey: await getOmpGatewayToken() };
+        }
+        if (!provider?.baseUrl) throw new Error(`Gateway provider ${target.providerId} does not have a baseUrl`);
+        if (!target.credentialId) throw new Error(`Gateway provider ${target.providerId} needs an OMP Switch credential`);
+        return { baseUrl: provider.baseUrl, apiKey: await secrets.get(target.credentialId), headers: provider.headers };
+      },
+    };
+    return probeGatewayUpstream(upstream, forwarder, { timeoutMs });
+  });
 
   ipcMain.handle("gateway:start", async (_event, profileId: string) => startGateway(profileId));
   ipcMain.handle("gateway:stop", async () => {

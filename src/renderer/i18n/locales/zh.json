@@ -457,6 +457,9 @@
     "bearerToken": "Bearer token（调用时必须携带）",
     "upstreamStatus": "上游状态",
     "consecutiveFailures": "连续失败 {{count}}",
+    "probeUpstream": "测速探针",
+    "probeSuccess": "上游 {{id}} 连通正常（{{latency}} ms）",
+    "probeFailed": "上游 {{id}} 探测失败: {{error}}",
     "selectPrompt": "选择或新建网关池",
     "selectHint": "仅绑定 127.0.0.1，需携带 Bearer token。"
   },

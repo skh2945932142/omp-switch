@@ -33,6 +33,7 @@ const api = {
   listGatewayPools: (profileId?: string): Promise<GatewayPool[]> => ipcRenderer.invoke("gateway:list", profileId),
   saveGatewayPool: (pool: GatewayPool): Promise<GatewayPool> => ipcRenderer.invoke("gateway:save", pool),
   gatewayStatus: () => ipcRenderer.invoke("gateway:status"),
+  probeGatewayUpstream: (poolId: string, upstreamId: string, timeoutMs?: number) => ipcRenderer.invoke("gateway:probe", poolId, upstreamId, timeoutMs),
   startGateway: (profileId: string) => ipcRenderer.invoke("gateway:start", profileId),
   stopGateway: () => ipcRenderer.invoke("gateway:stop"),
   updateOmp: (profileId = "default") => ipcRenderer.invoke("omp:update", profileId),

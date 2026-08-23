@@ -457,6 +457,9 @@
     "bearerToken": "Bearer token (required when calling)",
     "upstreamStatus": "Upstream status",
     "consecutiveFailures": "{{count}} consecutive failures",
+    "probeUpstream": "Probe / Benchmark",
+    "probeSuccess": "Upstream {{id}} responded in {{latency}} ms",
+    "probeFailed": "Upstream {{id}} probe failed: {{error}}",
     "selectPrompt": "Select or create a gateway pool",
     "selectHint": "Binds to 127.0.0.1 and requires a Bearer token."
   },

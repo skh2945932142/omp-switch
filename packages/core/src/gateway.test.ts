@@ -1,6 +1,6 @@
 import http from "node:http";
 import { describe, expect, it } from "vitest";
-import { forwardGatewayRequest, GatewayServer, isLoopbackHostHeader, isRetryableGatewayStatus, validateGatewayPool } from "./gateway";
+import { forwardGatewayRequest, GatewayServer, isLoopbackHostHeader, isRetryableGatewayStatus, probeGatewayUpstream, validateGatewayPool } from "./gateway";
 
 const pool = {
   id: "fast",
@@ -159,5 +159,51 @@ describe("gateway routing", () => {
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toMatchObject({ error: { message: expect.stringContaining("20ms") } });
     expect(observed).toEqual([{ upstreamId: "one", error: expect.stringContaining("20ms") }]);
+  });
+
+  it("probes an upstream and reports latency and status", async () => {
+    const upstream = pool.upstreams[0];
+    const result = await probeGatewayUpstream(upstream, {
+      resolve: async () => ({ baseUrl: "https://one.example/v1", apiKey: "secret" }),
+      fetchImpl: async () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
+    }, { timeoutMs: 1000 });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+    expect(typeof result.latencyMs).toBe("number");
+    expect(result.error).toBeUndefined();
+  });
+
+  it("handles client cancellation via signal in forwardGatewayRequest", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    const response = await forwardGatewayRequest(pool, {
+      path: "/v1/chat/completions",
+      body: { model: "omp-switch/fast" },
+      signal: abortController.signal,
+    }, {
+      resolve: async () => ({ baseUrl: "https://one.example/v1" }),
+      fetchImpl: async () => new Response("ok", { status: 200 }),
+    });
+    expect(response.status).toBe(499);
+  });
+
+  it("handles /v1/probe endpoint through GatewayServer", async () => {
+    const server = new GatewayServer({
+      resolve: async () => ({ baseUrl: "https://one.example/v1" }),
+      fetchImpl: async () => new Response("{}", { status: 200 }),
+    }, [pool], { token: "test-token" });
+    const port = await server.start(0);
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/v1/probe`, {
+        method: "POST",
+        headers: { authorization: "Bearer test-token", "content-type": "application/json" },
+        body: JSON.stringify({ poolId: "fast", upstreamId: "one" }),
+      });
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data).toMatchObject({ ok: true, status: 200 });
+    } finally {
+      await server.stop();
+    }
   });
 });

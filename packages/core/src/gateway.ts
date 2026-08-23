@@ -86,6 +86,62 @@ export interface GatewayForwarder {
 export interface GatewayRequest {
   path: "/v1/chat/completions" | "/v1/responses";
   body: Record<string, unknown>;
+  signal?: AbortSignal;
+}
+
+export interface GatewayProbeResult {
+  ok: boolean;
+  status?: number;
+  latencyMs: number;
+  error?: string;
+}
+
+export async function probeGatewayUpstream(
+  upstream: GatewayUpstream,
+  forwarder: GatewayForwarder,
+  options?: { timeoutMs?: number }
+): Promise<GatewayProbeResult> {
+  const startedAt = Date.now();
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resolved = await forwarder.resolve(upstream);
+    const headers = new Headers(resolved.headers);
+    headers.set("content-type", "application/json");
+    if (resolved.apiKey && !headers.has("authorization")) headers.set("authorization", `Bearer ${resolved.apiKey}`);
+    const fetchImpl = forwarder.fetchImpl ?? fetch;
+    const response = await fetchImpl(joinEndpoint(resolved.baseUrl, "/v1/chat/completions"), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: upstream.modelId,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+      }),
+      signal: controller.signal,
+    });
+    const latencyMs = Date.now() - startedAt;
+    const ok = response.ok;
+    return {
+      ok,
+      status: response.status,
+      latencyMs,
+      error: ok ? undefined : `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - startedAt;
+    const message = (error as Error)?.name === "AbortError"
+      ? `Timed out after ${timeoutMs}ms`
+      : error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      latencyMs,
+      error: message,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function joinEndpoint(baseUrl: string, requestPath: string): string {
@@ -105,9 +161,14 @@ export async function forwardGatewayRequest(pool: GatewayPool, request: GatewayR
   const timeoutMs = forwarder.timeoutMs ?? DEFAULT_GATEWAY_UPSTREAM_TIMEOUT_MS;
   let lastError: unknown;
   for (const upstream of candidates) {
+    if (request.signal?.aborted) {
+      return new Response(JSON.stringify({ error: { message: "Client cancelled request" } }), { status: 499, headers: { "content-type": "application/json" } });
+    }
     const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const onAbort = () => controller.abort();
+    request.signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const resolved = await forwarder.resolve(upstream);
       const headers = new Headers(resolved.headers);
@@ -120,9 +181,12 @@ export async function forwardGatewayRequest(pool: GatewayPool, request: GatewayR
         signal: controller.signal,
       });
       forwarder.onAttempt?.({ poolId: pool.id, upstreamId: upstream.id, status: response.status, latencyMs: Date.now() - startedAt });
-      if (!isRetryableGatewayStatus(response.status) || upstream === candidates[candidates.length - 1]) return response;
+      if (!isRetryableGatewayStatus(response.status) || upstream === candidates[candidates.length - 1] || request.signal?.aborted) return response;
       lastError = new Error(`Upstream returned HTTP ${response.status}`);
     } catch (error) {
+      if (request.signal?.aborted) {
+        return new Response(JSON.stringify({ error: { message: "Client cancelled request" } }), { status: 499, headers: { "content-type": "application/json" } });
+      }
       const message = (error as Error)?.name === "AbortError"
         ? `Upstream did not respond within ${timeoutMs}ms`
         : error instanceof Error ? error.message : String(error);
@@ -131,6 +195,7 @@ export async function forwardGatewayRequest(pool: GatewayPool, request: GatewayR
       if (upstream === candidates[candidates.length - 1]) break;
     } finally {
       clearTimeout(timer);
+      request.signal?.removeEventListener("abort", onAbort);
     }
   }
   const message = lastError instanceof Error ? lastError.message : "Gateway upstream request failed";
@@ -275,10 +340,38 @@ export class GatewayServer {
         writeJson(response, 200, { object: "list", data: this.pools.filter((pool) => pool.enabled).map((pool) => ({ id: pool.virtualModel, object: "model" })) });
         return;
       }
+      if (request.method === "POST" && path === "/v1/probe") {
+        const body = await readJsonBody(request);
+        const poolId = typeof body.poolId === "string" ? body.poolId : "";
+        const upstreamId = typeof body.upstreamId === "string" ? body.upstreamId : "";
+        const pool = this.pools.find((candidate) => candidate.id === poolId);
+        if (!pool) {
+          writeJson(response, 404, { error: { message: "Unknown pool" } });
+          return;
+        }
+        const upstream = pool.upstreams.find((candidate) => candidate.id === upstreamId);
+        if (!upstream) {
+          writeJson(response, 404, { error: { message: "Unknown upstream" } });
+          return;
+        }
+        const forwarder: GatewayForwarder = {
+          ...this.forwarder,
+          resolve: (target) => this.forwarder.resolve(target),
+        };
+        const result = await probeGatewayUpstream(upstream, forwarder, { timeoutMs: typeof body.timeoutMs === "number" ? body.timeoutMs : undefined });
+        writeJson(response, 200, result);
+        return;
+      }
       if (request.method !== "POST" || (path !== "/v1/chat/completions" && path !== "/v1/responses")) {
         writeJson(response, 404, { error: { message: "Not found" } });
         return;
       }
+      const clientAbortController = new AbortController();
+      request.on("close", () => {
+        if (!response.writableEnded) {
+          clientAbortController.abort();
+        }
+      });
       const body = await readJsonBody(request);
       const model = typeof body.model === "string" ? body.model : "";
       const pool = this.pools.find((candidate) => candidate.enabled && candidate.virtualModel === model);
@@ -294,7 +387,7 @@ export class GatewayServer {
           this.forwarder.onAttempt?.(observation);
         },
       };
-      copyResponse(await forwardGatewayRequest(pool, { path, body }, forwarder), response);
+      copyResponse(await forwardGatewayRequest(pool, { path, body, signal: clientAbortController.signal }, forwarder), response);
     } catch (error) {
       writeJson(response, 400, { error: { message: error instanceof Error ? error.message : "Gateway request failed" } });
     }
