@@ -316,6 +316,7 @@
 .dl-head h2 { margin: 2px 0 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
 .dl-count-total { color: var(--muted); font-size: var(--fs-micro); padding-top: 4px; }
 .dl-body { overflow: auto; padding: 16px 20px; display: grid; gap: 12px; align-content: start; }
+.dl-body .muted-line { white-space: pre-line; line-height: 1.5; }
 .dl-section { display: grid; gap: 6px; }
 .dl-section-title { display: flex; justify-content: space-between; align-items: center; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 600; }
 .dl-count { color: var(--muted); font-size: var(--fs-micro); }

@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.5.1 - 2026-08-23
+## 0.5.2 - 2026-08-23
+
+### Added
+- **Provider Deletion with Cascading Protection**:
+  - Added dual entry points for provider removal: card header action (`.provider-delete`) and drawer edit mode dangerous action button.
+  - Added multi-hop role reference chain inspection before deletion to warn about affected role bindings (e.g., `@default`, `@smol`).
+  - Added automatic cascading cleanup from `modelProviderOrder` in `config.yml`.
+  - Full two-step YAML Diff preview and automated snapshot backup before write.
+
+### Refactored
+- **Frontend Architecture Decoupling**:
+  - Extracted 1650-line `App.tsx` into modular domain components: `ModelsModule`, `ProviderDrawer`, `SettingsDrawer`, `DiagnosticsDrawer`, `TopBar`, and `LeftRail`.
+  - Encapsulated business state and Patch transactions into custom hooks (`useOmpConfig`, `useProviderForm`).
+  - Added Vitest test suite `models-module.test.ts` with 100% test pass rate across 23 test suites (200 tests).
 
 ### Fixed
 - **OMP v18.x Schema Compatibility**: Included major version `18` in `WRITABLE_OMP_SCHEMA_MAJORS` so installations reporting `omp/18.0.3` (and any 18.x) are correctly classified as supported and writable rather than being forced into read-only mode.

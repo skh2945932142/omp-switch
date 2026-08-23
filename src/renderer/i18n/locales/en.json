@@ -145,6 +145,8 @@
     "saveProvider": "Save provider {{id}}",
     "removeProvider": "Delete provider {{target}}",
     "removeConfirm": "This provider and its models will be removed from models.yml; the original config is kept in a pre-write snapshot and can be restored from the snapshot timeline.",
+    "removeConfirmWithCount": "This provider and its {{count}} models will be removed from models.yml; the original config is kept in a pre-write snapshot and can be restored from the snapshot timeline.",
+    "affectedRolesWarning": "Warning: The following roles currently reference models from this provider and will lose their binding: {{roles}}",
     "removed": "Removed {{target}} from models.yml",
     "discovered": "Discovered {{count}} models in {{ms}}ms",
     "migrateLegacy": "Migrate legacy models.json",

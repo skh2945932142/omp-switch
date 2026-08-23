@@ -145,6 +145,8 @@
     "saveProvider": "保存供应商 {{id}}",
     "removeProvider": "删除供应商 {{target}}",
     "removeConfirm": "该供应商及其模型将从 models.yml 移除；原配置保留在写入前快照中，可从快照时间线恢复。",
+    "removeConfirmWithCount": "该供应商及其包含的 {{count}} 个模型将从 models.yml 移除；原配置保留在写入前快照中，可从快照时间线恢复。",
+    "affectedRolesWarning": "注意：以下角色当前正在引用该供应商的模型，删除后将失去绑定：{{roles}}",
     "removed": "已从 models.yml 移除 {{target}}",
     "discovered": "发现 {{count}} 个模型，耗时 {{ms}}ms",
     "migrateLegacy": "迁移旧 models.json",
