@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.8 - 2026-08-23
+
+### Added
+- OMP v18.0.0+ settings alignment:
+  - Added `features.unexpectedStopDetection` control supporting `none`, `mechanical` (default), and `smart` modes.
+  - Added `update.channel` selection supporting `stable` and `canary` channels.
+- Validation, YAML comment-preserving AST diffing, and schema typing for OMP v18+ configuration keys.
+
 ## 0.4.7 - 2026-08-23
 
 ### Added

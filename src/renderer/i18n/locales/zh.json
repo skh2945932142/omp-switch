@@ -230,7 +230,20 @@
     "saveRoles": "保存角色映射",
     "savedRoles": "角色映射已写入 config.yml",
     "saveRolesAndSettings": "保存角色与设置",
-    "savedRolesAndSettings": "角色与设置已写入 config.yml"
+    "savedRolesAndSettings": "角色与设置已写入 config.yml",
+    "unexpectedStop": "非预期停顿恢复",
+    "unexpectedStopHint": "当助手无工具调用且未回复时自动识别并恢复（默认机械恢复）",
+    "unexpectedStopModes": {
+      "none": "关闭 (none)",
+      "mechanical": "机械重试 (mechanical)",
+      "smart": "智能分析 (smart)"
+    },
+    "updateChannel": "更新通道",
+    "updateChannelHint": "设置 OMP 的更新通道（stable 稳定版 / canary 尝鲜版）",
+    "updateChannels": {
+      "stable": "稳定版 (stable)",
+      "canary": "金丝雀尝鲜版 (canary)"
+    }
   },
   "project": {
     "projectOverlay": "项目覆盖",

@@ -218,4 +218,19 @@ describe("OMP configuration validation", () => {
     expect(validateSettingsDocument({ personality: "rude" as never }).some((item) => item.code === "settings.personality")).toBe(true);
     expect(validateSettingsDocument({ images: { urls: { enabled: "yes" as never } } }).some((item) => item.code === "settings.images.urls.enabled")).toBe(true);
   });
+
+  it("validates unexpectedStopDetection modes and updateChannel", () => {
+    const valid = validateSettingsDocument({
+      unexpectedStopDetection: "smart",
+      updateChannel: "canary",
+    });
+    expect(valid).toHaveLength(0);
+
+    const invalid = validateSettingsDocument({
+      unexpectedStopDetection: "invalid" as any,
+      updateChannel: "beta" as any,
+    });
+    expect(invalid.some((d) => d.code === "settings.unexpectedStopDetection")).toBe(true);
+    expect(invalid.some((d) => d.code === "settings.updateChannel")).toBe(true);
+  });
 });

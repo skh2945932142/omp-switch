@@ -45,7 +45,7 @@ import type {
   Snapshot,
   UpdateStatus,
 } from "@omp-switch/core";
-import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES, PERSONALITY_PRESETS, SETTINGS_THINKING_LEVELS, parseRoleSelector } from "@omp-switch/core/validation";
+import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES, PERSONALITY_PRESETS, SETTINGS_THINKING_LEVELS, UNEXPECTED_STOP_MODES, UPDATE_CHANNELS, type UnexpectedStopMode, type UpdateChannel, parseRoleSelector } from "@omp-switch/core/validation";
 import { GatewayModule, ProjectOverlayBadge, SessionsModule, SurfaceModule } from "./workbench-modules";
 import { UsageModule } from "./usage-module";
 import { KNOWN_ROLES, RolesModule } from "./roles-module";
@@ -466,6 +466,8 @@ interface SettingsDraft {
   externalThinking: boolean;
   personality: string;
   imagesUrlsEnabled: string;
+  unexpectedStopDetection: string;
+  updateChannel: string;
 }
 
 /**
@@ -667,6 +669,8 @@ export default function App() {
   const [externalThinking, setExternalThinking] = useState(false);
   const [personality, setPersonality] = useState("default");
   const [imagesUrlsEnabled, setImagesUrlsEnabled] = useState("");
+  const [unexpectedStopDetection, setUnexpectedStopDetection] = useState<UnexpectedStopMode>("mechanical");
+  const [updateChannel, setUpdateChannel] = useState<UpdateChannel>("stable");
   const [updatingOmp, setUpdatingOmp] = useState(false);
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
   const [localeChoice, setLocaleChoiceState] = useState<LocaleChoice>("system");
@@ -715,6 +719,8 @@ export default function App() {
       externalThinking,
       personality,
       imagesUrlsEnabled,
+      unexpectedStopDetection,
+      updateChannel,
     };
   }
 
@@ -740,6 +746,8 @@ export default function App() {
     setExternalThinking(Boolean(s.externalThinking));
     setPersonality(typeof s.personality === "string" ? s.personality : "default");
     setImagesUrlsEnabled(triStateFromBool(s.images?.urls?.enabled));
+    setUnexpectedStopDetection((s.unexpectedStopDetection as UnexpectedStopMode) ?? "mechanical");
+    setUpdateChannel((s.updateChannel as UpdateChannel) ?? "stable");
     setSavedSettings(settingsSignature({
       order: (s.modelProviderOrder ?? []).join(", "),
       enabled: formatEnabledModelRules(s.enabledModels),
@@ -750,6 +758,8 @@ export default function App() {
       externalThinking: Boolean(s.externalThinking),
       personality: typeof s.personality === "string" ? s.personality : "default",
       imagesUrlsEnabled: triStateFromBool(s.images?.urls?.enabled),
+      unexpectedStopDetection: (s.unexpectedStopDetection as UnexpectedStopMode) ?? "mechanical",
+      updateChannel: (s.updateChannel as UpdateChannel) ?? "stable",
     }));
   }
 
@@ -1058,6 +1068,8 @@ export default function App() {
       extendedContext,
       externalThinking,
       personality,
+      unexpectedStopDetection,
+      updateChannel,
       ...(images ? { images } : {}),
     };
   }
@@ -1483,7 +1495,7 @@ export default function App() {
             {profileTab === "settings" ? <>
             <div className="drawer-section"><div className="drawer-section-title"><span>{t("settings.roles")}</span><Users size={15} /></div><span className="muted-line">{t("settings.rolesHint")}</span><div className="drawer-actions"><button className="secondary-button" onClick={() => { setSection("roles"); setProfileDrawerOpen(false); setDrawerOpen(false); }}><Users size={15} />{t("settings.openRolesPage")}</button></div></div>
             <div className="drawer-section"><div className="drawer-section-title"><span>{t("settings.selection")}</span>{settingsDirty ? <span className="heading-dirty">{t("settings.unsaved")}</span> : <Settings2 size={15} />}</div><label className="module-field"><span>{t("settings.providerOrder")}</span><input value={providerOrder} onChange={(event) => setProviderOrder(event.target.value)} placeholder="openrouter, openai" /></label><label className="module-field"><span>{t("settings.enabledModels")}</span><textarea value={enabledModels} onChange={(event) => setEnabledModels(event.target.value)} rows={3} placeholder={"provider/*\n[{\"path\":\"~/work\",\"models\":[\"provider/model\"]}]"} /></label><label className="module-field"><span>{t("settings.disabledProviders")}</span><textarea value={disabledProviders} onChange={(event) => setDisabledProviders(event.target.value)} rows={2} placeholder={"ollama, native"} /></label><label className="module-field"><span>{t("settings.defaultThinking")}</span><StyledSelect value={defaultThinkingLevel} onValueChange={(next) => setDefaultThinkingLevel(next as SettingsThinkingLevel)} options={SETTINGS_THINKING_LEVELS.map((level) => ({ value: level, label: level }))} ariaLabel={t("settings.defaultThinking")} mono /></label></div>
-            <div className="drawer-section"><div className="drawer-section-title"><span>{t("settings.behavior")}</span>{settingsDirty ? <span className="heading-dirty">{t("settings.unsaved")}</span> : null}</div><label className="module-field"><span>{t("settings.personality")}</span><StyledSelect value={personality} onValueChange={(next) => setPersonality(next)} options={PERSONALITY_PRESETS.map((preset) => ({ value: preset, label: preset }))} ariaLabel={t("settings.personality")} mono /></label><span className="muted-line">{t("settings.personalityHint")}</span><label className="check-line"><input type="checkbox" checked={extendedContext} onChange={(event) => setExtendedContext(event.target.checked)} />{t("settings.extendedContext")}</label><label className="check-line"><input type="checkbox" checked={externalThinking} onChange={(event) => setExternalThinking(event.target.checked)} />{t("settings.externalThinking")}</label><label className="module-field"><span>{t("settings.imagesUrlMirror")}</span><StyledSelect value={imagesUrlsEnabled} onValueChange={(next) => setImagesUrlsEnabled(next)} options={[{ value: "", label: t("settings.imagesUrlMirrorUnset") }, { value: "true", label: t("settings.imagesUrlMirrorOn") }, { value: "false", label: t("settings.imagesUrlMirrorOff") }]} ariaLabel={t("settings.imagesUrlMirror")} mono /></label><span className="muted-line">{t("settings.imagesUrlHint")}</span><label className="module-field"><span>{t("settings.compaction")}</span><textarea value={compactionJson} onChange={(event) => setCompactionJson(event.target.value)} rows={4} placeholder={'{"asyncEnabled":true,"methodOrder":["remote","snapcompact"]}\n' + t("settings.compactionPlaceholder")} /></label><span className="muted-line">{t("settings.compactionHint")}</span></div>
+            <div className="drawer-section"><div className="drawer-section-title"><span>{t("settings.behavior")}</span>{settingsDirty ? <span className="heading-dirty">{t("settings.unsaved")}</span> : null}</div><label className="module-field"><span>{t("settings.personality")}</span><StyledSelect value={personality} onValueChange={(next) => setPersonality(next)} options={PERSONALITY_PRESETS.map((preset) => ({ value: preset, label: preset }))} ariaLabel={t("settings.personality")} mono /></label><span className="muted-line">{t("settings.personalityHint")}</span><label className="check-line"><input type="checkbox" checked={extendedContext} onChange={(event) => setExtendedContext(event.target.checked)} />{t("settings.extendedContext")}</label><label className="check-line"><input type="checkbox" checked={externalThinking} onChange={(event) => setExternalThinking(event.target.checked)} />{t("settings.externalThinking")}</label><label className="module-field"><span>{t("settings.imagesUrlMirror")}</span><StyledSelect value={imagesUrlsEnabled} onValueChange={(next) => setImagesUrlsEnabled(next)} options={[{ value: "", label: t("settings.imagesUrlMirrorUnset") }, { value: "true", label: t("settings.imagesUrlMirrorOn") }, { value: "false", label: t("settings.imagesUrlMirrorOff") }]} ariaLabel={t("settings.imagesUrlMirror")} mono /></label><span className="muted-line">{t("settings.imagesUrlHint")}</span><label className="module-field"><span>{t("settings.compaction")}</span><textarea value={compactionJson} onChange={(event) => setCompactionJson(event.target.value)} rows={4} placeholder={'{"asyncEnabled":true,"methodOrder":["remote","snapcompact"]}\n' + t("settings.compactionPlaceholder")} /></label><span className="muted-line">{t("settings.compactionHint")}</span><label className="module-field"><span>{t("settings.unexpectedStop")}</span><StyledSelect value={unexpectedStopDetection} onValueChange={(next) => setUnexpectedStopDetection(next as UnexpectedStopMode)} options={UNEXPECTED_STOP_MODES.map((mode) => ({ value: mode, label: t(`settings.unexpectedStopModes.${mode}`) }))} ariaLabel={t("settings.unexpectedStop")} mono /></label><span className="muted-line">{t("settings.unexpectedStopHint")}</span><label className="module-field"><span>{t("settings.updateChannel")}</span><StyledSelect value={updateChannel} onValueChange={(next) => setUpdateChannel(next as UpdateChannel)} options={UPDATE_CHANNELS.map((ch) => ({ value: ch, label: t(`settings.updateChannels.${ch}`) }))} ariaLabel={t("settings.updateChannel")} mono /></label><span className="muted-line">{t("settings.updateChannelHint")}</span></div>
             <div className="drawer-actions"><button className="primary-button full-width" onClick={() => void saveSettings()} disabled={busy || readOnly || !settingsDirty}><Save size={15} />{t("settings.saveSettings")}</button></div>
             </> : null}
             {profileTab === "project" ? <div className="drawer-section"><div className="drawer-section-title"><span>{t("project.projectOverlay")}</span><FolderOpen size={15} /></div><ProjectOverlayBadge api={api} profileId={profileId} onNotice={notify} /></div> : null}

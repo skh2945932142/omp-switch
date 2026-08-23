@@ -230,7 +230,20 @@
     "saveRoles": "Save role mapping",
     "savedRoles": "Role mapping written to config.yml",
     "saveRolesAndSettings": "Save roles and settings",
-    "savedRolesAndSettings": "Roles and settings written to config.yml"
+    "savedRolesAndSettings": "Roles and settings written to config.yml",
+    "unexpectedStop": "Unexpected stop recovery",
+    "unexpectedStopHint": "Automatically recover when assistant ends without visible action",
+    "unexpectedStopModes": {
+      "none": "Disabled (none)",
+      "mechanical": "Mechanical (mechanical)",
+      "smart": "Smart classifier (smart)"
+    },
+    "updateChannel": "Update channel",
+    "updateChannelHint": "Select OMP update channel (stable or canary)",
+    "updateChannels": {
+      "stable": "Stable",
+      "canary": "Canary"
+    }
   },
   "project": {
     "projectOverlay": "Project overlay",

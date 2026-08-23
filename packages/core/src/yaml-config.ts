@@ -215,7 +215,7 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
   // Scalar and array settings keys replace the whole node — there is no per-element identity to
   // preserve for a string, boolean, or ordered list, and `modelProviderOrder`/`enabledModels`/
   // `disabledProviders` are arrays this app rewrites in full.
-  for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel", "extendedContext", "externalThinking", "personality"]) {
+  for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel", "extendedContext", "externalThinking", "personality", "unexpectedStopDetection", "updateChannel"]) {
     const beforeValue = before[key];
     const afterValue = after[key];
     if (isDeepStrictEqual(beforeValue, afterValue)) continue;

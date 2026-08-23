@@ -125,6 +125,10 @@ export interface SettingsDocument extends Record<string, unknown> {
   externalThinking?: boolean;
   /** OMP v17.4.1+: select the personality preset (`<agent dir>/PERSONALITY.md` replaces its text). */
   personality?: string;
+  /** OMP v18.0.0+: unexpected stop recovery detection mode. */
+  unexpectedStopDetection?: "none" | "mechanical" | "smart";
+  /** OMP v18.0.0+: update channel. */
+  updateChannel?: "stable" | "canary";
   /** OMP v17.4.2+ image handling. Open-shaped: OMP carries `autoResize`/`blockImages` etc. this app
    *  does not edit but must round-trip (the writer diffs child-by-child), so the extra fields survive. */
   images?: { urls?: { enabled?: boolean }; [key: string]: unknown };
@@ -260,7 +264,7 @@ export interface ConfigPatch {
   provider?: ProviderDraft;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
-  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images">>;
+  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel">>;
   confirmLegacyMigration?: boolean;
 }
 

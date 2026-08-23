@@ -44,6 +44,12 @@ export const KNOWN_TOKENIZER_FAMILIES = new Set([
  * `personality` enum in config.yml (OMP v17.4.1+). `none` omits the personality block; the others
  * select a preset whose text a user-level `<agent dir>/PERSONALITY.md` can replace.
  */
+export const UNEXPECTED_STOP_MODES = ["none", "mechanical", "smart"] as const;
+export type UnexpectedStopMode = (typeof UNEXPECTED_STOP_MODES)[number];
+
+export const UPDATE_CHANNELS = ["stable", "canary"] as const;
+export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
+
 export const PERSONALITY_PRESETS = ["default", "friendly", "pragmatic", "none"] as const;
 export type PersonalityPreset = (typeof PERSONALITY_PRESETS)[number];
 
@@ -385,6 +391,12 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
   }
   if (value.defaultThinkingLevel !== undefined && !SETTINGS_THINKING_LEVELS.includes(value.defaultThinkingLevel)) {
     diagnostics.push({ severity: "error", code: "settings.defaultThinkingLevel", message: `Unsupported thinking level: ${value.defaultThinkingLevel}. OMP accepts ${SETTINGS_THINKING_LEVELS.join(", ")}` });
+  }
+  if (value.unexpectedStopDetection !== undefined && !UNEXPECTED_STOP_MODES.includes(value.unexpectedStopDetection as UnexpectedStopMode)) {
+    diagnostics.push({ severity: "error", code: "settings.unexpectedStopDetection", message: `Unsupported unexpectedStopDetection: ${value.unexpectedStopDetection}. OMP accepts ${UNEXPECTED_STOP_MODES.join(", ")}` });
+  }
+  if (value.updateChannel !== undefined && !UPDATE_CHANNELS.includes(value.updateChannel as UpdateChannel)) {
+    diagnostics.push({ severity: "error", code: "settings.updateChannel", message: `Unsupported updateChannel: ${value.updateChannel}. OMP accepts ${UPDATE_CHANNELS.join(", ")}` });
   }
   validateCompaction(value.compaction, diagnostics);
   if (value.extendedContext !== undefined && typeof value.extendedContext !== "boolean") {
