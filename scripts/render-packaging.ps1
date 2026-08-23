@@ -28,6 +28,18 @@ if (-not (Test-Path $sourceDir)) { throw "Asset directory not found: $sourceDir.
 
 $version = (Get-Content -Raw (Join-Path $projectRoot "package.json") | ConvertFrom-Json).version
 
+function Compute-Sha256([string]$filePath) {
+  $hasher = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($filePath)
+  try {
+    $bytes = $hasher.ComputeHash($stream)
+    return (-join ($bytes | ForEach-Object { $_.ToString("x2") }))
+  } finally {
+    $stream.Dispose()
+    $hasher.Dispose()
+  }
+}
+
 function Get-Asset([string]$pattern, [string]$label) {
   # Version-qualified: a dist/ directory that still holds an older build would otherwise be picked
   # alphabetically and stamp the manifests with the wrong release hash.
@@ -37,7 +49,7 @@ function Get-Asset([string]$pattern, [string]$label) {
   $asset = $candidates[0]
   [pscustomobject]@{
     Name = $asset.Name
-    Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
+    Hash = (Compute-Sha256 $asset.FullName)
   }
 }
 
@@ -91,17 +103,11 @@ if (Test-Path $bucketPath) {
   if ($bucket.version -eq $version -and $bucket.architecture."64bit".url -eq $bucketUrl -and $bucket.architecture."64bit".hash -eq $portable.Hash) {
     Write-Host "unchanged : bucket/omp-switch.json already matches the published asset"
   } else {
-    $nodeScript = @'
-const fs = require("node:fs");
-const [path, version, url, hash] = process.argv.slice(1);
-const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
-manifest.version = version;
-manifest.architecture["64bit"].url = url;
-manifest.architecture["64bit"].hash = hash;
-process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
-'@
-    $json = (& node -e $nodeScript $bucketPath $version $bucketUrl $portable.Hash | Out-String).TrimEnd("`r", "`n")
-    if ($LASTEXITCODE -ne 0) { throw "Failed to render bucket/omp-switch.json" }
+    $manifest = Get-Content -Raw -LiteralPath $bucketPath | ConvertFrom-Json
+    $manifest.version = $version
+    $manifest.architecture."64bit".url = $bucketUrl
+    $manifest.architecture."64bit".hash = $portable.Hash
+    $json = $manifest | ConvertTo-Json -Depth 10
     [IO.File]::WriteAllText($bucketPath, "$json`n", [Text.UTF8Encoding]::new($false))
     Write-Host "updated   : bucket/omp-switch.json (tracked; commit this)"
   }
