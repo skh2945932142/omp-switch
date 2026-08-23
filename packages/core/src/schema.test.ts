@@ -28,10 +28,18 @@ describe("OMP schema compatibility", () => {
     });
   });
 
-  it("keeps unknown future majors read-only", () => {
-    expect(classifyOmpInstallation({ executable: "omp", version: "omp/18.0.0" })).toMatchObject({
-      supported: false,
+  it("recognizes OMP v18 installations as supported and writable", () => {
+    expect(classifyOmpInstallation({ executable: "omp", version: "omp/18.0.3" })).toMatchObject({
+      supported: true,
       schemaMajor: 18,
+      schemaStatus: "supported",
+    });
+  });
+
+  it("keeps unknown future majors read-only", () => {
+    expect(classifyOmpInstallation({ executable: "omp", version: "omp/19.0.0" })).toMatchObject({
+      supported: false,
+      schemaMajor: 19,
       schemaStatus: "readonly",
     });
   });

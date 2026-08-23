@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2026-08-23
+
+### Fixed
+- **OMP v18.x Schema Compatibility**: Included major version `18` in `WRITABLE_OMP_SCHEMA_MAJORS` so installations reporting `omp/18.0.3` (and any 18.x) are correctly classified as supported and writable rather than being forced into read-only mode.
+
 ## 0.5.0 - 2026-08-23
 
 ### Added

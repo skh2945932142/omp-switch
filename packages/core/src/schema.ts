@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import type { OmpInstallation, OmpSchemaStatus } from "./domain";
 
-export const WRITABLE_OMP_SCHEMA_MAJORS = new Set([16, 17]);
+export const WRITABLE_OMP_SCHEMA_MAJORS = new Set([16, 17, 18]);
 
 export function parseOmpVersion(value: string | null | undefined): { version: string | null; major?: number; minor?: number; patch?: number } {
   const version = value?.trim() || null;

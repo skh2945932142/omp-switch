@@ -9,7 +9,7 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.5.0` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
+> `v0.5.1` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
 > binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
 > build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
 
@@ -46,7 +46,7 @@ manifests are prepared but **not yet submitted** — see [docs/install.md](docs/
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.5.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.5.1 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
@@ -60,7 +60,7 @@ Every method, including checksum and provenance verification, is in
 
 **Configuration editing**
 
-- OMP `16.x` / `17.x` writable; unknown future majors read-only.
+- OMP `16.x` / `17.x` / `18.x` writable; unknown future majors read-only.
 - Default and named profiles, `models.yml` / `config.yml`, legacy `models.json` migration guard, and
   OMP's own path overrides (`PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, `PI_CODING_AGENT_DIR`).
 - Provider / model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking
