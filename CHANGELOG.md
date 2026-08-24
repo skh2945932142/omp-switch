@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.5 - 2026-08-24
+
+### Added
+- **Persistent Gateway Health Probes & LED Status Badges**:
+  - Automatically records upstream latency, HTTP status codes, and failure counts into SQLite with rolling history retention (50 entries max per upstream).
+  - Runtime request observations and failovers automatically update upstream health.
+  - Inline LED status capsules (🟢 `healthy`, 🟡 `degraded`, 🔴 `unhealthy`, ⚪ `untested`) with hover tooltip timelines.
+  - "Probe All" toolbar action for one-click health auditing across all configured upstreams.
+- **SQLite FTS5 Full-Text Session Search**:
+  - Fast inverted-index full-text search across conversation turns and assistant messages using SQLite FTS5 (`unicode61` tokenizer).
+  - Highlighted `<mark>` snippet previews directly in the session list.
+- **Multi-Format Session Export**:
+  - Export standalone offline HTML reports (`.html`) featuring embedded dark/light themes, monospace code blocks, and collapsible `<think>` thinking chain blocks (ready for `Ctrl+P` PDF printing).
+  - Export standard Markdown (`.md`) and raw JSON (`.json`) datasets.
+
+### Refactored
+- **Frontend Submodule Architecture**:
+  - Decoupled the 1000+ line monolithic `workbench-modules.tsx` into modular domain submodules: `modules/surfaces/`, `modules/gateway/`, `modules/project/`, and `modules/sessions/`.
+  - Maintained complete backward compatibility via clean aggregator exports.
+
+## 0.5.4 - 2026-08-23
+
+### Added
+- **Gateway Failover Tooling**: Benchmark upstreams with one-token probes, propagate downstream disconnects to upstream requests, reorder upstream priority, and harden streaming cleanup.
+- **Session History Tools**: Filter sessions by title, model, provider, or ID and export structured Markdown reports.
+- **Usage Export**: Export the current profile's complete usage report as standard JSON, including model/provider totals and daily trends.
+- **Headless CLI Workflows**: Preview patches with `plan --profile <name> --patch <json>` without writing to disk, and inspect snapshot history with `snapshots --profile <name>`.
+- **Provider & Model Editing**: Clone models, copy canonical model selectors, and discover the expanded set of OMP API options from the editor.
+
 ## 0.5.3 - 2026-08-23
 
 ### Fixed
