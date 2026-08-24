@@ -217,6 +217,7 @@ export function SettingsDrawer({
             <label className="module-field">
               <span>{t("settings.providerOrder")}</span>
               <input
+                name="providerOrder"
                 value={providerOrder}
                 onChange={(event) => setProviderOrder(event.target.value)}
                 placeholder="openrouter, openai"
@@ -225,6 +226,7 @@ export function SettingsDrawer({
             <label className="module-field">
               <span>{t("settings.enabledModels")}</span>
               <textarea
+                name="enabledModels"
                 value={enabledModels}
                 onChange={(event) => setEnabledModels(event.target.value)}
                 rows={3}
@@ -234,6 +236,7 @@ export function SettingsDrawer({
             <label className="module-field">
               <span>{t("settings.disabledProviders")}</span>
               <textarea
+                name="disabledProviders"
                 value={disabledProviders}
                 onChange={(event) => setDisabledProviders(event.target.value)}
                 rows={2}
@@ -270,6 +273,7 @@ export function SettingsDrawer({
             <span className="muted-line">{t("settings.personalityHint")}</span>
             <label className="check-line">
               <input
+                name="extendedContext"
                 type="checkbox"
                 checked={extendedContext}
                 onChange={(event) => setExtendedContext(event.target.checked)}
@@ -278,6 +282,7 @@ export function SettingsDrawer({
             </label>
             <label className="check-line">
               <input
+                name="externalThinking"
                 type="checkbox"
                 checked={externalThinking}
                 onChange={(event) => setExternalThinking(event.target.checked)}
@@ -302,6 +307,7 @@ export function SettingsDrawer({
             <label className="module-field">
               <span>{t("settings.compaction")}</span>
               <textarea
+                name="compaction"
                 value={compactionJson}
                 onChange={(event) => setCompactionJson(event.target.value)}
                 rows={4}
@@ -501,6 +507,7 @@ export function SettingsDrawer({
             </div>
             <label className="check-line">
               <input
+                name="updateEnabled"
                 type="checkbox"
                 checked={updateInfo.enabled}
                 onChange={(event) => void toggleUpdateCheckEnabled(event.target.checked)}

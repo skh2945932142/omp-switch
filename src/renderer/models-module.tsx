@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { OmpModel, OmpProvider } from "@omp-switch/core";
-import { IconButtonTip } from "./components/ui-primitives";
+import { IconButton, IconButtonTip } from "./components/ui-primitives";
 import { QuickAssign } from "./components/quick-assign";
 import { providerModels } from "./hooks/use-provider-form";
 import {
@@ -131,6 +131,7 @@ export function ModelsModule({
           <div className="search-box">
             <Search size={15} />
             <input
+              name="providerSearch"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("models.searchPlaceholder")}
@@ -160,10 +161,12 @@ export function ModelsModule({
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
             <input
+              name="catalogFile"
               ref={catalogInput}
               className="visually-hidden"
               type="file"
               accept="application/json,.json"
+              aria-label={t("models.importCatalog")}
               onChange={onImportCatalog}
             />
           </div>
@@ -246,18 +249,12 @@ export function ModelsModule({
                   className="provider-card-toggle"
                   onClick={() => setExpandedProviders((current) => ({ ...current, [id]: !expanded }))}
                   aria-expanded={expanded}
-                  aria-label={t("models.expandAria", {
-                    action: expanded ? t("models.collapse") : t("models.expand"),
-                    id,
-                  })}
                 >
-                  <span className="provider-led" />
                   <span className="provider-title">
                     <strong>{id}</strong>
                     <small>{provider.api ?? "custom"}</small>
                   </span>
                   <span className="provider-model-count">{models.length}</span>
-                  {preferred ? <span className="provider-preferred-label">{t("models.preferred")}</span> : null}
                   <ChevronDown size={16} className={`provider-chevron${expanded ? " open" : ""}`} />
                 </button>
                 <div className="provider-actions">
@@ -286,28 +283,25 @@ export function ModelsModule({
                       </button>
                     </span>
                   </IconButtonTip>
-                  <IconButtonTip label={t("models.editAria", { id })}>
-                    <button
-                      className="provider-edit"
-                      aria-label={t("models.editAria", { id })}
-                      onClick={() => onEditProvider(id)}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                  </IconButtonTip>
-                  <IconButtonTip label={t("providerEditor.removeProvider", { target: id })}>
-                    <button
-                      className="provider-delete"
-                      aria-label={t("providerEditor.removeProvider", { target: id })}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveProvider(id);
-                      }}
-                      disabled={readOnly || busy || pendingSave}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </IconButtonTip>
+                  <IconButton
+                    className="provider-edit"
+                    label={t("models.editAria", { id })}
+                    onClick={() => onEditProvider(id)}
+                  >
+                    <Pencil size={15} />
+                  </IconButton>
+                  <IconButton
+                    className="provider-delete"
+                    label={t("providerEditor.removeProvider", { target: id })}
+                    variant="danger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRemoveProvider(id);
+                    }}
+                    disabled={readOnly || busy || pendingSave}
+                  >
+                    <Trash2 size={14} />
+                  </IconButton>
                 </div>
               </div>
               <div className={`model-list-wrap${expanded ? " open" : ""}`}>
@@ -372,21 +366,18 @@ export function ModelsModule({
                           onAssign={(roleId) => onAssignModelToRole(roleId, id, model.id ?? "")}
                           onOpenRoles={onOpenRoles}
                         />
-                        <IconButtonTip label={t("models.copyModelId", { model: `${id}/${model.id}` })}>
-                          <button
-                            type="button"
-                            className="icon-button subtle"
-                            aria-label={t("models.copyModelId", { model: `${id}/${model.id}` })}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const identifier = `${id}/${model.id}`;
-                              void navigator.clipboard.writeText(identifier);
-                              onNotice?.({ tone: "success", text: t("models.copiedModelId", { model: identifier }) });
-                            }}
-                          >
-                            <Copy size={13} />
-                          </button>
-                        </IconButtonTip>
+                        <IconButton
+                          label={t("models.copyModelId", { model: `${id}/${model.id}` })}
+                          variant="subtle"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const identifier = `${id}/${model.id}`;
+                            void navigator.clipboard.writeText(identifier);
+                            onNotice?.({ tone: "success", text: t("models.copiedModelId", { model: identifier }) });
+                          }}
+                        >
+                          <Copy size={13} />
+                        </IconButton>
                       </div>
                     ))}
                     {models.length === 0 ? <div className="model-empty">{t("models.emptyModels")}</div> : null}

@@ -81,8 +81,8 @@ export function SavePreviewDialog({ pending, busy, onClose, onConfirm }: { pendi
       <DialogPrimitive.Overlay className="dl-overlay" />
       <DialogPrimitive.Content className="dl-content">
         <div className="dl-head">
-          <div><span className="eyebrow">{t("save.review")}</span><h2>{pending?.title ?? ""}</h2></div>
-          <span className="dl-count-total">{t("save.linesChanged", { count: totalChanges })} · {t("save.autoSnapshot")}</span>
+          <div><span className="eyebrow">{t("save.review")}</span><DialogPrimitive.Title asChild><h2>{pending?.title ?? ""}</h2></DialogPrimitive.Title></div>
+          <DialogPrimitive.Description className="dl-count-total">{t("save.linesChanged", { count: totalChanges })} · {t("save.autoSnapshot")}</DialogPrimitive.Description>
         </div>
         <div className="dl-body">
           {pending ? <>
@@ -108,11 +108,11 @@ export function ConflictDialog({ detail, busy, onClose, onReload }: { detail: st
       <DialogPrimitive.Overlay className="dl-overlay" />
       <DialogPrimitive.Content className="dl-content dl-narrow">
         <div className="dl-head">
-          <div><span className="eyebrow">{t("save.conflict")}</span><h2>{t("save.conflictTitle")}</h2></div>
+          <div><span className="eyebrow">{t("save.conflict")}</span><DialogPrimitive.Title asChild><h2>{t("save.conflictTitle")}</h2></DialogPrimitive.Title></div>
         </div>
         <div className="dl-body">
           <div className="inline-status warning"><CircleAlert size={15} /><span>{detail}</span></div>
-          <span className="muted-line">{t("save.conflictBody")}</span>
+          <DialogPrimitive.Description className="muted-line">{t("save.conflictBody")}</DialogPrimitive.Description>
         </div>
         <div className="dl-actions">
           <DialogPrimitive.Close asChild><button className="secondary-button">{t("common.cancel")}</button></DialogPrimitive.Close>
@@ -132,8 +132,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="dl-overlay" />
       <DialogPrimitive.Content className="dl-content dl-narrow">
-        <div className="dl-head"><div><span className="eyebrow">{t("save.confirm")}</span><h2>{title}</h2></div></div>
-        <div className="dl-body"><span className="muted-line">{message}</span></div>
+        <div className="dl-head"><div><span className="eyebrow">{t("save.confirm")}</span><DialogPrimitive.Title asChild><h2>{title}</h2></DialogPrimitive.Title></div></div>
+        <div className="dl-body"><DialogPrimitive.Description className="muted-line">{message}</DialogPrimitive.Description></div>
         <div className="dl-actions">
           <DialogPrimitive.Close asChild><button className="secondary-button">{t("common.cancel")}</button></DialogPrimitive.Close>
           <button className={danger ? "primary-button danger" : "primary-button"} onClick={onConfirm} disabled={busy}>{confirmLabel}</button>
@@ -156,7 +156,8 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="dl-overlay" />
       <DialogPrimitive.Content className="dl-content dl-narrow">
-        <div className="dl-head"><div><span className="eyebrow"><Keyboard size={12} /> {t("save.shortcuts")}</span><h2>{t("save.shortcutsTitle")}</h2></div></div>
+        <div className="dl-head"><div><span className="eyebrow"><Keyboard size={12} /> {t("save.shortcuts")}</span><DialogPrimitive.Title asChild><h2>{t("save.shortcutsTitle")}</h2></DialogPrimitive.Title></div></div>
+        <DialogPrimitive.Description className="visually-hidden">{t("save.menuNav")}</DialogPrimitive.Description>
         <div className="dl-body">
           {rows.map(([keys, label]) => <div className="shortcut-row" key={keys}><span className="mono">{keys}</span><span>{label}</span></div>)}
         </div>

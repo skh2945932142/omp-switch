@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import {
   Archive,
+  Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -23,6 +24,7 @@ import type {
 } from "@omp-switch/core";
 import { useTranslation } from "react-i18next";
 import { formatDateTime, formatClock } from "../../locale";
+import { IconButton } from "../../components/ui-primitives";
 import {
   generateSessionHtml,
   generateSessionJson,
@@ -124,10 +126,9 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
     <div className="msg-code-block">
       <div className="msg-code-header">
         <span>{lang || "code"}</span>
-        <button type="button" className="icon-button subtle" onClick={handleCopy} title="Copy code">
-          <Copy size={12} />
-          {copied ? " Copied" : ""}
-        </button>
+        <IconButton label={copied ? "Copied" : "Copy code"} variant="subtle" onClick={handleCopy}>
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </IconButton>
       </div>
       <pre className="msg-code-body"><code>{text}</code></pre>
     </div>
@@ -357,9 +358,9 @@ export function SessionsModule({ api, profileId, onNotice }: SessionsModuleProps
           <h1>{t("sessions.heading")}<span className="heading-count">{entries.length}</span></h1>
         </div>
         <div className="heading-actions">
-          <button className="icon-button" title={t("sessions.refreshIndex")} onClick={() => void refresh()} disabled={loading}>
+          <IconButton label={t("sessions.refreshIndex")} onClick={() => void refresh()} disabled={loading}>
             <RefreshCw size={16} className={loading ? "spin" : ""} />
-          </button>
+          </IconButton>
           <button className="secondary-button" onClick={() => void refresh(true)} disabled={loading}>
             {t("sessions.rebuildIndex")}
           </button>
@@ -394,15 +395,16 @@ export function SessionsModule({ api, profileId, onNotice }: SessionsModuleProps
           <div className="session-search-bar">
             <Search size={14} className="session-search-icon" />
             <input
+              name="sessionSearch"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder={t("sessions.searchSessions")}
               aria-label={t("sessions.searchSessions")}
             />
             {searchQuery ? (
-              <button className="icon-button subtle" onClick={() => setSearchQuery("")} title={t("common.clear")}>
+              <IconButton label={t("common.clear")} variant="subtle" onClick={() => setSearchQuery("")}>
                 <X size={13} />
-              </button>
+              </IconButton>
             ) : null}
           </div>
           {ftsActive && ftsResults.length > 0 ? (
@@ -476,15 +478,15 @@ export function SessionsModule({ api, profileId, onNotice }: SessionsModuleProps
                   <button className="secondary-button" onClick={() => void copySessionMarkdown()} title={t("sessions.copyMarkdown")}>
                     <Copy size={14} />{t("sessions.copyMarkdown")}
                   </button>
-                  <button className="icon-button" onClick={() => downloadSession("html")} title={t("sessions.downloadHtml")}>
+                  <IconButton label={t("sessions.downloadHtml")} onClick={() => downloadSession("html")}>
                     <FileCode size={15} />
-                  </button>
-                  <button className="icon-button" onClick={() => downloadSession("md")} title={t("sessions.downloadMarkdown")}>
+                  </IconButton>
+                  <IconButton label={t("sessions.downloadMarkdown")} onClick={() => downloadSession("md")}>
                     <FileText size={15} />
-                  </button>
-                  <button className="icon-button" onClick={() => downloadSession("json")} title={t("sessions.downloadJson")}>
+                  </IconButton>
+                  <IconButton label={t("sessions.downloadJson")} onClick={() => downloadSession("json")}>
                     <Download size={15} />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
               <div className="session-messages">

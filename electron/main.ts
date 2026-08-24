@@ -209,7 +209,7 @@ async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
-    minWidth: 1080,
+    minWidth: 760,
     minHeight: 680,
     ...(micaSupported ? { backgroundMaterial: "mica" as const } : { backgroundColor: "#fafafa" }),
     ...(overlaySupported

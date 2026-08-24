@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Coins, ChevronRight, Download, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import type { ModelPrice, UsageBucket } from "@omp-switch/core";
-import { Tip } from "./components/ui-primitives";
+import { IconButton, Tip } from "./components/ui-primitives";
 
 type AppApi = NonNullable<Window["ompSwitch"]>;
 type Notice = { tone: "success" | "error" | "info"; text: string };
@@ -378,15 +378,20 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
     <div className="workspace-heading module-heading">
       <div><span className="eyebrow">{profileId}</span><h1>{t("usage.heading")}{typeof totals?.requests === "number" ? <span className="heading-count">{totals.requests}</span> : null}</h1></div>
       <div className="heading-actions">
-        <div className="mp-seg usage-range">
-          {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{t("usage.days", { days })}</button>)}
-          <button type="button" data-active={!from && !to} onClick={() => { setFrom(""); setTo(""); void load(false, {}); }}>{t("usage.all")}</button>
-        </div>
-        <input className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("usage.startDate")} />
-        <input className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("usage.endDate")} />
-        <button className="icon-button" title={t("usage.applyFilter")} onClick={() => void load()} disabled={loading}><Search size={16} /></button>
-        <button className="icon-button" title={t("usage.exportUsage")} onClick={() => exportUsageReport()} disabled={loading || !data}><Download size={16} /></button>
+        <IconButton label={t("usage.exportUsage")} onClick={() => exportUsageReport()} disabled={loading || !data}><Download size={16} /></IconButton>
         <button className="secondary-button" onClick={() => void load(true)} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />{t("usage.reindex")}</button>
+      </div>
+    </div>
+    <div className="usage-filter-bar">
+      <div className="mp-seg usage-range">
+        {[7, 30, 90].map((days) => <button type="button" key={days} data-active={from === daysAgoIso(days) && !to} onClick={() => { setFrom(daysAgoIso(days)); setTo(""); void load(false, { from: daysAgoIso(days) }); }}>{t("usage.days", { days })}</button>)}
+        <button type="button" data-active={!from && !to} onClick={() => { setFrom(""); setTo(""); void load(false, {}); }}>{t("usage.all")}</button>
+      </div>
+      <div className="usage-custom-range">
+        <input name="usageFrom" className="usage-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("usage.startDate")} />
+        <span className="usage-range-separator" aria-hidden="true">–</span>
+        <input name="usageTo" className="usage-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("usage.endDate")} />
+        <IconButton label={t("usage.applyFilter")} onClick={() => void load()} disabled={loading}><Search size={16} /></IconButton>
       </div>
     </div>
 
@@ -466,6 +471,7 @@ export function UsageModule({ api, profileId, onNotice }: UsageModuleProps): Rea
         {(["input", "output", "cacheRead", "cacheWrite"] as const).map((field) => <label className="module-field" key={field}>
           <span>{field}</span>
           <input
+            name={`pricing.${field}`}
             inputMode="decimal"
             value={pricing[field]}
             placeholder={t("usage.pricePlaceholder")}

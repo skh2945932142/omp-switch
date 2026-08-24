@@ -20,7 +20,7 @@ import type {
   OmpProvider,
 } from "@omp-switch/core";
 import { ModelPicker } from "../../components/model-picker";
-import { StyledSelect, Tip } from "../../components/ui-primitives";
+import { IconButton, StyledSelect, Tip } from "../../components/ui-primitives";
 import { useTranslation } from "react-i18next";
 import { formatDateTime, formatClock } from "../../locale";
 
@@ -202,40 +202,41 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
           <span className={`status-chip ${status.running ? "ok" : "neutral"}`}>
             {status.running ? t("gateway.running", { port: status.port }) : t("gateway.stoppedBadge")}
           </span>
-          <button className="icon-button" title={t("common.refresh")} onClick={() => void refresh()} disabled={loading}>
+          <IconButton label={t("common.refresh")} onClick={() => void refresh()} disabled={loading}>
             <RefreshCw size={16} className={loading ? "spin" : ""} />
-          </button>
-          <button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}>
-            <Plus size={16} />{t("common.add")}
-          </button>
+          </IconButton>
+          {pools.length > 0 ? (
+            <button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}>
+              <Plus size={16} />{t("common.add")}
+            </button>
+          ) : null}
         </div>
       </div>
+      {pools.length === 0 ? (
+        <div className="module-empty gateway-empty-state">
+          <span className="empty-glyph"><CircleAlert size={26} /></span>
+          <strong>{t("gateway.empty")}</strong>
+          <span className="empty-desc">{t("gateway.emptyHint")}</span>
+          <div className="empty-actions">
+            <button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}>
+              <Plus size={15} />{t("gateway.newPool")}
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="gateway-layout">
         <div className="module-list-panel">
-          {pools.length === 0 ? (
-            <div className="module-empty compact-empty">
-              <span className="empty-glyph"><CircleAlert size={26} /></span>
-              <strong>{t("gateway.empty")}</strong>
-              <span className="empty-desc">{t("gateway.emptyHint")}</span>
-              <div className="empty-actions">
-                <button className="primary-button" onClick={() => setDraft(makeGatewayPool(profileId, providers))} disabled={readOnly}>
-                  <Plus size={15} />{t("gateway.newPool")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            pools.map((pool) => (
-              <button key={pool.id} className={`module-list-row ${draft?.id === pool.id ? "active" : ""}`} onClick={() => setDraft(pool)}>
-                <span className="module-row-main">
-                  <strong>{pool.virtualModel}</strong>
-                  <small>{pool.id} · {t("gateway.upstreamCount", { count: pool.upstreams.length })} · {pool.port}</small>
-                </span>
-                <span className={`status-chip ${pool.enabled ? "ok" : "neutral"}`}>
-                  {pool.enabled ? t("gateway.enabled") : t("gateway.disabled")}
-                </span>
-              </button>
-            ))
-          )}
+          {pools.map((pool) => (
+            <button key={pool.id} className={`module-list-row ${draft?.id === pool.id ? "active" : ""}`} onClick={() => setDraft(pool)}>
+              <span className="module-row-main">
+                <strong>{pool.virtualModel}</strong>
+                <small>{pool.id} · {t("gateway.upstreamCount", { count: pool.upstreams.length })} · {pool.port}</small>
+              </span>
+              <span className={`status-chip ${pool.enabled ? "ok" : "neutral"}`}>
+                {pool.enabled ? t("gateway.enabled") : t("gateway.disabled")}
+              </span>
+            </button>
+          ))}
         </div>
         <div className="module-editor-panel gateway-editor">
           {draft ? (
@@ -252,19 +253,19 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
               <div className="form-two">
                 <label className="module-field">
                   <span>{t("gateway.fieldId")}</span>
-                  <input value={draft.id} onChange={(event) => updateDraft("id", event.target.value)} disabled={Boolean(pools.find((pool) => pool.id === draft.id))} />
+                  <input name="poolId" value={draft.id} onChange={(event) => updateDraft("id", event.target.value)} disabled={Boolean(pools.find((pool) => pool.id === draft.id))} />
                 </label>
                 <label className="module-field">
                   <span>{t("gateway.fieldPort")}</span>
-                  <input inputMode="numeric" value={draft.port} onChange={(event) => updateDraft("port", Number(event.target.value) || 0)} />
+                  <input name="poolPort" inputMode="numeric" value={draft.port} onChange={(event) => updateDraft("port", Number(event.target.value) || 0)} />
                 </label>
               </div>
               <label className="module-field">
                 <span>{t("gateway.fieldVirtualModel")}</span>
-                <input value={draft.virtualModel} onChange={(event) => updateDraft("virtualModel", event.target.value)} placeholder="omp-switch/default" />
+                <input name="virtualModel" value={draft.virtualModel} onChange={(event) => updateDraft("virtualModel", event.target.value)} placeholder="omp-switch/default" />
               </label>
               <label className="check-line module-check">
-                <input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft("enabled", event.target.checked)} />
+                <input name="enabled" type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft("enabled", event.target.checked)} />
                 {t("gateway.enabled")}
               </label>
               <div className="upstream-list">
@@ -281,13 +282,12 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
                       <Activity size={13} className={probingAll ? "spin" : ""} />
                       <span>{t("gateway.probeAll")}</span>
                     </button>
-                    <button
-                      className="icon-button"
-                      title={t("gateway.addUpstream")}
+                    <IconButton
+                      label={t("gateway.addUpstream")}
                       onClick={() => setDraft((current) => current ? { ...current, upstreams: [...current.upstreams, { id: `upstream-${current.upstreams.length + 1}`, providerId: providers[0]?.[0] ?? "", modelId: modelOptions[0]?.modelId ?? "", kind: "secret", enabled: true }] } : current)}
                     >
                       <Plus size={15} />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
                 {draft.upstreams.map((upstream, index) => {
@@ -300,14 +300,14 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
                   return (
                     <div className="upstream-row" key={upstream.id}>
                       <div className="upstream-reorder-buttons">
-                        <button type="button" className="icon-button subtle" title={t("gateway.moveUpstreamUp")} disabled={index === 0} onClick={() => moveUpstream(index, "up")}>
+                        <IconButton label={t("gateway.moveUpstreamUp")} variant="subtle" disabled={index === 0} onClick={() => moveUpstream(index, "up")}>
                           <ChevronUp size={13} />
-                        </button>
-                        <button type="button" className="icon-button subtle" title={t("gateway.moveUpstreamDown")} disabled={index === draft.upstreams.length - 1} onClick={() => moveUpstream(index, "down")}>
+                        </IconButton>
+                        <IconButton label={t("gateway.moveUpstreamDown")} variant="subtle" disabled={index === draft.upstreams.length - 1} onClick={() => moveUpstream(index, "down")}>
                           <ChevronDown size={13} />
-                        </button>
+                        </IconButton>
                       </div>
-                      <input value={upstream.id} onChange={(event) => updateUpstream(index, { id: event.target.value })} aria-label={t("gateway.ariaUpstreamId")} />
+                      <input name={`upstreams.${index}.id`} value={upstream.id} onChange={(event) => updateUpstream(index, { id: event.target.value })} aria-label={t("gateway.ariaUpstreamId")} />
                       <ModelPicker
                         providers={providers}
                         value={upstream.providerId && upstream.modelId ? `${upstream.providerId}/${upstream.modelId}` : ""}
@@ -325,21 +325,22 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
                         ariaLabel={t("gateway.ariaAuthKind")}
                       />
                       <input
+                        name={`upstreams.${index}.credentialId`}
                         value={upstream.credentialId ?? ""}
                         onChange={(event) => updateUpstream(index, { credentialId: event.target.value || undefined })}
                         className="upstream-credential"
                         placeholder={t("gateway.credentialId")}
                         aria-label={t("gateway.credentialId")}
                       />
-                      <button
-                        type="button"
-                        className={`icon-button subtle ${probeResult?.ok ? "ok" : ""}`}
-                        title={t("gateway.probeUpstream")}
+                      <IconButton
+                        className={probeResult?.ok ? "ok" : ""}
+                        variant="subtle"
+                        label={t("gateway.probeUpstream")}
                         onClick={() => void testProbe(upstream)}
                         disabled={loading || probingUpstreamId === upstream.id || probingAll}
                       >
                         <Activity size={14} className={probingUpstreamId === upstream.id ? "spin" : ""} />
-                      </button>
+                      </IconButton>
                       <Tip
                         label={
                           <div className="tip-stack">
@@ -381,14 +382,14 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
                           <span>{latency !== undefined ? `${latency}ms` : t("gateway.untested")}</span>
                         </span>
                       </Tip>
-                      <button
-                        className="icon-button subtle danger"
-                        title={t("gateway.deleteUpstream")}
+                      <IconButton
+                        variant="danger"
+                        label={t("gateway.deleteUpstream")}
                         onClick={() => setDraft((current) => current ? { ...current, upstreams: current.upstreams.filter((_, itemIndex) => itemIndex !== index) } : current)}
                         disabled={draft.upstreams.length <= 1}
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </IconButton>
                     </div>
                   );
                 })}
@@ -410,7 +411,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
               {token ? (
                 <label className="module-field">
                   <span>{t("gateway.bearerToken")}</span>
-                  <input className="mono" readOnly value={token} onFocus={(event) => event.currentTarget.select()} />
+                  <input name="bearerToken" className="mono" readOnly value={token} onFocus={(event) => event.currentTarget.select()} />
                 </label>
               ) : null}
               {status.upstreams.length > 0 ? (
@@ -442,6 +443,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
           )}
         </div>
       </div>
+      )}
     </section>
   );
 }

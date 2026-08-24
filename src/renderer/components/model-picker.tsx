@@ -164,7 +164,7 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
       <Popover.Content className="mp-popover" align="start" sideOffset={6} collisionPadding={10} onOpenAutoFocus={(event) => { event.preventDefault(); searchRef.current?.focus(); }} onKeyDown={handleKeyDown}>
         <div className="mp-search">
           <Search size={14} />
-          <input ref={searchRef} value={query} placeholder={t("modelPicker.searchPlaceholder")} aria-label={t("modelPicker.searchAria")} onChange={(event) => { setQuery(event.target.value); setHighlight(options.length ? 0 : -1); }} />
+          <input name="modelPickerSearch" ref={searchRef} value={query} placeholder={t("modelPicker.searchPlaceholder")} aria-label={t("modelPicker.searchAria")} onChange={(event) => { setQuery(event.target.value); setHighlight(options.length ? 0 : -1); }} />
         </div>
         {allowSpecial ? <div className="mp-special">
           <button type="button" data-active={parsed?.kind === "role" && parsed.role === "default"} onClick={() => pickSpecial("role")} title={t("modelPicker.specialDefaultTitle")}>@default</button>

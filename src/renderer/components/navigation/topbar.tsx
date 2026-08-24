@@ -11,7 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { UpdateStatus } from "@omp-switch/core";
-import { IconButtonTip } from "../ui-primitives";
+import { IconButton } from "../ui-primitives";
 import { LocaleSwitch } from "../locale-switch";
 import { ThemeSwitch } from "../theme-switch";
 import type { LocaleChoice } from "../../locale";
@@ -73,7 +73,7 @@ export function TopBar({
       <div className="topbar-center">
         <button className="profile-chip" title={t("common.openProfile")} onClick={onOpenProfileSettings}>
           <span className="status-led" />
-          {profileName || profileId}
+          <span className="profile-name">{profileName || profileId}</span>
           <ChevronDown size={14} />
         </button>
         <button
@@ -85,32 +85,26 @@ export function TopBar({
         </button>
       </div>
       <div className="topbar-actions">
-        <IconButtonTip label={`${t("shortcuts.palette")} (Ctrl+K)`}>
-          <button className="icon-button" onClick={onOpenPalette}>
-            <Search size={16} />
-          </button>
-        </IconButtonTip>
-        <IconButtonTip label={t("topbar.refresh")}>
-          <button className="icon-button" onClick={onRefresh} disabled={busy}>
-            <RefreshCw size={16} className={busy ? "spin" : ""} />
-          </button>
-        </IconButtonTip>
-        <IconButtonTip label={t("topbar.createSnapshot")}>
-          <button className="icon-button" onClick={onCreateSnapshot} disabled={busy}>
-            <ArchiveRestore size={16} />
-          </button>
-        </IconButtonTip>
+        <IconButton label={`${t("shortcuts.palette")} (Ctrl+K)`} onClick={onOpenPalette}>
+          <Search size={16} />
+        </IconButton>
+        <IconButton label={t("topbar.refresh")} onClick={onRefresh} disabled={busy}>
+          <RefreshCw size={16} className={busy ? "spin" : ""} />
+        </IconButton>
+        <IconButton label={t("topbar.createSnapshot")} onClick={onCreateSnapshot} disabled={busy}>
+          <ArchiveRestore size={16} />
+        </IconButton>
         <LocaleSwitch value={localeChoice} onChange={onLocaleChange} />
         <ThemeSwitch value={themeChoice} onChange={onThemeChange} />
         {updateInfo.lastResult?.available ? (
-          <button
-            className="icon-button update-badge"
-            title={t("topbar.newVersionAvailable", { version: updateInfo.lastResult.manifest.release })}
+          <IconButton
+            className="update-badge"
+            label={t("topbar.newVersionAvailable", { version: updateInfo.lastResult.manifest.release })}
             onClick={onOpenAbout}
           >
             <Zap size={16} />
             <span className="update-badge-dot" />
-          </button>
+          </IconButton>
         ) : null}
         <button
           className="primary-button compact"

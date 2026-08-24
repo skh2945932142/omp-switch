@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, CloudDownload, Copy, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import type { OmpModel, OmpProvider, ProviderPreset } from "@omp-switch/core";
 import { CODE_MODE_VALUES, KNOWN_TOKENIZER_FAMILIES } from "@omp-switch/core/validation";
-import { StyledSelect } from "../ui-primitives";
+import { IconButton, StyledSelect } from "../ui-primitives";
 import {
   FALLBACK_PRESETS,
   createModelEditorEntry,
@@ -60,7 +60,7 @@ export function ProviderDrawer({
 
   if (formOpen) {
     return (
-      <div className="drawer-body form-drawer">
+      <form className="drawer-body form-drawer" onSubmit={(event) => { event.preventDefault(); void saveProvider(); }}>
         <div className="form-group">
           <div className="form-group-title">
             <span>{t("providerEditor.identity")}</span>
@@ -68,6 +68,7 @@ export function ProviderDrawer({
           <label className="module-field">
             <span>{t("providerEditor.preset")}</span>
             <StyledSelect
+              name="preset"
               value={form.id}
               onValueChange={(next) => choosePreset(next)}
               options={[
@@ -84,6 +85,7 @@ export function ProviderDrawer({
             <label className="module-field">
               <span>ID</span>
               <input
+                name="providerId"
                 readOnly={Boolean(editingProviderId)}
                 value={form.id}
                 onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))}
@@ -93,6 +95,7 @@ export function ProviderDrawer({
             <label className="module-field">
               <span>API</span>
               <input
+                name="providerApi"
                 list="omp-api-options"
                 value={form.api}
                 onChange={(event) => setForm((current) => ({ ...current, api: event.target.value }))}
@@ -119,6 +122,7 @@ export function ProviderDrawer({
           <label className="module-field">
             <span>Endpoint</span>
             <input
+              name="baseUrl"
               value={form.baseUrl}
               onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
               placeholder="https://api.example.com/v1"
@@ -128,6 +132,7 @@ export function ProviderDrawer({
             <label className="module-field">
               <span>{t("providerEditor.auth")}</span>
               <StyledSelect
+                name="auth"
                 value={form.auth}
                 onValueChange={(next) => setForm((current) => ({ ...current, auth: next }))}
                 options={[
@@ -142,6 +147,7 @@ export function ProviderDrawer({
             <label className="module-field">
               <span>{t("providerEditor.apiKey")}</span>
               <input
+                name="apiKey"
                 type="password"
                 value={form.key}
                 onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))}
@@ -155,13 +161,12 @@ export function ProviderDrawer({
         <div className="form-group">
           <div className="form-group-title">
             <span>{t("providerEditor.models")}</span>
-            <button
-              className="icon-button"
-              title={t("providerEditor.addModel")}
+            <IconButton
+              label={t("providerEditor.addModel")}
               onClick={() => setModelEntries((current) => [...current, createModelEditorEntry()])}
             >
               <Plus size={15} />
-            </button>
+            </IconButton>
           </div>
           <div className="model-editor">
             {modelEntries.map((entry, index) => (
@@ -170,6 +175,7 @@ export function ProviderDrawer({
                   <div className="model-editor-field model-id-field">
                     <span className="model-field-label">ID</span>
                     <input
+                      name={`models.${index}.id`}
                       aria-label={t("models.modelField", { id: index + 1, field: "ID" })}
                       value={entry.id}
                       onChange={(event) => updateModelEntry(index, { id: event.target.value })}
@@ -179,16 +185,17 @@ export function ProviderDrawer({
                   <div className="model-editor-field model-name-field">
                     <span className="model-field-label">{t("models.name")}</span>
                     <input
+                      name={`models.${index}.name`}
                       aria-label={t("models.modelField", { id: index + 1, field: t("models.name") })}
                       value={entry.name}
                       onChange={(event) => updateModelEntry(index, { name: event.target.value })}
                       placeholder={t("models.name")}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="icon-button subtle model-editor-clone"
-                    title={t("providerEditor.cloneModel")}
+                  <IconButton
+                    className="model-editor-clone"
+                    variant="subtle"
+                    label={t("providerEditor.cloneModel")}
                     onClick={() => {
                       const suffix = "-copy";
                       const clonedId = entry.id ? `${entry.id}${suffix}` : "";
@@ -201,21 +208,22 @@ export function ProviderDrawer({
                     }}
                   >
                     <Copy size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button subtle danger model-editor-delete"
-                    title={t("providerEditor.deleteModel")}
+                  </IconButton>
+                  <IconButton
+                    className="model-editor-delete"
+                    variant="danger"
+                    label={t("providerEditor.deleteModel")}
                     onClick={() => setModelEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   >
                     <Trash2 size={15} />
-                  </button>
+                  </IconButton>
                 </div>
                 <div className="model-editor-params">
                   <div className="model-param-group">
                     <label className="model-param-label">
                       <span>Context</span>
                       <input
+                        name={`models.${index}.contextWindow`}
                         aria-label={t("models.modelField", { id: index + 1, field: "Context" })}
                         inputMode="numeric"
                         value={entry.contextWindow}
@@ -226,6 +234,7 @@ export function ProviderDrawer({
                     <label className="model-param-label">
                       <span>Max</span>
                       <input
+                        name={`models.${index}.maxTokens`}
                         aria-label={t("models.modelField", { id: index + 1, field: "Max output" })}
                         inputMode="numeric"
                         value={entry.maxTokens}
@@ -237,6 +246,7 @@ export function ProviderDrawer({
                   <div className="model-flags-group">
                     <label className="check-line">
                       <input
+                        name={`models.${index}.reasoning`}
                         type="checkbox"
                         checked={entry.reasoning}
                         onChange={(event) => updateModelEntry(index, { reasoning: event.target.checked })}
@@ -245,6 +255,7 @@ export function ProviderDrawer({
                     </label>
                     <label className="check-line">
                       <input
+                        name={`models.${index}.vision`}
                         type="checkbox"
                         checked={entry.vision}
                         onChange={(event) => updateModelEntry(index, { vision: event.target.checked })}
@@ -259,6 +270,7 @@ export function ProviderDrawer({
                     <label>
                       {t("providerEditor.api")}
                       <input
+                        name={`models.${index}.api`}
                         list="omp-api-options"
                         value={entry.api}
                         onChange={(event) => updateModelEntry(index, { api: event.target.value })}
@@ -268,6 +280,7 @@ export function ProviderDrawer({
                     <label>
                       Transport
                       <input
+                        name={`models.${index}.transport`}
                         value={entry.transport}
                         onChange={(event) => updateModelEntry(index, { transport: event.target.value })}
                         placeholder="pi-native"
@@ -276,6 +289,7 @@ export function ProviderDrawer({
                     <label>
                       {t("providerEditor.imageDecoder")}
                       <input
+                        name={`models.${index}.imageInputDecoder`}
                         value={entry.imageInputDecoder}
                         onChange={(event) => updateModelEntry(index, { imageInputDecoder: event.target.value })}
                         placeholder="stb"
@@ -284,6 +298,7 @@ export function ProviderDrawer({
                     <label>
                       Tokenizer
                       <StyledSelect
+                        name={`models.${index}.tokenizer`}
                         value={entry.tokenizer}
                         onValueChange={(next) => updateModelEntry(index, { tokenizer: next })}
                         options={[
@@ -297,6 +312,7 @@ export function ProviderDrawer({
                     <label>
                       Headers
                       <textarea
+                        name={`models.${index}.headers`}
                         value={entry.headers}
                         onChange={(event) => updateModelEntry(index, { headers: event.target.value })}
                         rows={2}
@@ -306,6 +322,7 @@ export function ProviderDrawer({
                     <label>
                       Compat
                       <textarea
+                        name={`models.${index}.compat`}
                         value={entry.compat}
                         onChange={(event) => updateModelEntry(index, { compat: event.target.value })}
                         rows={2}
@@ -314,6 +331,7 @@ export function ProviderDrawer({
                     <label>
                       {t("models.remoteCompactionLabel")}
                       <textarea
+                        name={`models.${index}.remoteCompaction`}
                         value={entry.remoteCompaction}
                         onChange={(event) => updateModelEntry(index, { remoteCompaction: event.target.value })}
                         rows={2}
@@ -323,6 +341,7 @@ export function ProviderDrawer({
                     <label>
                       Cost
                       <textarea
+                        name={`models.${index}.cost`}
                         value={entry.cost}
                         onChange={(event) => updateModelEntry(index, { cost: event.target.value })}
                         rows={2}
@@ -339,6 +358,7 @@ export function ProviderDrawer({
 
         <div className="form-group">
           <button
+            type="button"
             className="drawer-disclosure form-group-disclosure"
             onClick={() => setAdvancedOpen((value) => !value)}
           >
@@ -351,6 +371,7 @@ export function ProviderDrawer({
                 <label className="module-field">
                   <span>{t("providerEditor.discovery")}</span>
                   <StyledSelect
+                    name="discoveryType"
                     value={form.discoveryType}
                     onValueChange={(next) => setForm((current) => ({ ...current, discoveryType: next }))}
                     options={[
@@ -368,6 +389,7 @@ export function ProviderDrawer({
                 <label className="module-field">
                   <span>Transport</span>
                   <input
+                    name="transport"
                     value={form.transport}
                     onChange={(event) => setForm((current) => ({ ...current, transport: event.target.value }))}
                     placeholder="pi-native"
@@ -377,6 +399,7 @@ export function ProviderDrawer({
               <div className="form-two">
                 <label className="check-line">
                   <input
+                    name="authHeader"
                     type="checkbox"
                     checked={form.authHeader}
                     onChange={(event) => setForm((current) => ({ ...current, authHeader: event.target.checked }))}
@@ -385,6 +408,7 @@ export function ProviderDrawer({
                 </label>
                 <label className="check-line">
                   <input
+                    name="disableStrictTools"
                     type="checkbox"
                     checked={form.disableStrictTools}
                     onChange={(event) =>
@@ -397,6 +421,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>Headers</span>
                 <textarea
+                  name="headers"
                   value={form.headers}
                   onChange={(event) => setForm((current) => ({ ...current, headers: event.target.value }))}
                   rows={3}
@@ -406,6 +431,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>Compat</span>
                 <textarea
+                  name="compat"
                   value={form.compat}
                   onChange={(event) => setForm((current) => ({ ...current, compat: event.target.value }))}
                   rows={3}
@@ -414,6 +440,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>Overrides</span>
                 <textarea
+                  name="overrides"
                   value={form.overrides}
                   onChange={(event) => setForm((current) => ({ ...current, overrides: event.target.value }))}
                   rows={3}
@@ -422,6 +449,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>{t("models.remoteCompactionLabel")}</span>
                 <textarea
+                  name="remoteCompaction"
                   value={form.remoteCompaction}
                   onChange={(event) => setForm((current) => ({ ...current, remoteCompaction: event.target.value }))}
                   rows={3}
@@ -431,6 +459,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>Cost</span>
                 <textarea
+                  name="cost"
                   value={form.cost}
                   onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))}
                   rows={2}
@@ -440,6 +469,7 @@ export function ProviderDrawer({
               <label className="module-field">
                 <span>Code Mode</span>
                 <StyledSelect
+                  name="codeMode"
                   value={form.codeMode}
                   onValueChange={(next) => setForm((current) => ({ ...current, codeMode: next }))}
                   options={[
@@ -466,16 +496,16 @@ export function ProviderDrawer({
               {t("common.delete")}
             </button>
           ) : null}
-          <button className="secondary-button" onClick={() => void fetchModels()} disabled={busy}>
+          <button type="button" className="secondary-button" onClick={() => void fetchModels()} disabled={busy}>
             <CloudDownload size={15} />
             {t("providerEditor.testAndDiscover")}
           </button>
-          <button className="primary-button" onClick={() => void saveProvider()} disabled={busy || readOnly}>
+          <button type="submit" className="primary-button" disabled={busy || readOnly}>
             <Save size={15} />
             {t("providerEditor.save")}
           </button>
         </div>
-      </div>
+      </form>
     );
   }
 
@@ -506,14 +536,14 @@ export function ProviderDrawer({
               <Sparkles size={15} />
               {t("models.edit")}
             </button>
-            <button
-              className="icon-button danger"
-              title={t("providerEditor.removeProvider", { target: selectedProviderId ?? "" })}
+            <IconButton
+              variant="danger"
+              label={t("providerEditor.removeProvider", { target: selectedProviderId ?? "" })}
               onClick={() => void removeProvider(selectedProviderId!)}
               disabled={busy || readOnly}
             >
               <Trash2 size={15} />
-            </button>
+            </IconButton>
           </div>
         </div>
 

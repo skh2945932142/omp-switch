@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Toaster, toast } from "sonner";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, MotionConfig } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import type {
   ConfigPatch,
   OmpModel,
@@ -33,6 +32,7 @@ import { LeftRail, type SectionKey } from "./components/navigation/left-rail";
 import { ProviderDrawer } from "./components/drawers/provider-drawer";
 import { SettingsDrawer } from "./components/drawers/settings-drawer";
 import { DiagnosticsDrawer } from "./components/drawers/diagnostics-drawer";
+import { DetailDrawer } from "./components/drawers/detail-drawer";
 import { CommandPalette } from "./components/command-palette";
 import { ConflictDialog, ConfirmDialog, SavePreviewDialog, ShortcutsDialog } from "./components/save-flow";
 import { initTheme, type ThemeChoice } from "./theme";
@@ -154,6 +154,22 @@ export default function App(): ReactElement {
       return false;
     }
   });
+  const [narrowSidebar, setNarrowSidebar] = useState<boolean>(() => (
+    typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(max-width: 760px)").matches
+  ));
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const media = window.matchMedia("(max-width: 760px)");
+    const sync = () => setNarrowSidebar(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  const effectiveSidebarCompact = sidebarCompact || narrowSidebar;
 
   function toggleSidebarCompact() {
     setSidebarCompact((current) => {
@@ -624,6 +640,7 @@ export default function App(): ReactElement {
 
   return (
     <Tooltip.Provider delayDuration={350}>
+      <MotionConfig reducedMotion="user" transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}>
       <div className="app-shell">
         <TopBar
           profileId={profileId}
@@ -658,7 +675,7 @@ export default function App(): ReactElement {
           isDirty={rolesDirty || settingsDirty}
         />
 
-        <main className={`app-body${sidebarCompact ? " rail-compact" : ""}`}>
+        <main className={`app-body${effectiveSidebarCompact ? " rail-compact" : ""}`}>
           <LeftRail
             profileId={profileId}
             profiles={profiles}
@@ -683,7 +700,7 @@ export default function App(): ReactElement {
               setProfileDrawerOpen(true);
               setDrawerOpen(true);
             }}
-            compact={sidebarCompact}
+            compact={effectiveSidebarCompact}
             onToggleCompact={toggleSidebarCompact}
           />
 
@@ -754,51 +771,32 @@ export default function App(): ReactElement {
 
           <AnimatePresence>
             {isDrawerActive ? (
-              <motion.aside
-                className="detail-drawer"
+              <DetailDrawer
                 key="detail-drawer"
-                initial={{ opacity: 0, x: 32 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 32 }}
-                transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                eyebrow={profileDrawerOpen
+                  ? t("common.profile")
+                  : diagnosticsOpen
+                    ? t("diagnostics.title")
+                    : formOpen
+                      ? editingProviderId
+                        ? t("providerEditor.edit")
+                        : t("providerEditor.new")
+                      : t("providerEditor.provider")}
+                title={profileDrawerOpen
+                  ? profileId
+                  : diagnosticsOpen
+                    ? t("diagnostics.title")
+                    : formOpen
+                      ? editingProviderId ?? t("providerEditor.newProvider")
+                      : selectedProviderId ?? t("providerEditor.detail")}
+                closeLabel={t("common.close")}
+                onClose={() => {
+                  setDrawerOpen(false);
+                  closeForm();
+                  setProfileDrawerOpen(false);
+                  setDiagnosticsOpen(false);
+                }}
               >
-                <div className="drawer-head">
-                  <div>
-                    <span className="eyebrow">
-                      {profileDrawerOpen
-                        ? t("common.profile")
-                        : diagnosticsOpen
-                          ? t("diagnostics.title")
-                          : formOpen
-                            ? editingProviderId
-                              ? t("providerEditor.edit")
-                              : t("providerEditor.new")
-                            : t("providerEditor.provider")}
-                    </span>
-                    <h2>
-                      {profileDrawerOpen
-                        ? profileId
-                        : diagnosticsOpen
-                          ? t("diagnostics.title")
-                          : formOpen
-                            ? editingProviderId ?? t("providerEditor.newProvider")
-                            : selectedProviderId ?? t("providerEditor.detail")}
-                    </h2>
-                  </div>
-                  <button
-                    className="icon-button"
-                    title={t("common.close")}
-                    onClick={() => {
-                      setDrawerOpen(false);
-                      closeForm();
-                      setProfileDrawerOpen(false);
-                      setDiagnosticsOpen(false);
-                    }}
-                  >
-                    <X size={17} />
-                  </button>
-                </div>
-
                 {profileDrawerOpen ? (
                   <SettingsDrawer
                     profileId={profileId}
@@ -881,7 +879,7 @@ export default function App(): ReactElement {
                     readOnly={readOnly}
                   />
                 ) : null}
-              </motion.aside>
+              </DetailDrawer>
             ) : null}
           </AnimatePresence>
         </main>
@@ -949,6 +947,7 @@ export default function App(): ReactElement {
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
         <Toaster position="bottom-right" richColors closeButton />
       </div>
+      </MotionConfig>
     </Tooltip.Provider>
   );
 }

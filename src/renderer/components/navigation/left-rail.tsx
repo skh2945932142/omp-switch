@@ -107,13 +107,13 @@ export function LeftRail({
                   key={item}
                   className={isActive ? "active" : ""}
                   onClick={() => onSectionChange(item)}
-                  aria-label={`${sectionLabels[item]} (Ctrl+${SECTION_SHORTCUTS[item]})`}
+                  aria-label={compact ? `${sectionLabels[item]} (Ctrl+${SECTION_SHORTCUTS[item]})` : undefined}
                 >
                   {isActive ? (
                     <motion.span
                       layoutId="active-nav-pill"
                       className="nav-active-pill"
-                      transition={{ type: "spring", stiffness: 460, damping: 36 }}
+                      transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                     />
                   ) : null}
                   <span className="nav-icon">

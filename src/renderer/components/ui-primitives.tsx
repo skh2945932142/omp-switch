@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Check, ChevronDown } from "lucide-react";
@@ -18,13 +18,14 @@ interface StyledSelectProps {
   value: string;
   onValueChange: (value: string) => void;
   options: SelectOption[];
+  name?: string;
   ariaLabel?: string;
   /** Mono face for the trigger text (ids, levels). */
   mono?: boolean;
   disabled?: boolean;
 }
 
-export function StyledSelect({ value, onValueChange, options, ariaLabel, mono, disabled }: StyledSelectProps): ReactElement {
+export function StyledSelect({ value, onValueChange, options, name, ariaLabel, mono, disabled }: StyledSelectProps): ReactElement {
   // Internal item values are indexes: preset lists can carry duplicate ids (two "openai"
   // entries with different apis), and Radix needs distinct item values.
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
@@ -32,6 +33,7 @@ export function StyledSelect({ value, onValueChange, options, ariaLabel, mono, d
   return <SelectPrimitive.Root
     value={String(selectedIndex)}
     onValueChange={(internal) => { const option = options[Number(internal)]; if (option) onValueChange(option.value); }}
+    name={name}
     disabled={disabled}
   >
     <SelectPrimitive.Trigger className={`sel-trigger${mono ? " mono" : ""}`} aria-label={ariaLabel}>
@@ -67,7 +69,21 @@ export function Tip({ label, children, side = "top" }: { label: ReactNode; child
   </TooltipPrimitive.Root>;
 }
 
-/** Tooltip wrapper for icon buttons; the label doubles as aria-label. */
+export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label"> {
+  label: string;
+  variant?: "default" | "subtle" | "danger";
+  side?: "top" | "bottom" | "left" | "right";
+}
+
+/** A single source of truth for icon-button tooltip text and accessible naming. */
+export function IconButton({ label, variant = "default", side, className, type, children, ...props }: IconButtonProps): ReactElement {
+  const classes = ["icon-button", variant === "default" ? "" : variant, className ?? ""].filter(Boolean).join(" ");
+  return <Tip label={label} side={side}>
+    <button {...props} type={type ?? "button"} className={classes} aria-label={label}>{children}</button>
+  </Tip>;
+}
+
+/** Tooltip wrapper for non-standard triggers that already provide their own accessible name. */
 export function IconButtonTip({ label, children }: { label: string; children: ReactNode }): ReactElement {
   return <Tip label={label}>{children}</Tip>;
 }

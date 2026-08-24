@@ -52,6 +52,7 @@
   /* Hairlines & structural borders */
   --hairline: light-dark(#e6e6ec, #26262e);
   --line: light-dark(#d0d0d8, #363640);
+  --control-border: light-dark(#92929f, #626274);
 
   /* Signal: selection, focus ring, active links. */
   --signal: light-dark(#0d766e, #3ec5b4);

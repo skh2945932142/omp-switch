@@ -74,12 +74,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: var(--invert-bg);
   border-radius: 8px;
   box-shadow: 0 1px 2px var(--shadow-tint);
-  transition: transform 120ms var(--spring-smooth);
 }
-.brand-mark:hover { transform: scale(1.04); }
 .brand-name {
   font-weight: 650;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   font-size: var(--fs-strong);
   color: var(--ink);
 }
@@ -94,14 +92,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .profile-chip {
   gap: 6px;
   min-height: 30px;
-  border: 1px solid transparent;
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-s);
   padding: 0 9px;
   color: var(--ink-soft);
   background: var(--sunken);
   font-size: var(--fs-small);
   font-weight: 550;
-  transition: all 120ms var(--spring-smooth);
+  transition: background-color var(--ease-fast), color var(--ease-fast), border-color var(--ease-fast);
 }
 .profile-chip:hover {
   background: var(--hover);
@@ -146,10 +144,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-radius: var(--radius-s);
   color: var(--muted);
   background: transparent;
-  transition: all 120ms var(--spring-smooth);
+  transition: background-color var(--ease-fast), color var(--ease-fast), border-color var(--ease-fast), transform var(--ease-fast);
 }
 .icon-button:hover { background: var(--hover); color: var(--ink); border-color: var(--hairline); }
-.icon-button:active { transform: scale(0.92); }
+.icon-button:active { transform: scale(0.97); }
 .icon-button.subtle { border-color: transparent; background: transparent; }
 .icon-button.danger:hover { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
 
@@ -164,8 +162,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border: 1px solid transparent;
   font-weight: 600;
   font-size: var(--fs-small);
-  letter-spacing: -0.01em;
-  transition: all 120ms var(--spring-smooth);
+  letter-spacing: 0;
+  transition: background-color var(--ease-fast), color var(--ease-fast), border-color var(--ease-fast), box-shadow var(--ease-fast), transform var(--ease-fast);
 }
 .primary-button {
   color: var(--invert-ink);
@@ -178,7 +176,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .secondary-button {
   color: var(--ink);
-  border-color: var(--hairline);
+  border-color: var(--control-border);
   background: var(--panel);
   box-shadow: 0 1px 2px var(--shadow-tint);
 }
@@ -207,7 +205,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-right: 1px solid var(--hairline);
   background: var(--rail);
   overflow-y: auto;
-  transition: all 200ms var(--spring-smooth);
+  transition: padding var(--ease-medium), background-color var(--ease-medium);
 }
 .left-rail.compact {
   padding: 14px 6px 12px;
@@ -258,7 +256,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rail-profile select {
   height: 32px;
   padding: 0 8px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-s);
   color: var(--ink);
   background: var(--sunken);
@@ -386,7 +384,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: transparent;
   font-size: var(--fs-small);
   text-align: left;
-  transition: all 120ms var(--spring-smooth);
+  transition: background-color var(--ease-fast), color var(--ease-fast);
 }
 .rail-action:hover { background: var(--hover); color: var(--ink); }
 .rail-action span { margin-left: auto; min-width: 16px; text-align: right; }
@@ -398,34 +396,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   height: 100%;
   padding: 24px 32px 48px;
   overflow-y: auto;
-  transform-origin: center right;
-  transition: transform 260ms var(--spring-smooth), opacity 260ms var(--spring-smooth), filter 260ms var(--spring-smooth);
-}
-.workspace-main.drawer-active {
-  transform: scale(0.992);
-  filter: opacity(0.96);
 }
 
 .section-view {
-  animation: section-in 180ms var(--spring-smooth);
+  animation: section-in 120ms var(--spring-smooth);
 }
 @keyframes section-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Staggered entrance for workspace child blocks */
-.section-view > * {
-  animation: child-in 220ms var(--spring-smooth) backwards;
-}
-.section-view > *:nth-child(1) { animation-delay: 0ms; }
-.section-view > *:nth-child(2) { animation-delay: 25ms; }
-.section-view > *:nth-child(3) { animation-delay: 50ms; }
-.section-view > *:nth-child(4) { animation-delay: 75ms; }
-.section-view > *:nth-child(5) { animation-delay: 100ms; }
-
-@keyframes child-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -439,7 +416,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   margin: 6px 0 0;
   font-size: var(--fs-display);
   font-weight: 650;
-  letter-spacing: -0.022em;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 .heading-actions { gap: 8px; }
@@ -450,11 +427,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   width: 220px;
   height: 34px;
   padding: 0 10px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-s);
   color: var(--muted);
   background: var(--sunken);
-  transition: all 120ms var(--spring-smooth);
+  transition: border-color var(--ease-fast), background-color var(--ease-fast), box-shadow var(--ease-fast);
 }
 .search-box:focus-within {
   border-color: var(--signal);
@@ -511,7 +488,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--ink);
   font-size: var(--fs-title);
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .empty-workspace .empty-desc, .module-empty .empty-desc {
   max-width: 280px;
@@ -591,7 +568,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   overflow: hidden;
   font-size: 16px;
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -621,7 +598,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: transparent;
   font-size: var(--fs-small);
   font-weight: 550;
-  transition: all 120ms var(--spring-smooth);
+  transition: background-color var(--ease-fast), color var(--ease-fast), border-color var(--ease-fast);
 }
 .profile-tabs button:hover { background: var(--hover); color: var(--ink); }
 .profile-tabs button.active { color: var(--ink); background: var(--selected); border-color: var(--hairline); font-weight: 600; }
@@ -646,12 +623,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   width: 100%;
   min-width: 0;
   padding: 0 10px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-s);
   color: var(--ink);
   background: var(--sunken);
   font-size: var(--fs-small);
-  transition: all 120ms var(--spring-smooth);
+  transition: border-color var(--ease-fast), background-color var(--ease-fast), box-shadow var(--ease-fast);
 }
 .module-field input, .module-field select { height: 32px; }
 .module-field textarea { padding-block: 7px; font-family: var(--font-mono); line-height: 1.5; resize: vertical; }
@@ -700,11 +677,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .form-drawer input:not([type="checkbox"]), .form-drawer select, .form-drawer textarea {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-s);
   color: var(--ink);
   background: var(--sunken);
-  transition: all 120ms var(--spring-smooth);
+  transition: border-color var(--ease-fast), background-color var(--ease-fast), box-shadow var(--ease-fast);
 }
 .form-drawer input:not([type="checkbox"]), .form-drawer select { height: 32px; padding: 0 10px; font-size: var(--fs-small); }
 .form-drawer input:not([type="checkbox"]):focus-visible, .form-drawer select:focus-visible, .form-drawer textarea:focus-visible {
@@ -741,7 +718,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   height: 18px;
   margin: 0;
   border-radius: var(--radius-pill);
-  background: var(--line);
+  background: var(--control-border);
   cursor: pointer;
   transition: background 150ms ease;
   flex: 0 0 auto;

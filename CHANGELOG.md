@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.6 - 2026-08-24
+
+### Changed
+- **Accessible Quiet Instrument UI**:
+  - Unified icon-only actions behind a labeled `IconButton` primitive so tooltips and accessible names stay in sync.
+  - Added named dialogs and a focus-managed inspector drawer with Escape handling and focus restoration.
+  - Refined interaction borders, typography density, page hierarchy, and gateway/usage empty and filter states without adding a new UI framework.
+- **Purposeful motion and compact desktop layout**:
+  - Removed global child staggering, workspace scaling, hover enlargement, and broad `transition: all` rules.
+  - Added consistent dialog, menu, tooltip, list, and drawer timing with `prefers-reduced-motion` support.
+  - Added a 56px icon rail for 760px-wide desktop windows and lowered the Electron minimum width to 760px.
+
+### Fixed
+- Provider editor fields now participate in a semantic form, support Enter to save, and expose stable field names for browser tooling.
+- Gateway no-data state now presents one primary creation path instead of two competing empty panels.
+- Usage date controls and actions now occupy a dedicated filter bar instead of competing with page-level commands.
+
+### Security
+- Sanitized FTS snippets before rendering, isolated gateway health probes to the selected profile, and hardened session-index metadata handling.
+
 ## 0.5.5 - 2026-08-24
 
 ### Added

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ManagedSurfaceEntry, SurfaceBundle } from "@omp-switch/core";
 import { ConfirmDialog } from "../../components/save-flow";
+import { IconButton } from "../../components/ui-primitives";
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "../../locale";
 
@@ -163,16 +164,16 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Surf
           <h1>{label}<span className="heading-count">{entries.length}</span></h1>
         </div>
         <div className="heading-actions">
-          <button className="icon-button" title={t("surfaces.refresh")} onClick={() => void refresh()} disabled={loading}>
+          <IconButton label={t("surfaces.refresh")} onClick={() => void refresh()} disabled={loading}>
             <RefreshCw size={16} className={loading ? "spin" : ""} />
-          </button>
-          <button className="icon-button" title={t("surfaces.export")} onClick={() => void exportEntries()} disabled={loading}>
+          </IconButton>
+          <IconButton label={t("surfaces.export")} onClick={() => void exportEntries()} disabled={loading}>
             <Download size={16} />
-          </button>
-          <button className="icon-button" title={t("surfaces.import")} onClick={() => fileInput.current?.click()} disabled={loading || readOnly}>
+          </IconButton>
+          <IconButton label={t("surfaces.import")} onClick={() => fileInput.current?.click()} disabled={loading || readOnly}>
             <Upload size={16} />
-          </button>
-          <input ref={fileInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void importEntries(event)} />
+          </IconButton>
+          <input name={`${kind}Import`} ref={fileInput} className="visually-hidden" type="file" accept="application/json,.json" aria-label={t("surfaces.import")} onChange={(event) => void importEntries(event)} />
           <button className="primary-button" onClick={beginNew} disabled={readOnly}>
             <Plus size={16} />{t("surfaces.new")}
           </button>
@@ -218,9 +219,9 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Surf
                 </div>
                 <div className="drawer-actions">
                   {selected && !editing ? (
-                    <button className="icon-button danger" title={t("common.delete")} onClick={() => void removeEntry()} disabled={loading || selected.source !== "profile"}>
+                    <IconButton label={t("common.delete")} variant="danger" onClick={() => void removeEntry()} disabled={loading || selected.source !== "profile"}>
                       <Trash2 size={15} />
-                    </button>
+                    </IconButton>
                   ) : null}
                   <button className="secondary-button" onClick={() => setEditing((value) => !value)} disabled={!writable}>
                     {editing ? t("surfaces.preview") : t("surfaces.edit")}
@@ -231,11 +232,11 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Surf
                 <>
                   <label className="module-field">
                     <span>{t("surfaces.name")}</span>
-                    <input value={name} onChange={(event) => setName(event.target.value)} disabled={Boolean(selected && selected.source !== "profile")} placeholder={kind === "prompt" ? "review" : "release"} />
+                    <input name={`${kind}Name`} value={name} onChange={(event) => setName(event.target.value)} disabled={Boolean(selected && selected.source !== "profile")} placeholder={kind === "prompt" ? "review" : "release"} />
                   </label>
                   <label className="module-field">
                     <span>{kind === "prompt" ? t("surfaces.content") : "SKILL.md"}</span>
-                    <textarea className="surface-editor" value={content} onChange={(event) => setContent(event.target.value)} disabled={!writable} spellCheck={false} />
+                    <textarea name={`${kind}Content`} className="surface-editor" value={content} onChange={(event) => setContent(event.target.value)} disabled={!writable} spellCheck={false} />
                   </label>
                   <button className="primary-button full-width" onClick={() => void saveEntry()} disabled={loading || !writable}>
                     <Save size={15} />{t("common.save")}
