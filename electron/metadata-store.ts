@@ -7,6 +7,7 @@ import {
   type GatewayProbeRecord,
   type GatewayUpstreamHealth,
   type SessionFileCache,
+  type SessionSearchResult,
   type SessionSummary,
   type SessionUsageRecord,
   type Snapshot,
@@ -62,7 +63,7 @@ function cachePayload(cache: SessionFileCache): Omit<SessionFileCache, "usage"> 
 }
 
 function cloneUsage(usage: SessionUsageRecord[]): SessionUsageRecord[] {
-  return usage.map((record) => ({ ...record, tokens: { ...record.tokens } }));
+  return usage.map((item) => ({ ...item, tokens: { ...item.tokens } }));
 }
 
 function cloneCache(cache: SessionFileCache): SessionFileCache {
@@ -84,6 +85,7 @@ export class MetadataStore {
   private readonly backend: "auto" | "json";
   private sqlite: SqliteDb | null = null;
   private fallback: MetadataState = emptyState();
+  private hasFts = false;
 
   constructor(userDataDir: string, options: MetadataStoreOptions = {}) {
     this.filePath = path.join(userDataDir, "metadata.sqlite");
@@ -112,6 +114,12 @@ export class MetadataStore {
         + "CREATE TABLE IF NOT EXISTS session_usage (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, profile TEXT NOT NULL, payload TEXT NOT NULL);"
         + "DROP TABLE IF EXISTS session_index;",
       );
+      try {
+        this.sqlite.exec("CREATE VIRTUAL TABLE IF NOT EXISTS session_fts USING fts5(session_id UNINDEXED, profile UNINDEXED, role, text);");
+        this.hasFts = true;
+      } catch {
+        this.hasFts = false;
+      }
       this.removeLegacySessionOffsets();
     } catch {
       this.sqlite?.close();
@@ -369,6 +377,40 @@ export class MetadataStore {
 
   listSessionUsage(profile: string): SessionUsageRecord[] {
     return this.listSessionCaches(profile).flatMap((cache) => cloneUsage(cache.usage));
+  }
+
+  indexSessionMessagesForFts(profile: string, sessionId: string, messages: Array<{ role?: string; text?: string }>): void {
+    if (!this.sqlite || !this.hasFts) return;
+    try {
+      this.sqlite.prepare("DELETE FROM session_fts WHERE session_id = ? AND profile = ?").run(sessionId, profile);
+      const insert = this.sqlite.prepare("INSERT INTO session_fts(session_id, profile, role, text) VALUES(?, ?, ?, ?)");
+      for (const msg of messages) {
+        if (msg.text && typeof msg.text === "string" && msg.text.trim()) {
+          insert.run(sessionId, profile, msg.role || "message", msg.text);
+        }
+      }
+    } catch {
+      // Gracefully ignore FTS indexing errors
+    }
+  }
+
+  searchSessionFts(profile: string, query: string, limit = 50): SessionSearchResult[] {
+    if (!query.trim() || !this.sqlite || !this.hasFts) return [];
+    try {
+      const clean = query.replace(/['"*]/g, " ").trim();
+      if (!clean) return [];
+      const matchExpr = clean.split(/\s+/).filter(Boolean).map((w) => `"${w}"*`).join(" ");
+      const rows = this.sqlite.prepare(
+        "SELECT session_id, role, snippet(session_fts, 3, '<mark>', '</mark>', '...', 15) AS snippet FROM session_fts WHERE profile = ? AND session_fts MATCH ? LIMIT ?"
+      ).all(profile, matchExpr, limit) as Array<{ session_id: string; role: string; snippet: string }>;
+      return rows.map((r) => ({
+        sessionId: r.session_id,
+        role: r.role,
+        snippet: r.snippet,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async setPreference(key: string, value: unknown): Promise<void> {

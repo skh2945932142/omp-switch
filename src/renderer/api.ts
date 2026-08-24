@@ -286,6 +286,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
       ],
       nextCursor: undefined,
     }),
+    searchSessionFts: async () => [],
     readSessionMessages: async (_profileId, _sessionId) => ({
       messages: [
         {

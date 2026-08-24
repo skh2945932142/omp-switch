@@ -266,4 +266,24 @@ describe("MetadataStore migration", () => {
       expect(health["pool-1:up-2"].consecutiveFailures).toBe(1);
     }
   });
+
+  it("indexes session messages and performs FTS full-text search with snippets", async () => {
+    const { store } = await makeStore("auto");
+    store.indexSessionMessagesForFts("default", "session-1", [
+      { role: "user", text: "How do I fix Docker container port conflict in production?" },
+      { role: "assistant", text: "To resolve the port conflict, edit docker-compose.yml and bind to an unused host port like 8080:80." },
+    ]);
+    store.indexSessionMessagesForFts("default", "session-2", [
+      { role: "user", text: "Show me how to write a Rust macro" },
+      { role: "assistant", text: "Rust macros are defined using macro_rules! syntax." },
+    ]);
+
+    const results = store.searchSessionFts("default", "docker conflict");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0]?.sessionId).toBe("session-1");
+    expect(results[0]?.snippet).toContain("<mark>");
+
+    const empty = store.searchSessionFts("default", "nonexistentquery12345");
+    expect(empty).toHaveLength(0);
+  });
 });

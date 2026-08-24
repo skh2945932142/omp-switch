@@ -1,4 +1,4 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, SessionSearchResult, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
@@ -26,6 +26,7 @@ export interface OmpSwitchApi {
   importSurfaces(profileId: string, bundle: SurfaceBundle): Promise<ManagedSurfaceEntry[]>;
   refreshSessions(profileId: string, options?: { rebuild?: boolean }): Promise<SessionRefreshStats>;
   listSessions(profileId: string, options?: { limit?: number; cursor?: string }): Promise<SessionListPage>;
+  searchSessionFts(profileId: string, query: string, limit?: number): Promise<SessionSearchResult[]>;
   readSessionMessages(profileId: string, id: string, options?: { cursor?: string }): Promise<SessionMessagePage>;
   usageSummary(profileId?: string, options?: { from?: string; to?: string; reindex?: boolean }): Promise<{
     report: UsageReport;

@@ -341,11 +341,15 @@ function registerIpc(): void {
     const ref = adapterProfile(profile);
     const cursor = consumeMessageCursor(profile, id, options?.cursor);
     const page = await readSessionMessages(path.join(ref.agentDir, "sessions"), cache, { limit: 50, cursor });
+    metadata.indexSessionMessagesForFts(profile, id, page.messages);
     return {
       messages: page.messages,
       hasMore: page.hasMore,
       nextCursor: page.nextCursor ? rememberMessageCursor(profile, id, page.nextCursor) : undefined,
     };
+  });
+  ipcMain.handle("session:search-fts", (_event, profileId: string, query: string, limit?: number) => {
+    return metadata.searchSessionFts(safeSessionProfileId(profileId), query, limit);
   });
   ipcMain.handle("usage:summary", async (_event, profileId: string = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => {
     const profile = safeSessionProfileId(profileId);

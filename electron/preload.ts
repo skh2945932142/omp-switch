@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, SessionSearchResult, Snapshot, SurfaceBundle, UpdateStatus } from "@omp-switch/core";
 
 const api = {
   getInfo: () => ipcRenderer.invoke("app:info"),
@@ -27,6 +27,7 @@ const api = {
   importSurfaces: (profileId: string, bundle: SurfaceBundle): Promise<ManagedSurfaceEntry[]> => ipcRenderer.invoke("surface:import", profileId, bundle),
   refreshSessions: (profileId: string, options: { rebuild?: boolean } = {}): Promise<SessionRefreshStats> => ipcRenderer.invoke("session:refresh", profileId, options),
   listSessions: (profileId: string, options: { limit?: number; cursor?: string } = {}): Promise<SessionListPage> => ipcRenderer.invoke("session:list", profileId, options),
+  searchSessionFts: (profileId: string, query: string, limit?: number): Promise<SessionSearchResult[]> => ipcRenderer.invoke("session:search-fts", profileId, query, limit),
   readSessionMessages: (profileId: string, id: string, options: { cursor?: string } = {}): Promise<SessionMessagePage> => ipcRenderer.invoke("session:messages", profileId, id, options),
   usageSummary: (profileId = "default", options: { from?: string; to?: string; reindex?: boolean } = {}) => ipcRenderer.invoke("usage:summary", profileId, options),
   setUsagePrice: (key: string, price: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null) => ipcRenderer.invoke("usage:set-price", key, price),

@@ -442,6 +442,12 @@ export interface SessionListPage {
   nextCursor?: string;
 }
 
+export interface SessionSearchResult {
+  sessionId: string;
+  role?: string;
+  snippet: string;
+}
+
 export interface GatewayUpstream {
   id: string;
   providerId: string;
