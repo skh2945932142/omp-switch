@@ -159,6 +159,21 @@ function MessageBubble({ message }: { message: SessionMessagePreview }) {
   );
 }
 
+export function renderSafeSnippet(snippet: string): ReactElement | null {
+  if (!snippet) return null;
+  const parts = snippet.split(/(<mark>[\s\S]*?<\/mark>)/g);
+  return (
+    <span className="fts-snippet">
+      {parts.map((part, index) => {
+        if (part.startsWith("<mark>") && part.endsWith("</mark>")) {
+          return <mark key={index}>{part.slice(6, -7)}</mark>;
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </span>
+  );
+}
+
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
@@ -433,9 +448,7 @@ export function SessionsModule({ api, profileId, onNotice }: SessionsModuleProps
                     <span className="module-row-main">
                       <strong>{entry.title ?? entry.model ?? t("sessions.unnamed")}</strong>
                       <small>{entry.provider ?? "—"} · {formatDateTime(entry.lastActiveAt ?? entry.startedAt)} · {t("sessions.messageCount", { count: entry.messageCount })}</small>
-                      {ftsMatch ? (
-                        <span className="fts-snippet" dangerouslySetInnerHTML={{ __html: ftsMatch.snippet }} />
-                      ) : null}
+                      {ftsMatch ? renderSafeSnippet(ftsMatch.snippet) : null}
                     </span>
                     <span className={"status-chip " + (entry.stale ? "warn" : entry.failures ? "danger" : "neutral")}>
                       {entry.stale ? t("sessions.stale") : entry.failures ? t("sessions.failures", { count: entry.failures }) : t("sessions.indexed")}

@@ -379,6 +379,16 @@ export class MetadataStore {
     return this.listSessionCaches(profile).flatMap((cache) => cloneUsage(cache.usage));
   }
 
+  hasIndexedSession(profile: string, sessionId: string): boolean {
+    if (!this.sqlite || !this.hasFts) return false;
+    try {
+      const row = this.sqlite.prepare("SELECT 1 FROM session_fts WHERE profile = ? AND session_id = ? LIMIT 1").get(profile, sessionId);
+      return Boolean(row);
+    } catch {
+      return false;
+    }
+  }
+
   indexSessionMessagesForFts(profile: string, sessionId: string, messages: Array<{ role?: string; text?: string }>): void {
     if (!this.sqlite || !this.hasFts) return;
     try {
@@ -391,6 +401,20 @@ export class MetadataStore {
       }
     } catch {
       // Gracefully ignore FTS indexing errors
+    }
+  }
+
+  appendSessionMessagesForFts(profile: string, sessionId: string, messages: Array<{ role?: string; text?: string }>): void {
+    if (!this.sqlite || !this.hasFts) return;
+    try {
+      const insert = this.sqlite.prepare("INSERT INTO session_fts(session_id, profile, role, text) VALUES(?, ?, ?, ?)");
+      for (const msg of messages) {
+        if (msg.text && typeof msg.text === "string" && msg.text.trim()) {
+          insert.run(sessionId, profile, msg.role || "message", msg.text);
+        }
+      }
+    } catch {
+      // Gracefully ignore
     }
   }
 

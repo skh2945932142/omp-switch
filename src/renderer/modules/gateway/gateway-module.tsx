@@ -134,7 +134,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
     if (!draft) return;
     setProbingUpstreamId(upstream.id);
     try {
-      const res = await api.probeGatewayUpstream(draft.id, upstream.id);
+      const res = await api.probeGatewayUpstream(profileId, draft.id, upstream.id);
       setProbeResults((current) => ({ ...current, [upstream.id]: res }));
       const updatedHealth = await api.gatewayHealth(draft.id);
       setHealthMap((current) => ({ ...current, ...updatedHealth }));
@@ -159,7 +159,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
         if (!upstream.enabled) continue;
         setProbingUpstreamId(upstream.id);
         try {
-          const res = await api.probeGatewayUpstream(draft.id, upstream.id);
+          const res = await api.probeGatewayUpstream(profileId, draft.id, upstream.id);
           setProbeResults((current) => ({ ...current, [upstream.id]: res }));
           if (res.ok) okCount++;
         } catch {

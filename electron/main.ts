@@ -16,6 +16,7 @@ import {
   OmpFilesystemAdapter,
   PricingTable,
   ProjectContext,
+  SessionFileCache,
   Snapshot,
   buildPricingTable,
   collectReferencedCredentialIds,
@@ -138,6 +139,7 @@ function startProfileSessionRefresh(profile: string, force: boolean): RefreshExe
         resolveQuick(discovered);
         const indexed = await refreshSessionDirectory(root, profile, discovered.caches, { force: true });
         await metadata.replaceSessionCaches(profile, indexed.caches);
+        void backgroundIndexSessionsFts(profile, root, indexed.caches).catch(() => undefined);
         return indexed;
       } catch (error) {
         rejectQuick(error);
@@ -149,9 +151,23 @@ function startProfileSessionRefresh(profile: string, force: boolean): RefreshExe
   const task = (async () => {
     const result = await refreshSessionDirectory(root, profile, existing, { force });
     await metadata.replaceSessionCaches(profile, result.caches);
+    void backgroundIndexSessionsFts(profile, root, result.caches).catch(() => undefined);
     return result;
   })();
   return { response: task, complete: task, completeIsForced: force };
+}
+
+async function backgroundIndexSessionsFts(profile: string, rootDir: string, caches: SessionFileCache[]): Promise<void> {
+  for (const cache of caches) {
+    if (!metadata.hasIndexedSession(profile, cache.id)) {
+      try {
+        const page = await readSessionMessages(rootDir, cache, { limit: 100 });
+        metadata.indexSessionMessagesForFts(profile, cache.id, page.messages);
+      } catch {
+        // Continue indexing
+      }
+    }
+  }
 }
 
 function makeAdapter(): void {
@@ -341,7 +357,12 @@ function registerIpc(): void {
     const ref = adapterProfile(profile);
     const cursor = consumeMessageCursor(profile, id, options?.cursor);
     const page = await readSessionMessages(path.join(ref.agentDir, "sessions"), cache, { limit: 50, cursor });
-    metadata.indexSessionMessagesForFts(profile, id, page.messages);
+    const isPagination = Boolean(options?.cursor);
+    if (isPagination) {
+      metadata.appendSessionMessagesForFts(profile, id, page.messages);
+    } else {
+      metadata.indexSessionMessagesForFts(profile, id, page.messages);
+    }
     return {
       messages: page.messages,
       hasMore: page.hasMore,
@@ -400,24 +421,27 @@ function registerIpc(): void {
     upstreams: gateway?.getStats() ?? [],
   }));
   ipcMain.handle("gateway:health", (_event, poolId?: string) => metadata.getGatewayHealth(poolId));
-  ipcMain.handle("gateway:probe", async (_event, poolId: string, upstreamId: string, timeoutMs?: number) => {
-    const pools = metadata.listGatewayPools(gatewayProfileId);
+  ipcMain.handle("gateway:probe", async (_event, arg1: string, arg2: string, arg3?: string | number, arg4?: number) => {
+    let profileId = gatewayProfileId;
+    let poolId: string;
+    let upstreamId: string;
+    let timeoutMs: number | undefined;
+    if (typeof arg3 === "string") {
+      profileId = safeSessionProfileId(arg1);
+      poolId = arg2;
+      upstreamId = arg3;
+      timeoutMs = typeof arg4 === "number" ? arg4 : undefined;
+    } else {
+      poolId = arg1;
+      upstreamId = arg2;
+      timeoutMs = typeof arg3 === "number" ? arg3 : undefined;
+    }
+    const pools = metadata.listGatewayPools(profileId);
     const pool = pools.find((candidate) => candidate.id === poolId);
     if (!pool) throw new Error("Unknown gateway pool");
     const upstream = pool.upstreams.find((candidate) => candidate.id === upstreamId);
     if (!upstream) throw new Error("Unknown gateway upstream");
-    const forwarder = {
-      resolve: async (target: GatewayUpstream) => {
-        const currentConfig = await adapter.loadProfile(adapterProfile(gatewayProfileId));
-        const provider = currentConfig.models.value.providers[target.providerId];
-        if (target.kind === "omp-auth-gateway") {
-          return { baseUrl: process.env.OMP_AUTH_GATEWAY_URL?.trim() || "http://127.0.0.1:4000", apiKey: await getOmpGatewayToken() };
-        }
-        if (!provider?.baseUrl) throw new Error(`Gateway provider ${target.providerId} does not have a baseUrl`);
-        if (!target.credentialId) throw new Error(`Gateway provider ${target.providerId} needs an OMP Switch credential`);
-        return { baseUrl: provider.baseUrl, apiKey: await secrets.get(target.credentialId), headers: provider.headers };
-      },
-    };
+    const forwarder = await resolveGatewayForwarder(profileId);
     const result = await probeGatewayUpstream(upstream, forwarder, { timeoutMs });
     await metadata.recordGatewayProbe({
       poolId,
@@ -494,24 +518,31 @@ async function getOmpGatewayToken(): Promise<string> {
   return output;
 }
 
+async function resolveGatewayForwarder(profileId: string) {
+  const currentConfig = await adapter.loadProfile(adapterProfile(profileId));
+  return {
+    resolve: async (upstream: GatewayUpstream) => {
+      const provider = currentConfig.models.value.providers[upstream.providerId];
+      if (upstream.kind === "omp-auth-gateway") {
+        return { baseUrl: process.env.OMP_AUTH_GATEWAY_URL?.trim() || "http://127.0.0.1:4000", apiKey: await getOmpGatewayToken() };
+      }
+      if (!provider?.baseUrl) throw new Error(`Gateway provider ${upstream.providerId} does not have a baseUrl`);
+      if (!upstream.credentialId) throw new Error(`Gateway provider ${upstream.providerId} needs an OMP Switch credential`);
+      return { baseUrl: provider.baseUrl, apiKey: await secrets.get(upstream.credentialId), headers: provider.headers };
+    },
+  };
+}
+
 async function startGateway(profileId: string): Promise<{ running: boolean; port: number; token: string }> {
   const pools = metadata.listGatewayPools(profileId).filter((pool) => pool.enabled);
   if (pools.length === 0) throw new Error("No enabled gateway pools exist for this profile");
   const port = pools[0]?.port ?? metadata.getPreference<number>("gateway.port") ?? 46831;
   gatewayProfileId = profileId;
   const token = await loadGatewayToken();
+  const forwarder = await resolveGatewayForwarder(profileId);
   if (!gateway) {
     gateway = new GatewayServer({
-      resolve: async (upstream) => {
-        const currentConfig = await adapter.loadProfile(adapterProfile(gatewayProfileId));
-        const provider = currentConfig.models.value.providers[upstream.providerId];
-        if (upstream.kind === "omp-auth-gateway") {
-          return { baseUrl: process.env.OMP_AUTH_GATEWAY_URL?.trim() || "http://127.0.0.1:4000", apiKey: await getOmpGatewayToken() };
-        }
-        if (!provider?.baseUrl) throw new Error(`Gateway provider ${upstream.providerId} does not have a baseUrl`);
-        if (!upstream.credentialId) throw new Error(`Gateway provider ${upstream.providerId} needs an OMP Switch credential`);
-        return { baseUrl: provider.baseUrl, apiKey: await secrets.get(upstream.credentialId), headers: provider.headers };
-      },
+      resolve: forwarder.resolve,
       onAttempt: (observation) => {
         void metadata.recordGatewayProbe({
           poolId: observation.poolId,
