@@ -471,6 +471,32 @@ export interface GatewayUpstreamStat {
   consecutiveFailures: number;
 }
 
+export type GatewayHealthState = "healthy" | "degraded" | "unhealthy" | "untested";
+
+export interface GatewayProbeRecord {
+  id?: string;
+  poolId: string;
+  upstreamId: string;
+  timestamp: string;
+  ok: boolean;
+  status?: number;
+  latencyMs: number;
+  error?: string;
+}
+
+export interface GatewayUpstreamHealth {
+  poolId: string;
+  upstreamId: string;
+  lastProbeAt?: string;
+  lastLatencyMs?: number;
+  lastStatus?: number;
+  lastError?: string;
+  ok: boolean;
+  consecutiveFailures: number;
+  healthState: GatewayHealthState;
+  recentHistory: GatewayProbeRecord[];
+}
+
 export class ConfigConflictError extends Error {
   constructor(public readonly filePath: string) {
     super(`Configuration changed outside OMP Switch: ${filePath}`);

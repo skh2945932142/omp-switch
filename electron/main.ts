@@ -395,6 +395,7 @@ function registerIpc(): void {
     port: gateway?.running ? (metadata.getPreference<number>("gateway.port") ?? 46831) : null,
     upstreams: gateway?.getStats() ?? [],
   }));
+  ipcMain.handle("gateway:health", (_event, poolId?: string) => metadata.getGatewayHealth(poolId));
   ipcMain.handle("gateway:probe", async (_event, poolId: string, upstreamId: string, timeoutMs?: number) => {
     const pools = metadata.listGatewayPools(gatewayProfileId);
     const pool = pools.find((candidate) => candidate.id === poolId);
@@ -413,7 +414,17 @@ function registerIpc(): void {
         return { baseUrl: provider.baseUrl, apiKey: await secrets.get(target.credentialId), headers: provider.headers };
       },
     };
-    return probeGatewayUpstream(upstream, forwarder, { timeoutMs });
+    const result = await probeGatewayUpstream(upstream, forwarder, { timeoutMs });
+    await metadata.recordGatewayProbe({
+      poolId,
+      upstreamId,
+      timestamp: new Date().toISOString(),
+      ok: result.ok,
+      status: result.status,
+      latencyMs: result.latencyMs,
+      error: result.error,
+    });
+    return result;
   });
 
   ipcMain.handle("gateway:start", async (_event, profileId: string) => startGateway(profileId));
@@ -496,6 +507,17 @@ async function startGateway(profileId: string): Promise<{ running: boolean; port
         if (!provider?.baseUrl) throw new Error(`Gateway provider ${upstream.providerId} does not have a baseUrl`);
         if (!upstream.credentialId) throw new Error(`Gateway provider ${upstream.providerId} needs an OMP Switch credential`);
         return { baseUrl: provider.baseUrl, apiKey: await secrets.get(upstream.credentialId), headers: provider.headers };
+      },
+      onAttempt: (observation) => {
+        void metadata.recordGatewayProbe({
+          poolId: observation.poolId,
+          upstreamId: observation.upstreamId,
+          timestamp: new Date().toISOString(),
+          ok: !observation.error && (observation.status === undefined || observation.status < 400),
+          status: observation.status,
+          latencyMs: observation.latencyMs,
+          error: observation.error,
+        }).catch(() => undefined);
       },
     }, pools, { token });
   } else {

@@ -474,8 +474,17 @@
     "upstreamStatus": "上游状态",
     "consecutiveFailures": "连续失败 {{count}}",
     "probeUpstream": "测速探针",
+    "probeAll": "全量测速",
+    "probeAllFinished": "全量测速完成：共 {{count}} 个上游，{{ok}} 个正常",
     "probeSuccess": "上游 {{id}} 连通正常（{{latency}} ms）",
     "probeFailed": "上游 {{id}} 探测失败: {{error}}",
+    "untested": "未测速",
+    "health": {
+      "healthy": "健康 (响应极佳)",
+      "degraded": "降级 (延迟偏高/偶发异常)",
+      "unhealthy": "异常 (连接超时/服务不可用)",
+      "untested": "尚未执行测速探针"
+    },
     "moveUpstreamUp": "提升上游优先级",
     "moveUpstreamDown": "降低上游优先级",
     "selectPrompt": "选择或新建网关池",

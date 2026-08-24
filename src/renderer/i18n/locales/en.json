@@ -474,8 +474,17 @@
     "upstreamStatus": "Upstream status",
     "consecutiveFailures": "{{count}} consecutive failures",
     "probeUpstream": "Probe / Benchmark",
+    "probeAll": "Probe All",
+    "probeAllFinished": "Probe completed: {{count}} upstreams tested, {{ok}} healthy",
     "probeSuccess": "Upstream {{id}} responded in {{latency}} ms",
     "probeFailed": "Upstream {{id}} probe failed: {{error}}",
+    "untested": "Untested",
+    "health": {
+      "healthy": "Healthy (Optimal latency)",
+      "degraded": "Degraded (High latency / transient issues)",
+      "unhealthy": "Unhealthy (Timeouts / HTTP 429/5xx)",
+      "untested": "Probe has not been run yet"
+    },
     "moveUpstreamUp": "Increase priority (move up)",
     "moveUpstreamDown": "Decrease priority (move down)",
     "selectPrompt": "Select or create a gateway pool",

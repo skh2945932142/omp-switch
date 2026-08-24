@@ -1,4 +1,4 @@
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
   getInfo(): Promise<{ version: string; platform: string; installation: { executable: string | null; version: string | null; supported: boolean; reason?: string; schemaMajor?: number; schemaStatus?: string } }>;
@@ -38,6 +38,7 @@ export interface OmpSwitchApi {
   listGatewayPools(profileId?: string): Promise<GatewayPool[]>;
   saveGatewayPool(pool: GatewayPool): Promise<GatewayPool>;
   gatewayStatus(): Promise<{ running: boolean; port: number | null; upstreams: GatewayUpstreamStat[] }>;
+  gatewayHealth(poolId?: string): Promise<Record<string, GatewayUpstreamHealth>>;
   probeGatewayUpstream(poolId: string, upstreamId: string, timeoutMs?: number): Promise<{ ok: boolean; status?: number; latencyMs: number; error?: string }>;
   startGateway(profileId: string): Promise<{ running: boolean; port: number; token: string }>;
   stopGateway(): Promise<void>;

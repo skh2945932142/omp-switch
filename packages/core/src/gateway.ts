@@ -1,7 +1,14 @@
 import http, { IncomingMessage, ServerResponse } from "node:http";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
-import type { GatewayPool, GatewayUpstream, GatewayUpstreamStat } from "./domain";
+import type {
+  GatewayHealthState,
+  GatewayPool,
+  GatewayProbeRecord,
+  GatewayUpstream,
+  GatewayUpstreamHealth,
+  GatewayUpstreamStat,
+} from "./domain";
 
 export const DEFAULT_GATEWAY_PORT = 46831;
 
@@ -142,6 +149,53 @@ export async function probeGatewayUpstream(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function evaluateUpstreamHealth(
+  poolId: string,
+  upstreamId: string,
+  history: GatewayProbeRecord[]
+): GatewayUpstreamHealth {
+  const sorted = history.slice().sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const recentHistory = sorted.slice(0, 10);
+  const latest = recentHistory[0];
+
+  if (!latest) {
+    return {
+      poolId,
+      upstreamId,
+      ok: false,
+      consecutiveFailures: 0,
+      healthState: "untested",
+      recentHistory: [],
+    };
+  }
+
+  let consecutiveFailures = 0;
+  for (const record of sorted) {
+    if (!record.ok) consecutiveFailures++;
+    else break;
+  }
+
+  let healthState: GatewayHealthState = "healthy";
+  if (!latest.ok || consecutiveFailures >= 2 || (latest.status && latest.status >= 500) || latest.latencyMs > 3000) {
+    healthState = "unhealthy";
+  } else if (latest.latencyMs > 800 || consecutiveFailures === 1 || recentHistory.some((h) => !h.ok)) {
+    healthState = "degraded";
+  }
+
+  return {
+    poolId,
+    upstreamId,
+    lastProbeAt: latest.timestamp,
+    lastLatencyMs: latest.latencyMs,
+    lastStatus: latest.status,
+    lastError: latest.error,
+    ok: latest.ok,
+    consecutiveFailures,
+    healthState,
+    recentHistory,
+  };
 }
 
 function joinEndpoint(baseUrl: string, requestPath: string): string {

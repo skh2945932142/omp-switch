@@ -223,4 +223,47 @@ describe("MetadataStore migration", () => {
     expect(verify.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_index'").get()).toBeUndefined();
     verify.close();
   });
+
+  it("persists gateway probe history and computes health state across backends", async () => {
+    for (const backend of ["auto", "json"] as const) {
+      const { store } = await makeStore(backend);
+      await store.recordGatewayProbe({
+        poolId: "pool-1",
+        upstreamId: "up-1",
+        timestamp: "2026-08-24T08:00:00.000Z",
+        ok: true,
+        status: 200,
+        latencyMs: 150,
+      });
+      await store.recordGatewayProbe({
+        poolId: "pool-1",
+        upstreamId: "up-1",
+        timestamp: "2026-08-24T08:01:00.000Z",
+        ok: true,
+        status: 200,
+        latencyMs: 120,
+      });
+      await store.recordGatewayProbe({
+        poolId: "pool-1",
+        upstreamId: "up-2",
+        timestamp: "2026-08-24T08:02:00.000Z",
+        ok: false,
+        status: 500,
+        latencyMs: 3200,
+        error: "HTTP 500",
+      });
+
+      const history = store.listGatewayProbeHistory("pool-1");
+      expect(history).toHaveLength(3);
+
+      const health = store.getGatewayHealth("pool-1");
+      expect(health["pool-1:up-1"]).toBeDefined();
+      expect(health["pool-1:up-1"].healthState).toBe("healthy");
+      expect(health["pool-1:up-1"].lastLatencyMs).toBe(120);
+
+      expect(health["pool-1:up-2"]).toBeDefined();
+      expect(health["pool-1:up-2"].healthState).toBe("unhealthy");
+      expect(health["pool-1:up-2"].consecutiveFailures).toBe(1);
+    }
+  });
 });

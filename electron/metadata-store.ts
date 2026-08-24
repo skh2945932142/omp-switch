@@ -1,13 +1,23 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { GatewayPool, SessionFileCache, SessionSummary, SessionUsageRecord, Snapshot } from "@omp-switch/core";
+import {
+  evaluateUpstreamHealth,
+  type GatewayPool,
+  type GatewayProbeRecord,
+  type GatewayUpstreamHealth,
+  type SessionFileCache,
+  type SessionSummary,
+  type SessionUsageRecord,
+  type Snapshot,
+} from "@omp-switch/core";
 
 interface MetadataState {
   version: 3;
   providerLabels: Record<string, string>;
   snapshots: Array<Record<string, unknown>>;
   gatewayPools: GatewayPool[];
+  gatewayProbeHistory: GatewayProbeRecord[];
   sessionCaches: SessionFileCache[];
   preferences: Record<string, unknown>;
 }
@@ -23,9 +33,10 @@ export interface MetadataStoreOptions {
 }
 
 const SNAPSHOT_RETENTION = 30;
+const PROBE_HISTORY_RETENTION = 50;
 
 function emptyState(): MetadataState {
-  return { version: 3, providerLabels: {}, snapshots: [], gatewayPools: [], sessionCaches: [], preferences: {} };
+  return { version: 3, providerLabels: {}, snapshots: [], gatewayPools: [], gatewayProbeHistory: [], sessionCaches: [], preferences: {} };
 }
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -95,6 +106,7 @@ export class MetadataStore {
         "CREATE TABLE IF NOT EXISTS provider_meta (provider_id TEXT PRIMARY KEY, label TEXT NOT NULL);"
         + "CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, profile TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL);"
         + "CREATE TABLE IF NOT EXISTS gateway_pools (id TEXT PRIMARY KEY, profile TEXT NOT NULL, payload TEXT NOT NULL);"
+        + "CREATE TABLE IF NOT EXISTS gateway_probe_history (id TEXT PRIMARY KEY, pool_id TEXT NOT NULL, upstream_id TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL);"
         + "CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, payload TEXT NOT NULL);"
         + "CREATE TABLE IF NOT EXISTS session_cache (id TEXT PRIMARY KEY, profile TEXT NOT NULL, relative_path TEXT NOT NULL, payload TEXT NOT NULL);"
         + "CREATE TABLE IF NOT EXISTS session_usage (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, profile TEXT NOT NULL, payload TEXT NOT NULL);"
@@ -155,6 +167,7 @@ export class MetadataStore {
         providerLabels: asStringRecord(parsed.providerLabels),
         snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots.filter(asObject) : [],
         gatewayPools: Array.isArray(parsed.gatewayPools) ? parsed.gatewayPools as GatewayPool[] : [],
+        gatewayProbeHistory: Array.isArray(parsed.gatewayProbeHistory) ? parsed.gatewayProbeHistory as GatewayProbeRecord[] : [],
         sessionCaches: isCurrent ? (rawCaches as SessionFileCache[]).map(cloneCache) : [],
         preferences: asObject(parsed.preferences) ?? {},
       };
@@ -226,6 +239,65 @@ export class MetadataStore {
       return rows.map((row) => JSON.parse(row.payload) as GatewayPool);
     }
     return this.fallback.gatewayPools.filter((pool) => !profile || pool.profile === profile);
+  }
+
+  async recordGatewayProbe(record: GatewayProbeRecord): Promise<void> {
+    const id = record.id || randomUUID();
+    const item: GatewayProbeRecord = { ...record, id };
+    if (this.sqlite) {
+      this.sqlite.prepare(
+        "INSERT INTO gateway_probe_history(id, pool_id, upstream_id, created_at, payload) VALUES(?, ?, ?, ?, ?)"
+      ).run(id, item.poolId, item.upstreamId, item.timestamp, JSON.stringify(item));
+      this.sqlite.prepare(
+        "DELETE FROM gateway_probe_history WHERE pool_id = ? AND upstream_id = ? AND id NOT IN (SELECT id FROM gateway_probe_history WHERE pool_id = ? AND upstream_id = ? ORDER BY created_at DESC LIMIT ?)"
+      ).run(item.poolId, item.upstreamId, item.poolId, item.upstreamId, PROBE_HISTORY_RETENTION);
+      return;
+    }
+    const current = this.fallback.gatewayProbeHistory ?? [];
+    const updated = [item, ...current.filter((entry) => entry.id !== id)];
+    const matching = updated.filter((entry) => entry.poolId === item.poolId && entry.upstreamId === item.upstreamId).slice(0, PROBE_HISTORY_RETENTION);
+    const others = updated.filter((entry) => !(entry.poolId === item.poolId && entry.upstreamId === item.upstreamId));
+    this.fallback.gatewayProbeHistory = [...matching, ...others];
+    await this.persistFallback();
+  }
+
+  listGatewayProbeHistory(poolId?: string, upstreamId?: string): GatewayProbeRecord[] {
+    if (this.sqlite) {
+      let query = "SELECT payload FROM gateway_probe_history";
+      const params: string[] = [];
+      if (poolId && upstreamId) {
+        query += " WHERE pool_id = ? AND upstream_id = ? ORDER BY created_at DESC";
+        params.push(poolId, upstreamId);
+      } else if (poolId) {
+        query += " WHERE pool_id = ? ORDER BY created_at DESC";
+        params.push(poolId);
+      } else {
+        query += " ORDER BY created_at DESC";
+      }
+      const rows = this.sqlite.prepare(query).all(...params) as Array<{ payload: string }>;
+      return rows.map((row) => JSON.parse(row.payload) as GatewayProbeRecord);
+    }
+    return (this.fallback.gatewayProbeHistory ?? []).filter((entry) => {
+      if (poolId && entry.poolId !== poolId) return false;
+      if (upstreamId && entry.upstreamId !== upstreamId) return false;
+      return true;
+    }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }
+
+  getGatewayHealth(poolId?: string): Record<string, GatewayUpstreamHealth> {
+    const history = this.listGatewayProbeHistory(poolId);
+    const byUpstream: Record<string, GatewayProbeRecord[]> = {};
+    for (const record of history) {
+      const key = `${record.poolId}:${record.upstreamId}`;
+      if (!byUpstream[key]) byUpstream[key] = [];
+      byUpstream[key].push(record);
+    }
+    const result: Record<string, GatewayUpstreamHealth> = {};
+    for (const [key, records] of Object.entries(byUpstream)) {
+      const [pId, uId] = key.split(":");
+      result[key] = evaluateUpstreamHealth(pId, uId, records);
+    }
+    return result;
   }
 
   async replaceSessionCaches(profile: string, caches: SessionFileCache[]): Promise<void> {

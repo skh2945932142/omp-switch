@@ -1,6 +1,6 @@
 import http from "node:http";
 import { describe, expect, it } from "vitest";
-import { forwardGatewayRequest, GatewayServer, isLoopbackHostHeader, isRetryableGatewayStatus, probeGatewayUpstream, validateGatewayPool } from "./gateway";
+import { evaluateUpstreamHealth, forwardGatewayRequest, GatewayServer, isLoopbackHostHeader, isRetryableGatewayStatus, probeGatewayUpstream, validateGatewayPool } from "./gateway";
 
 const pool = {
   id: "fast",
@@ -205,5 +205,47 @@ describe("gateway routing", () => {
     } finally {
       await server.stop();
     }
+  });
+
+  it("evaluates upstream health state and latency trends correctly", () => {
+    // Untested
+    expect(evaluateUpstreamHealth("pool-1", "up-1", [])).toMatchObject({
+      healthState: "untested",
+      consecutiveFailures: 0,
+      ok: false,
+    });
+
+    // Healthy
+    const healthyHistory = [
+      { poolId: "p", upstreamId: "u", timestamp: "2026-08-24T08:00:00Z", ok: true, status: 200, latencyMs: 120 },
+      { poolId: "p", upstreamId: "u", timestamp: "2026-08-24T07:59:00Z", ok: true, status: 200, latencyMs: 110 },
+    ];
+    expect(evaluateUpstreamHealth("p", "u", healthyHistory)).toMatchObject({
+      healthState: "healthy",
+      lastLatencyMs: 120,
+      consecutiveFailures: 0,
+      ok: true,
+    });
+
+    // Degraded
+    const degradedHistory = [
+      { poolId: "p", upstreamId: "u", timestamp: "2026-08-24T08:00:00Z", ok: true, status: 200, latencyMs: 950 },
+    ];
+    expect(evaluateUpstreamHealth("p", "u", degradedHistory)).toMatchObject({
+      healthState: "degraded",
+      lastLatencyMs: 950,
+      ok: true,
+    });
+
+    // Unhealthy due to failures
+    const unhealthyHistory = [
+      { poolId: "p", upstreamId: "u", timestamp: "2026-08-24T08:01:00Z", ok: false, status: 502, latencyMs: 3100, error: "HTTP 502" },
+      { poolId: "p", upstreamId: "u", timestamp: "2026-08-24T08:00:00Z", ok: false, status: 502, latencyMs: 3200, error: "HTTP 502" },
+    ];
+    expect(evaluateUpstreamHealth("p", "u", unhealthyHistory)).toMatchObject({
+      healthState: "unhealthy",
+      consecutiveFailures: 2,
+      ok: false,
+    });
   });
 });

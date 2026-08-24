@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus } from "@omp-switch/core";
+import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, ManagedSurfaceEntry, ProfileRef, SessionListPage, SessionMessagePage, SessionRefreshStats, Snapshot, SurfaceBundle, UpdateStatus } from "@omp-switch/core";
 
 const api = {
   getInfo: () => ipcRenderer.invoke("app:info"),
@@ -33,6 +33,7 @@ const api = {
   listGatewayPools: (profileId?: string): Promise<GatewayPool[]> => ipcRenderer.invoke("gateway:list", profileId),
   saveGatewayPool: (pool: GatewayPool): Promise<GatewayPool> => ipcRenderer.invoke("gateway:save", pool),
   gatewayStatus: () => ipcRenderer.invoke("gateway:status"),
+  gatewayHealth: (poolId?: string): Promise<Record<string, GatewayUpstreamHealth>> => ipcRenderer.invoke("gateway:health", poolId),
   probeGatewayUpstream: (poolId: string, upstreamId: string, timeoutMs?: number) => ipcRenderer.invoke("gateway:probe", poolId, upstreamId, timeoutMs),
   startGateway: (profileId: string) => ipcRenderer.invoke("gateway:start", profileId),
   stopGateway: () => ipcRenderer.invoke("gateway:stop"),

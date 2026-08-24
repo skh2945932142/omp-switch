@@ -671,3 +671,54 @@
   overflow-x: auto;
   white-space: pre;
 }
+
+/* ---- Gateway upstream health badges & history tooltip ---- */
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  font-weight: 550;
+  border: 1px solid var(--hairline);
+  background: var(--sunken);
+  color: var(--muted);
+  cursor: default;
+  white-space: nowrap;
+}
+.health-badge.healthy {
+  color: var(--ok);
+  background: var(--ok-soft);
+  border-color: rgba(21, 128, 61, 0.2);
+}
+.health-badge.degraded {
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-color: rgba(217, 119, 6, 0.2);
+}
+.health-badge.unhealthy {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.health-badge.untested {
+  color: var(--muted);
+}
+.health-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.health-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.health-history-item.ok { color: var(--ok); }
+.health-history-item.err { color: var(--danger); }
