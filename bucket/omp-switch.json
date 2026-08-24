@@ -1,37 +1,37 @@
 {
-    "version":  "0.5.5",
-    "description":  "Desktop companion for managing Oh My Pi model providers, plus a headless JSON CLI",
-    "homepage":  "https://github.com/skh2945932142/omp-switch",
-    "license":  "MIT",
-    "architecture":  {
-                         "64bit":  {
-                                       "url":  "https://github.com/skh2945932142/omp-switch/releases/download/v0.5.5/OMP-Switch-0.5.5-win.zip",
-                                       "hash":  "e8438273aa7c4c759d465b835b1db94f0e51b9dda929e36219907effe446049a"
-                                   }
-                     },
-    "bin":  "omp-switch-cli.exe",
-    "shortcuts":  [
-                      [
-                          "OMP Switch.exe",
-                          "OMP Switch"
-                      ]
-                  ],
-    "notes":  [
-                  "Configuration lives in ~/.omp and is shared with Oh My Pi; Scoop does not manage it.",
-                  "Stored API keys are encrypted per Windows user account and do not migrate to another machine.",
-                  "omp-switch-cli is on PATH after install; run \u0027omp-switch-cli --help\u0027."
-              ],
-    "checkver":  {
-                     "github":  "https://github.com/skh2945932142/omp-switch"
-                 },
-    "autoupdate":  {
-                       "architecture":  {
-                                            "64bit":  {
-                                                          "url":  "https://github.com/skh2945932142/omp-switch/releases/download/v$version/OMP-Switch-$version-win.zip"
-                                                      }
-                                        },
-                       "hash":  {
-                                    "url":  "https://github.com/skh2945932142/omp-switch/releases/download/v$version/SHA256SUMS.txt"
-                                }
-                   }
+  "version": "0.5.5",
+  "description": "Desktop companion for managing Oh My Pi model providers, plus a headless JSON CLI",
+  "homepage": "https://github.com/skh2945932142/omp-switch",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.5.5/OMP-Switch-0.5.5-win.zip",
+      "hash": "e8438273aa7c4c759d465b835b1db94f0e51b9dda929e36219907effe446049a"
+    }
+  },
+  "bin": "omp-switch-cli.exe",
+  "shortcuts": [
+    [
+      "OMP Switch.exe",
+      "OMP Switch"
+    ]
+  ],
+  "notes": [
+    "Configuration lives in ~/.omp and is shared with Oh My Pi; Scoop does not manage it.",
+    "Stored API keys are encrypted per Windows user account and do not migrate to another machine.",
+    "omp-switch-cli is on PATH after install; run 'omp-switch-cli --help'."
+  ],
+  "checkver": {
+    "github": "https://github.com/skh2945932142/omp-switch"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/skh2945932142/omp-switch/releases/download/v$version/OMP-Switch-$version-win.zip"
+      }
+    },
+    "hash": {
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v$version/SHA256SUMS.txt"
+    }
+  }
 }
