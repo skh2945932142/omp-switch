@@ -1,18 +1,21 @@
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
 import {
   Activity,
   CircleAlert,
   CloudDownload,
   Coins,
   FileCheck2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings2,
   ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
 import type { ProfileRef } from "@omp-switch/core";
-import { StyledSelect } from "../ui-primitives";
+import { IconButtonTip, StyledSelect } from "../ui-primitives";
 
 export type SectionKey = "models" | "roles" | "prompts" | "skills" | "sessions" | "usage" | "gateway";
 
@@ -29,7 +32,19 @@ export interface LeftRailProps {
   errorCount: number;
   onOpenDiagnostics: () => void;
   onOpenSettings: () => void;
+  compact?: boolean;
+  onToggleCompact?: () => void;
 }
+
+const SECTION_SHORTCUTS: Record<SectionKey, number> = {
+  models: 1,
+  roles: 2,
+  prompts: 3,
+  skills: 4,
+  sessions: 5,
+  usage: 6,
+  gateway: 7,
+};
 
 export function LeftRail({
   profileId,
@@ -44,6 +59,8 @@ export function LeftRail({
   errorCount,
   onOpenDiagnostics,
   onOpenSettings,
+  compact = false,
+  onToggleCompact,
 }: LeftRailProps): ReactElement {
   const { t } = useTranslation();
 
@@ -64,65 +81,99 @@ export function LeftRail({
   ];
 
   return (
-    <aside className="left-rail">
-      <div className="rail-profile">
-        <span className="rail-label">{t("common.profile")}</span>
-        <StyledSelect
-          value={profileId}
-          onValueChange={onProfileChange}
-          options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
-          ariaLabel={t("common.openProfile")}
-        />
-        <span className="path-note" title={agentDir}>
-          {agentDir ?? t("common.loading")}
-        </span>
-      </div>
+    <aside className={`left-rail${compact ? " compact" : ""}`}>
+      {!compact ? (
+        <div className="rail-profile">
+          <span className="rail-label">{t("common.profile")}</span>
+          <StyledSelect
+            value={profileId}
+            onValueChange={onProfileChange}
+            options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
+            ariaLabel={t("common.openProfile")}
+          />
+          <span className="path-note" title={agentDir}>
+            {agentDir ?? t("common.loading")}
+          </span>
+        </div>
+      ) : null}
       <nav className="section-nav" aria-label={t("toasts.modulesAria")}>
         {navGroups.map((group) => (
           <div className="nav-group" key={group.title}>
-            <span className="nav-group-title">{group.title}</span>
-            {group.items.map((item) => (
-              <button
-                key={item}
-                className={section === item ? "active" : ""}
-                onClick={() => onSectionChange(item)}
-              >
-                <span className="nav-icon">
-                  {item === "models" ? (
-                    <CloudDownload size={16} />
-                  ) : item === "roles" ? (
-                    <Users size={16} />
-                  ) : item === "prompts" ? (
-                    <FileCheck2 size={16} />
-                  ) : item === "skills" ? (
-                    <Sparkles size={16} />
-                  ) : item === "sessions" ? (
-                    <Activity size={16} />
-                  ) : item === "usage" ? (
-                    <Coins size={16} />
-                  ) : (
-                    <ShieldCheck size={16} />
-                  )}
-                </span>
-                <span>{sectionLabels[item]}</span>
-                {item === "models" ? <span className="nav-count">{providerCount}</span> : null}
-                {item === "roles" && rolesDirty ? <span className="nav-dot" title={t("settings.unsaved")} /> : null}
-              </button>
-            ))}
+            {!compact ? <span className="nav-group-title">{group.title}</span> : null}
+            {group.items.map((item) => {
+              const isActive = section === item;
+              const buttonContent = (
+                <button
+                  key={item}
+                  className={isActive ? "active" : ""}
+                  onClick={() => onSectionChange(item)}
+                  aria-label={`${sectionLabels[item]} (Ctrl+${SECTION_SHORTCUTS[item]})`}
+                >
+                  {isActive ? (
+                    <motion.span
+                      layoutId="active-nav-pill"
+                      className="nav-active-pill"
+                      transition={{ type: "spring", stiffness: 460, damping: 36 }}
+                    />
+                  ) : null}
+                  <span className="nav-icon">
+                    {item === "models" ? (
+                      <CloudDownload size={16} />
+                    ) : item === "roles" ? (
+                      <Users size={16} />
+                    ) : item === "prompts" ? (
+                      <FileCheck2 size={16} />
+                    ) : item === "skills" ? (
+                      <Sparkles size={16} />
+                    ) : item === "sessions" ? (
+                      <Activity size={16} />
+                    ) : item === "usage" ? (
+                      <Coins size={16} />
+                    ) : (
+                      <ShieldCheck size={16} />
+                    )}
+                  </span>
+                  <span>{sectionLabels[item]}</span>
+                  {item === "models" ? <span className="nav-count">{providerCount}</span> : null}
+                  {item === "roles" && rolesDirty ? <span className="nav-dot" title={t("settings.unsaved")} /> : null}
+                  <kbd className="nav-kbd">{SECTION_SHORTCUTS[item]}</kbd>
+                </button>
+              );
+
+              return compact ? (
+                <IconButtonTip key={item} label={`${sectionLabels[item]} (Ctrl+${SECTION_SHORTCUTS[item]})`}>
+                  {buttonContent}
+                </IconButtonTip>
+              ) : (
+                buttonContent
+              );
+            })}
           </div>
         ))}
       </nav>
       <div className="rail-footer">
-        <button className="rail-action" onClick={onOpenDiagnostics}>
-          <CircleAlert size={15} />
-          {t("diagnostics.title")}
-          <span>{errorCount}</span>
-        </button>
-        <button className="rail-action" onClick={onOpenSettings}>
-          <Settings2 size={15} />
-          {t("common.profile")}
-          {settingsDirty ? <span className="nav-dot" title={t("settings.unsaved")} /> : null}
-        </button>
+        <IconButtonTip label={t("diagnostics.title")}>
+          <button className="rail-action" onClick={onOpenDiagnostics}>
+            <CircleAlert size={15} />
+            <span>{t("diagnostics.title")}</span>
+            <span className="nav-count">{errorCount}</span>
+          </button>
+        </IconButtonTip>
+        <IconButtonTip label={t("common.profile")}>
+          <button className="rail-action" onClick={onOpenSettings}>
+            <Settings2 size={15} />
+            <span>{t("common.profile")}</span>
+            {settingsDirty ? <span className="nav-dot" title={t("settings.unsaved")} /> : null}
+          </button>
+        </IconButtonTip>
+        {onToggleCompact ? (
+          <IconButtonTip label={compact ? t("nav.expandSidebar") : t("nav.collapseSidebar")}>
+            <button className="rail-action rail-collapse-btn" onClick={onToggleCompact} aria-label={compact ? t("nav.expandSidebar") : t("nav.collapseSidebar")}>
+              {compact ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+              <span>{t("nav.collapseSidebar")}</span>
+            </button>
+          </IconButtonTip>
+        ) : null}
       </div>
     </aside>
   );

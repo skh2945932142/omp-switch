@@ -24,7 +24,9 @@
     "gateway": "Gateway",
     "groupConfig": "Config",
     "groupContent": "Content",
-    "groupOps": "Ops"
+    "groupOps": "Ops",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "health": {
     "readonly": "Read-only",
@@ -54,6 +56,11 @@
     "heading": "Models",
     "searchPlaceholder": "Search",
     "searchAria": "Search providers and models",
+    "filterCategoriesAria": "Provider category filters",
+    "filterAll": "All",
+    "filterEnabled": "Enabled",
+    "filterLocal": "Local Models",
+    "filterCloud": "Cloud Providers",
     "add": "Add",
     "custom": "Custom",
     "preset": "Preset",
@@ -429,7 +436,9 @@
     "searchSessions": "Search session title, model or provider...",
     "copyMarkdown": "Copy as Markdown",
     "copiedMarkdown": "Session Markdown copied to clipboard",
-    "downloadMarkdown": "Export .md file"
+    "downloadMarkdown": "Export .md file",
+    "thinkingChain": "Thinking process",
+    "chars": "chars"
   },
   "gateway": {
     "poolIdVirtualModelRequired": "Gateway pool ID and virtual model cannot be empty",

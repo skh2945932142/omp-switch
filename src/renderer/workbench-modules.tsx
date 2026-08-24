@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Sparkles,
   Square,
   Trash2,
   Upload,
@@ -222,43 +223,96 @@ export function SurfaceModule({ api, profileId, kind, readOnly, onNotice }: Comm
   </section>;
 }
 
-/**
- * A single session turn as a chat bubble. The three roles read at a glance: the user is a
- * right-aligned ink/paper inversion, the assistant is a left-aligned sunken block carrying its
- * model, and anything else (system / tool / result) is a centered narrow strip so it reads as
- * instrumentation between turns rather than another voice. Code fences render as standalone
- * blocks inside the body; everything else keeps preserved whitespace.
- */
-type MessageSegment = { kind: "text"; text: string } | { kind: "code"; lang: string; text: string };
+type MessageSegment =
+  | { kind: "text"; text: string }
+  | { kind: "code"; lang: string; text: string }
+  | { kind: "thinking"; text: string };
 
-/** A GFM-ish fence splitter: ```lang … ``` becomes a code segment; the rest stays text. A fence
- *  without a closing ``` (common on truncated previews) takes the remainder as code so the block
- *  is still visually contained. */
 function splitMessageSegments(text: string): MessageSegment[] {
   const segments: MessageSegment[] = [];
-  const fence = /(^|\n)```([^\n`]*)\n([\s\S]*?)(```|$)/g;
+  const thinkRegex = /<think>([\s\S]*?)(?:<\/think>|$)/gi;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = fence.exec(text)) !== null) {
-    const leading = text.slice(lastIndex, match.index + match[1].length);
-    if (leading.trim()) segments.push({ kind: "text", text: leading.replace(/^\n/, "") });
-    const lang = match[2].trim();
-    const body = match[3].replace(/\n$/, "");
-    segments.push({ kind: "code", lang, text: body });
-    lastIndex = fence.lastIndex;
+
+  function parseFences(str: string) {
+    const fence = /(^|\n)```([^\n`]*)\n([\s\S]*?)(```|$)/g;
+    let subLast = 0;
+    let subMatch: RegExpExecArray | null;
+    while ((subMatch = fence.exec(str)) !== null) {
+      const leading = str.slice(subLast, subMatch.index + subMatch[1].length);
+      if (leading.trim()) segments.push({ kind: "text", text: leading.replace(/^\n/, "") });
+      const lang = subMatch[2].trim();
+      const body = subMatch[3].replace(/\n$/, "");
+      segments.push({ kind: "code", lang, text: body });
+      subLast = fence.lastIndex;
+    }
+    const tail = str.slice(subLast);
+    if (tail.trim()) segments.push({ kind: "text", text: tail.replace(/^\n/, "") });
+  }
+
+  while ((match = thinkRegex.exec(text)) !== null) {
+    const leading = text.slice(lastIndex, match.index);
+    if (leading.trim()) parseFences(leading);
+    segments.push({ kind: "thinking", text: match[1].trim() });
+    lastIndex = thinkRegex.lastIndex;
   }
   const tail = text.slice(lastIndex);
-  if (tail.trim()) segments.push({ kind: "text", text: tail.replace(/^\n/, "") });
+  if (tail.trim()) parseFences(tail);
+
   return segments.length ? segments : [{ kind: "text", text }];
+}
+
+function CodeBlock({ lang, text }: { lang: string; text: string }): ReactElement {
+  const [copied, setCopied] = useState(false);
+  function copyCode() {
+    void navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <div className="msg-code-block">
+      <div className="msg-code-header">
+        <span>{lang || "code"}</span>
+        <button className="icon-button subtle" onClick={copyCode} title="Copy code" style={{ width: "22px", height: "22px" }}>
+          {copied ? <Check size={12} color="var(--ok)" /> : <Copy size={12} />}
+        </button>
+      </div>
+      <pre className="msg-code-body"><code>{text}</code></pre>
+    </div>
+  );
+}
+
+function ThinkingBlock({ text }: { text: string }): ReactElement {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const wordCount = text.trim().length;
+  return (
+    <div className="thinking-block">
+      <div className="thinking-summary" onClick={() => setOpen((v) => !v)}>
+        <Sparkles size={12} />
+        <span>{t("sessions.thinkingChain")} ({wordCount} {t("sessions.chars")})</span>
+        <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 140ms", marginLeft: "auto" }} />
+      </div>
+      {open ? <div className="thinking-content">{text}</div> : null}
+    </div>
+  );
 }
 
 function MessageBody({ text, fallback }: { text: string; fallback: string }): ReactElement {
   const segments = splitMessageSegments(text || fallback);
-  return <div className="msg-text">
-    {segments.map((segment, index) => segment.kind === "code"
-      ? <pre className="msg-code" key={index}><code>{segment.text}</code></pre>
-      : <span key={index} className="msg-prose">{segment.text}</span>)}
-  </div>;
+  return (
+    <div className="msg-text">
+      {segments.map((segment, index) =>
+        segment.kind === "code" ? (
+          <CodeBlock key={index} lang={segment.lang} text={segment.text} />
+        ) : segment.kind === "thinking" ? (
+          <ThinkingBlock key={index} text={segment.text} />
+        ) : (
+          <span key={index} className="msg-prose">{segment.text}</span>
+        )
+      )}
+    </div>
+  );
 }
 
 function MessageBubble({ message }: { message: SessionMessagePreview }): ReactElement {

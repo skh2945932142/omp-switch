@@ -522,3 +522,152 @@
   font-size: var(--fs-micro);
   animation: surface-in 90ms var(--spring-smooth);
 }
+
+/* ---- Filter pill bar (Models & Workspace) ---- */
+.filter-pill-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+  color: var(--ink-soft);
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  transition: all 120ms var(--spring-smooth);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-pill:hover {
+  background: var(--hover);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.filter-pill.active {
+  background: var(--selected);
+  color: var(--ink);
+  border-color: var(--hairline);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow-tint);
+}
+.pill-count {
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--sunken);
+  color: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+.filter-pill.active .pill-count {
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+/* ---- Flow chain badges (Roles resolution chain) ---- */
+.flow-chain-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.flow-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-s);
+  background: var(--sunken);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 550;
+}
+.flow-node.highlight {
+  background: var(--signal-soft);
+  border-color: rgba(13, 118, 110, 0.25);
+  color: var(--signal);
+}
+.flow-arrow {
+  color: var(--muted);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- Thinking block accordion (Sessions) ---- */
+.thinking-block {
+  margin: 6px 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--sunken);
+  overflow: hidden;
+}
+.thinking-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 550;
+  transition: background 120ms var(--spring-smooth);
+}
+.thinking-summary:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.thinking-content {
+  padding: 8px 10px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-soft);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ---- Message code block with copy button ---- */
+.msg-code-block {
+  position: relative;
+  margin: 6px 0;
+  border-radius: var(--radius-s);
+  background: var(--sunken);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.msg-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--hover);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.msg-code-body {
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+}

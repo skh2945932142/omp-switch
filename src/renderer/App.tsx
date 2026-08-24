@@ -147,6 +147,26 @@ export default function App(): ReactElement {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [sidebarCompact, setSidebarCompact] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("omp-switch:sidebar-compact") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleSidebarCompact() {
+    setSidebarCompact((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem("omp-switch:sidebar-compact", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>(() => initTheme());
   const [localeChoice, setLocaleChoiceState] = useState<LocaleChoice>(() => initLocale());
   const [appVersion, setAppVersion] = useState<string>("");
@@ -638,7 +658,7 @@ export default function App(): ReactElement {
           isDirty={rolesDirty || settingsDirty}
         />
 
-        <main className="app-body">
+        <main className={`app-body${sidebarCompact ? " rail-compact" : ""}`}>
           <LeftRail
             profileId={profileId}
             profiles={profiles}
@@ -663,6 +683,8 @@ export default function App(): ReactElement {
               setProfileDrawerOpen(true);
               setDrawerOpen(true);
             }}
+            compact={sidebarCompact}
+            onToggleCompact={toggleSidebarCompact}
           />
 
           <section className={`workspace-main ${isDrawerActive ? "drawer-active" : ""}`}>

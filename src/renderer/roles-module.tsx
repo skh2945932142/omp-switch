@@ -95,18 +95,33 @@ export function RolesModule({ providers, roleIds, roles, baseline, profileId, re
             <small>{i18n.exists(`roles.roleGloss.${role}`) ? t(`roles.roleGloss.${role}`) : (gloss || t("roles.customRole"))}</small>
           </div>
           <div className="role-meta">
-            {value.trim() && resolution.chain.length > 0 ? <>
-              {resolution.chain.length > 1 || resolution.final ? <span className="role-chain">
-                {resolution.chain.map((step, index) => <span className="role-chain-hop" key={`${step}-${index}`}>{index > 0 ? <span className="arrow">→</span> : null}<span className="mono">{step}</span></span>)}
-              </span> : null}
-              {resolution.final?.kind === "model" && finalModel ? <span className="role-final">
-                <span className="role-final-arrow">=</span>
-                <span className="role-final-name">{finalModel.name ?? finalModel.id}</span>
-                <span className="mono role-final-id">{finalModel.id}</span>
-                {finalModel.reasoning ? <span className="capability on">{t("roles.thinking")}</span> : null}
-                {finalModel.input?.includes("image") ? <span className="capability on">{t("roles.vision")}</span> : null}
-              </span> : resolution.final?.kind === "wildcard" ? <span className="role-final"><span className="role-final-arrow">=</span><span className="role-final-name">{t("roles.wildcard")}</span></span> : resolution.final?.kind === "role" ? <span className="role-final"><span className="role-final-arrow">→</span><span className="role-final-name">@{resolution.final.role}</span></span> : null}
-            </> : <span className="role-unset">{t("roles.unset")}</span>}
+            {value.trim() && resolution.chain.length > 0 ? (
+              <div className="flow-chain-wrap">
+                {resolution.chain.map((step, index) => (
+                  <span key={`${step}-${index}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    {index > 0 ? <span className="flow-arrow">→</span> : null}
+                    <span className={`flow-node ${step.startsWith("@") ? "" : "highlight"}`}>{step}</span>
+                  </span>
+                ))}
+                {resolution.final?.kind === "model" && finalModel ? (
+                  <>
+                    <span className="flow-arrow">➔</span>
+                    <span className="flow-node highlight">
+                      <span>{finalModel.name || finalModel.id}</span>
+                      {finalModel.reasoning ? <span className="capability on">{t("roles.thinking")}</span> : null}
+                      {finalModel.input?.includes("image") ? <span className="capability on">{t("roles.vision")}</span> : null}
+                    </span>
+                  </>
+                ) : resolution.final?.kind === "wildcard" ? (
+                  <>
+                    <span className="flow-arrow">➔</span>
+                    <span className="flow-node">{t("roles.wildcard")}</span>
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <span className="role-unset">{t("roles.unset")}</span>
+            )}
             {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />{t("roles.cycleWarning")}</span> : null}
             {invalid ? <span className="role-warning"><CircleAlert size={13} />{t("roles.invalidWarning")}</span> : null}
             {misused ? <span className="role-warning"><CircleAlert size={13} />{t("roles.misusedWarning", { suffix: misused })}</span> : null}

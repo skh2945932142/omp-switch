@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -53,6 +53,14 @@ export interface ModelsModuleProps {
   onNotice?: (notice: { tone: "info" | "success" | "error"; text: string }) => void;
 }
 
+export type ProviderCategory = "all" | "enabled" | "local" | "cloud";
+
+function isLocalProvider(provider: OmpProvider): boolean {
+  if (provider.discovery?.type && ["ollama", "llama.cpp", "lm-studio"].includes(provider.discovery.type)) return true;
+  const url = (provider.baseUrl ?? "").toLowerCase();
+  return url.includes("127.0.0.1") || url.includes("localhost") || url.includes("0.0.0.0");
+}
+
 export function ModelsModule({
   profileId,
   providers,
@@ -83,13 +91,34 @@ export function ModelsModule({
 }: ModelsModuleProps): ReactElement {
   const { t } = useTranslation();
   const catalogInput = useRef<HTMLInputElement | null>(null);
+  const [category, setCategory] = useState<ProviderCategory>("all");
 
-  const filteredProviders = providers.filter(([id, provider]) => {
-    const text = `${id} ${provider.api ?? ""} ${provider.baseUrl ?? ""} ${providerModels(provider)
-      .map((model) => `${model.id} ${model.name ?? ""}`)
-      .join(" ")}`.toLowerCase();
-    return text.includes(query.trim().toLowerCase());
-  });
+  const counts = useMemo(() => {
+    let enabled = 0;
+    let local = 0;
+    let cloud = 0;
+    for (const [id, provider] of providers) {
+      if (coverageFor(provider, id) > 0 && !isProviderDisabled(id, draftDisabledProviders, agentDir)) enabled++;
+      if (isLocalProvider(provider)) local++;
+      else cloud++;
+    }
+    return { all: providers.length, enabled, local, cloud };
+  }, [providers, draftDisabledProviders, agentDir, coverageFor]);
+
+  const filteredProviders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return providers.filter(([id, provider]) => {
+      if (category === "enabled" && (coverageFor(provider, id) === 0 || isProviderDisabled(id, draftDisabledProviders, agentDir))) return false;
+      if (category === "local" && !isLocalProvider(provider)) return false;
+      if (category === "cloud" && isLocalProvider(provider)) return false;
+
+      if (!q) return true;
+      const text = `${id} ${provider.api ?? ""} ${provider.baseUrl ?? ""} ${providerModels(provider)
+        .map((model) => `${model.id} ${model.name ?? ""}`)
+        .join(" ")}`.toLowerCase();
+      return text.includes(q);
+    });
+  }, [providers, query, category, draftDisabledProviders, agentDir, coverageFor]);
 
   return (
     <>
@@ -139,6 +168,45 @@ export function ModelsModule({
             />
           </div>
         </div>
+      </div>
+
+      <div className="filter-pill-bar" role="tablist" aria-label={t("models.filterCategoriesAria")}>
+        <button
+          role="tab"
+          aria-selected={category === "all"}
+          className={`filter-pill ${category === "all" ? "active" : ""}`}
+          onClick={() => setCategory("all")}
+        >
+          {t("models.filterAll")}
+          <span className="pill-count">{counts.all}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={category === "enabled"}
+          className={`filter-pill ${category === "enabled" ? "active" : ""}`}
+          onClick={() => setCategory("enabled")}
+        >
+          {t("models.filterEnabled")}
+          <span className="pill-count">{counts.enabled}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={category === "local"}
+          className={`filter-pill ${category === "local" ? "active" : ""}`}
+          onClick={() => setCategory("local")}
+        >
+          {t("models.filterLocal")}
+          <span className="pill-count">{counts.local}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={category === "cloud"}
+          className={`filter-pill ${category === "cloud" ? "active" : ""}`}
+          onClick={() => setCategory("cloud")}
+        >
+          {t("models.filterCloud")}
+          <span className="pill-count">{counts.cloud}</span>
+        </button>
       </div>
 
       <div className="provider-grid">
