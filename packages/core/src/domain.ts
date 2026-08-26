@@ -33,7 +33,7 @@ export interface ProfilePaths {
 
 /** One OMP environment variable that moved the paths this app is about to write. */
 export interface OmpPathOverride {
-  variable: "PI_CONFIG_DIR" | "PI_CODING_AGENT_DIR" | "OMP_PROFILE" | "PI_PROFILE";
+  variable: "PI_CONFIG_DIR" | "PI_CODING_AGENT_DIR" | "OMP_PROFILE" | "PI_PROFILE" | "OMP_MODELS_PATH";
   value: string;
   effect: string;
 }
@@ -81,6 +81,7 @@ export interface OmpModel extends Record<string, unknown> {
   imageInputDecoder?: string;
   /** OMP v17.4.0+: opt into a specific embedded local tokenizer family for proxy models. */
   tokenizer?: string;
+  disabledReason?: string;
 }
 
 export interface OmpProvider extends Record<string, unknown> {

@@ -12,6 +12,7 @@ export interface OmpPathEnv {
   PI_CODING_AGENT_DIR?: string;
   OMP_PROFILE?: string;
   PI_PROFILE?: string;
+  OMP_MODELS_PATH?: string;
 }
 
 export function validateProfileName(name: string): string {
@@ -67,6 +68,15 @@ export function resolveOmpPaths(homeDir: string, env: OmpPathEnv = {}): OmpPathR
     });
   }
 
+  const modelsPathOverride = env.OMP_MODELS_PATH?.trim();
+  if (modelsPathOverride) {
+    overrides.push({
+      variable: "OMP_MODELS_PATH",
+      value: modelsPathOverride,
+      effect: `Models file moved to ${path.resolve(modelsPathOverride)}`,
+    });
+  }
+
   return { ompRoot, activeProfile, overrides };
 }
 
@@ -77,14 +87,18 @@ export function getProfilePaths(homeDir: string, profileName: string, env: OmpPa
   const agentDir = profileName === DEFAULT_PROFILE
     ? (agentDirOverride ? path.resolve(agentDirOverride) : path.join(ompRoot, "agent"))
     : path.join(ompRoot, "profiles", profileName, "agent");
+  const modelsPathOverride = env.OMP_MODELS_PATH?.trim();
+  const explicitModels = modelsPathOverride ? path.resolve(modelsPathOverride) : null;
   return {
     profile: profileName,
     agentDir,
-    modelsCandidates: [
-      path.join(agentDir, "models.yml"),
-      path.join(agentDir, "models.yaml"),
-      path.join(agentDir, "models.json"),
-    ],
+    modelsCandidates: explicitModels
+      ? [explicitModels]
+      : [
+          path.join(agentDir, "models.yml"),
+          path.join(agentDir, "models.yaml"),
+          path.join(agentDir, "models.json"),
+        ],
     settingsCandidates: [path.join(agentDir, "config.yml"), path.join(agentDir, "config.yaml")],
   };
 }

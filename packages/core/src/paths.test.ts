@@ -66,4 +66,12 @@ describe("OMP profile paths", () => {
     expect(listProfileNames([], "work")).toEqual(["default", "work"]);
     expect(listProfileNames(["b", "a"])).toEqual(["default", "a", "b"]);
   });
+
+  it("honors OMP_MODELS_PATH override and reports it in overrides", () => {
+    const customModels = path.resolve("custom-models.yml");
+    const paths = getProfilePaths("C:/Users/test", "default", { OMP_MODELS_PATH: customModels });
+    expect(paths.modelsCandidates).toEqual([customModels]);
+    const resolution = resolveOmpPaths("C:/Users/test", { OMP_MODELS_PATH: customModels });
+    expect(resolution.overrides.map((o) => o.variable)).toContain("OMP_MODELS_PATH");
+  });
 });

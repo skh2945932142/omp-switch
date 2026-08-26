@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  CircleAlert,
   CloudDownload,
   Copy,
   LoaderCircle,
@@ -342,6 +343,12 @@ export function ModelsModule({
                         <span className="model-name">
                           <strong title={model.name ?? model.id}>{model.name ?? model.id}</strong>
                           <small title={model.id}>{model.id}</small>
+                          {model.disabledReason ? (
+                            <span className="model-disabled-reason warn-line" title={model.disabledReason}>
+                              <CircleAlert size={12} />
+                              <span>{model.disabledReason}</span>
+                            </span>
+                          ) : null}
                         </span>
                         <span className="model-api" title={model.api ?? provider.api ?? "—"}>
                           {model.api ?? provider.api ?? "—"}

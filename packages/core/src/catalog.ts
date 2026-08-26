@@ -105,7 +105,20 @@ export function validateCatalogBundle(value: unknown): CatalogBundle {
 
 export function mergeCatalogBundle(base: ProviderPreset[], bundle: CatalogBundle): ProviderPreset[] {
   const imported = new Map(bundle.entries.map((entry) => [entry.id, entry]));
-  const merged = base.map((entry) => imported.get(entry.id) ?? entry);
-  for (const entry of bundle.entries) if (!base.some((candidate) => candidate.id === entry.id)) merged.push(entry);
+  const merged = base.map((entry) => {
+    const incoming = imported.get(entry.id);
+    if (!incoming) return entry;
+    const hasIncomingLabel = typeof incoming.label === "string" && incoming.label.trim() !== "";
+    return {
+      ...entry,
+      ...incoming,
+      label: hasIncomingLabel ? incoming.label.trim() : entry.label,
+    };
+  });
+  for (const entry of bundle.entries) {
+    if (!base.some((candidate) => candidate.id === entry.id)) {
+      merged.push(entry);
+    }
+  }
   return merged;
 }

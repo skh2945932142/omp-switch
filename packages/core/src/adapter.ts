@@ -81,7 +81,13 @@ export class OmpFilesystemAdapter implements OmpAdapter {
     this.homeDir = options.homeDir;
     this.snapshotDir = options.snapshotDir;
     this.installation = options.installation ?? { executable: null, version: null, supported: true };
-    this.pathEnv = options.pathEnv ?? {};
+    this.pathEnv = options.pathEnv ?? {
+      PI_CONFIG_DIR: process.env.PI_CONFIG_DIR,
+      PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+      OMP_PROFILE: process.env.OMP_PROFILE,
+      PI_PROFILE: process.env.PI_PROFILE,
+      OMP_MODELS_PATH: process.env.OMP_MODELS_PATH,
+    };
     this.snapshotRetention = options.snapshotRetention ?? DEFAULT_SNAPSHOT_RETENTION;
   }
 

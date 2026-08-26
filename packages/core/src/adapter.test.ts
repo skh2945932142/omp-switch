@@ -625,4 +625,86 @@ describe("OmpFilesystemAdapter", () => {
     expect(snapshots.map((s) => s.id)).toContain(snap1.id);
     expect(snapshots.map((s) => s.id)).toContain(snap2.id);
   });
+
+  it("honors OMP_MODELS_PATH when loading and committing patches", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-models-path-"));
+    tempRoots.push(root);
+    const customModelsFile = path.join(root, "custom-location", "custom-models.yml");
+    await fs.mkdir(path.dirname(customModelsFile), { recursive: true });
+    await fs.writeFile(
+      customModelsFile,
+      [
+        "providers:",
+        "  custom:",
+        "    baseUrl: https://custom.example.test/v1",
+        "    api: openai-completions",
+        "    models:",
+        "      - id: m-1",
+      ].join("\n"),
+    );
+
+    const adapter = new OmpFilesystemAdapter({
+      homeDir: root,
+      snapshotDir: path.join(root, "snapshots"),
+      pathEnv: { OMP_MODELS_PATH: customModelsFile },
+    });
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    expect(current.models.path).toBe(customModelsFile);
+    expect(current.models.value.providers.custom).toBeDefined();
+
+    // Commit a patch and verify it writes to the custom file
+    const preview = adapter.planPatch(current, {
+      provider: {
+        id: "custom",
+        baseUrl: "https://custom.example.test/v2",
+        api: "openai-completions",
+        auth: "none",
+        models: [{ id: "m-1" }, { id: "m-2" }],
+      },
+    });
+    await adapter.commitPatch(current, preview);
+    const updatedContent = await fs.readFile(customModelsFile, "utf8");
+    expect(updatedContent).toContain("https://custom.example.test/v2");
+    expect(updatedContent).toContain("m-2");
+  });
+
+  it("preserves disabledReason field on models during round-trip patch and commit", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-disabled-reason-"));
+    tempRoots.push(root);
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(
+      path.join(agentDir, "models.yml"),
+      [
+        "providers:",
+        "  demo:",
+        "    baseUrl: https://api.example.test/v1",
+        "    api: openai-completions",
+        "    auth: none",
+        "    models:",
+        "      - id: legacy-model",
+        "        name: Legacy Model",
+        "        disabledReason: Deprecated by upstream provider",
+      ].join("\n"),
+    );
+
+    const adapter = new OmpFilesystemAdapter({
+      homeDir: root,
+      snapshotDir: path.join(root, "snapshots"),
+    });
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    expect(current.models.value.providers.demo.models?.[0].disabledReason).toBe("Deprecated by upstream provider");
+
+    // Patch something else (e.g. roleAssignments)
+    const preview = adapter.planPatch(current, {
+      roleAssignments: { default: "demo/legacy-model" },
+    });
+    await adapter.commitPatch(current, preview);
+
+    const reloaded = await adapter.loadProfile(profile);
+    expect(reloaded.models.value.providers.demo.models?.[0].disabledReason).toBe("Deprecated by upstream provider");
+    expect(reloaded.models.raw).toContain("disabledReason: Deprecated by upstream provider");
+  });
 });
