@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.7 - 2026-08-26
+
+### Security
+- **Hardened Snapshot Restore & IPC Isolation**:
+  - Replaced the renderer `omp:restore` interface with a parameterless signature, preventing arbitrary client payload injection.
+  - Snapshot validation strictly restricts target file restore paths within the active profile's `agentDir`.
+  - Snapshots without hash information are blocked from unverified restoration unless explicitly forced.
+- **Dynamic Content Security Policy (CSP)**:
+  - Dynamically injects strict CSP headers via `session.defaultSession.webRequest.onHeadersReceived`, mitigating inline script and remote resource risks.
+- **Single Instance Lock**:
+  - Restricts the application to a single running instance; secondary launches focus the existing window.
+- **Surface Boundary Confinement**:
+  - Confined discovery and surface lookups strictly to `.omp` subdirectories within the user home.
+- **Credential Protection in CLI & Discovery**:
+  - Masked API secrets in `omp-switch-cli get` JSON output by default; explicit reveal requires `--reveal-secrets`.
+  - Enforced strict `http://` and `https://` protocol schemes and input bounds on `discoverModels` and `secret:put`.
+
+### Fixed
+- **Navigation Rail Active Pill & Layout Alignment**:
+  - Fixed active pill selector specificity in `base.css` to prevent incorrect bounding dimensions.
+  - Upgraded section navigation grid layout to a 4-column structure with single-line text truncation, ensuring uniform row heights and vertical rhythm across window resizes.
+  - Corrected bottom rail action item alignment so text and primary icons remain left-aligned.
+- **Internationalization & Localization**:
+  - Migrated hardcoded main-process dialog titles and OAuth terminal status codes to renderer-driven localization (`zh.json` and `en.json`).
+- **Backend Path Overrides & Data Preservation**:
+  - Fully integrated `OMP_MODELS_PATH` environment variable override into profile path resolution, loading, and patching.
+  - Preserved user-customized provider labels during `mergeCatalogBundle` imports when incoming entries omit an explicit label.
+  - Added support and warning bubble display for model `disabledReason` while guaranteeing round-trip YAML persistence.
+
 ## 0.5.6 - 2026-08-24
 
 ### Changed
