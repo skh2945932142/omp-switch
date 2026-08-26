@@ -1,5 +1,6 @@
 import type { OmpAdapter } from "./adapter";
-import type { ConfigPatch, ProfileRef } from "./domain";
+import type { ConfigPatch, EffectiveConfig, ProfileRef } from "./domain";
+import { looksLikePlaintextSecret } from "./validation";
 
 export type JsonCliCommand = "list" | "get" | "validate" | "plan" | "apply" | "snapshot" | "snapshots";
 
@@ -7,6 +8,7 @@ export interface ParsedJsonCliCommand {
   command: JsonCliCommand;
   profile: string;
   patch?: ConfigPatch;
+  revealSecrets?: boolean;
 }
 
 export interface JsonCliRuntime {
@@ -26,6 +28,35 @@ function getOption(args: string[], name: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
+export function maskRawSecrets(rawYaml: string): string {
+  return rawYaml.replace(/^([ \t]*apiKey:[ \t]*)(['"]?)(.+?)\2([ \t]*(?:#.*)?)$/gm, (match, prefix, quote, val, comment) => {
+    const trimmed = val.trim();
+    if (trimmed.startsWith("!")) return match;
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed) && trimmed === trimmed.toUpperCase()) return match;
+    return `${prefix}"••••••••"${comment || ""}`;
+  });
+}
+
+export function maskConfigSecrets(config: EffectiveConfig): EffectiveConfig {
+  const providers = { ...config.models.value.providers };
+  for (const [key, provider] of Object.entries(providers)) {
+    if (provider && provider.apiKey && looksLikePlaintextSecret(provider.apiKey)) {
+      providers[key] = { ...provider, apiKey: "••••••••" };
+    }
+  }
+  return {
+    ...config,
+    models: {
+      ...config.models,
+      raw: maskRawSecrets(config.models.raw),
+      value: {
+        ...config.models.value,
+        providers,
+      },
+    },
+  };
+}
+
 export function parseJsonCliArguments(args: string[]): ParsedJsonCliCommand {
   const command = args.find((arg) => !arg.startsWith("-"));
   if (
@@ -41,6 +72,7 @@ export function parseJsonCliArguments(args: string[]): ParsedJsonCliCommand {
   }
   const profile = getOption(args, "--profile") ?? "default";
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(profile)) throw new Error("Invalid profile");
+  const revealSecrets = args.includes("--reveal-secrets") || args.includes("--unmasked");
   const patchText = getOption(args, "--patch");
   if ((command === "apply" || command === "plan") && !patchText) throw new Error(`${command} requires --patch <json>`);
   let patch: ConfigPatch | undefined;
@@ -53,7 +85,7 @@ export function parseJsonCliArguments(args: string[]): ParsedJsonCliCommand {
       throw new Error(error instanceof Error ? `Invalid patch: ${error.message}` : "Invalid patch");
     }
   }
-  return { command, profile, patch };
+  return { command, profile, patch, revealSecrets };
 }
 
 export async function runJsonCli(command: ParsedJsonCliCommand, runtime: JsonCliRuntime): Promise<JsonCliResponse> {
@@ -62,7 +94,10 @@ export async function runJsonCli(command: ParsedJsonCliCommand, runtime: JsonCli
     const profile = runtime.profile(command.profile);
     if (command.command === "snapshots") return { version: 1, ok: true, data: await runtime.adapter.listSnapshots(profile) };
     const config = await runtime.adapter.loadProfile(profile);
-    if (command.command === "get") return { version: 1, ok: true, data: config };
+    if (command.command === "get") {
+      const result = command.revealSecrets ? config : maskConfigSecrets(config);
+      return { version: 1, ok: true, data: result };
+    }
     if (command.command === "validate") return { version: 1, ok: true, data: runtime.adapter.validate(config) };
     if (command.command === "snapshot") return { version: 1, ok: true, data: await runtime.adapter.createSnapshot(config) };
     const preview = runtime.adapter.planPatch(config, command.patch!);

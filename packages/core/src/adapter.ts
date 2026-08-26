@@ -15,15 +15,29 @@ import {
   SettingsDocument,
   Snapshot,
 } from "./domain";
-import { discoverProfileNames, getProfilePaths, OmpPathEnv, resolveOmpPaths, toProfileRef } from "./paths";
+import { discoverProfileNames, getProfilePaths, OmpPathEnv, resolveOmpPaths, toProfileRef, validateProfileName } from "./paths";
 import { assertFileExpectation, FileExpectation, loadStructuredConfig, patchModelsYaml, patchSettingsYaml, sha256File, sha256Text, writeTextAtomic } from "./yaml-config";
 import { validateModelsDocument, validateSettingsDocument } from "./validation";
 
 const emptyModels = (): ModelsDocument => ({ providers: {} });
 const emptySettings = (): SettingsDocument => ({});
 
-/** Snapshots kept per profile. Every commit creates one, so an unpruned directory grows forever. */
 export const DEFAULT_SNAPSHOT_RETENTION = 30;
+
+const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+function validateSnapshotId(id: string): string {
+  const trimmed = id.trim();
+  if (!SNAPSHOT_ID_PATTERN.test(trimmed) || trimmed.includes("..")) {
+    throw new Error("Invalid snapshot ID format");
+  }
+  return trimmed;
+}
+
+function isPathInside(parentDir: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(parentDir), path.resolve(targetPath));
+  return !relative.startsWith("..") && !path.isAbsolute(relative);
+}
 
 export interface AdapterOptions {
   homeDir: string;
@@ -53,6 +67,7 @@ export interface OmpAdapter {
   commitPatch(config: EffectiveConfig, preview: PatchPreview): Promise<CommitResult>;
   createSnapshot(config: EffectiveConfig): Promise<Snapshot>;
   listSnapshots(profile: ProfileRef): Promise<Snapshot[]>;
+  restoreSnapshot(snapshot: Snapshot, options?: RestoreOptions): Promise<void>;
 }
 
 export class OmpFilesystemAdapter implements OmpAdapter {
@@ -290,9 +305,23 @@ export class OmpFilesystemAdapter implements OmpAdapter {
    * which is exactly what `commitPatch` refuses to do.
    */
   async restoreSnapshot(snapshot: Snapshot, options: RestoreOptions = {}): Promise<void> {
+    validateProfileName(snapshot.profile);
+    validateSnapshotId(snapshot.id);
+    const agentDir = getProfilePaths(this.homeDir, snapshot.profile, this.pathEnv).agentDir;
     const dir = path.join(this.snapshotDir, snapshot.profile, snapshot.id);
     const modelsWritePath = snapshot.modelsWritePath
       ?? (snapshot.modelsPath.endsWith(".json") ? path.join(path.dirname(snapshot.modelsPath), "models.yml") : undefined);
+
+    if (!isPathInside(agentDir, snapshot.modelsPath)) {
+      throw new Error(`Snapshot modelsPath escapes profile agent directory: ${snapshot.modelsPath}`);
+    }
+    if (!isPathInside(agentDir, snapshot.settingsPath)) {
+      throw new Error(`Snapshot settingsPath escapes profile agent directory: ${snapshot.settingsPath}`);
+    }
+    if (modelsWritePath && !isPathInside(agentDir, modelsWritePath)) {
+      throw new Error(`Snapshot modelsWritePath escapes profile agent directory: ${modelsWritePath}`);
+    }
+
     if (!options.force) {
       await this.assertSnapshotStillApplies(snapshot, modelsWritePath);
     }
@@ -342,7 +371,7 @@ export class OmpFilesystemAdapter implements OmpAdapter {
     // Snapshots taken before the hash fields existed, and snapshots of a profile that had no files
     // at all, carry nothing to compare against.
     const verifiable = Array.from(expectations.values()).some((allowed) => Array.from(allowed).some((hash) => hash !== undefined));
-    if (!verifiable) return;
+    if (!verifiable) throw new ConfigConflictError("Snapshot carries no hash information to verify against current files");
 
     for (const [filePath, allowed] of expectations) {
       if (!allowed.has(await sha256File(filePath))) throw new ConfigConflictError(filePath);

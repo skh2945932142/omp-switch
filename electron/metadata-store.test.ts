@@ -89,6 +89,8 @@ describe.each(["auto", "json"] as const)("MetadataStore (%s backend)", (backend)
     await store.addSnapshot({ id: "c", profile: "work", createdAt: "2026-08-19T02:00:00Z" });
     expect(store.getLatestSnapshot("default")).toMatchObject({ id: "b" });
     expect(store.getLatestSnapshot("work")).toMatchObject({ id: "c" });
+    expect(store.getSnapshot("default", "a")).toMatchObject({ id: "a" });
+    expect(store.getSnapshot("default", "non-existent")).toBeNull();
   });
 
   it("caps stored snapshots so the metadata never grows without bound", async () => {

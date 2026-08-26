@@ -222,6 +222,15 @@ export class MetadataStore {
     return this.fallback.snapshots.filter((snapshot) => snapshot.profile === profile);
   }
 
+  getSnapshot(profile: string, id: string): Snapshot | null {
+    if (this.sqlite) {
+      const row = this.sqlite.prepare("SELECT payload FROM snapshots WHERE profile = ? AND id = ? LIMIT 1").get(profile, id) as { payload: string } | undefined;
+      return row ? JSON.parse(row.payload) as Snapshot : null;
+    }
+    const item = this.fallback.snapshots.find((snapshot) => snapshot.profile === profile && snapshot.id === id);
+    return item ? item as unknown as Snapshot : null;
+  }
+
   getLatestSnapshot(profile: string): Snapshot | null {
     if (this.sqlite) {
       const row = this.sqlite.prepare("SELECT payload FROM snapshots WHERE profile = ? ORDER BY created_at DESC LIMIT 1").get(profile) as { payload: string } | undefined;

@@ -53,4 +53,11 @@ describe("OpenAI-compatible model discovery", () => {
     });
     expect(result.models.map((model) => model.id)).toEqual(["team/model"]);
   });
+
+  it("rejects invalid or non-http/https baseUrl schemes", async () => {
+    await expect(discoverOpenAIModels({ baseUrl: "ftp://example.test/v1" })).rejects.toMatchObject({ code: "discovery.endpoint" });
+    await expect(discoverOpenAIModels({ baseUrl: "javascript:alert(1)" })).rejects.toMatchObject({ code: "discovery.endpoint" });
+    await expect(discoverOpenAIModels({ baseUrl: "not-a-url" })).rejects.toMatchObject({ code: "discovery.endpoint" });
+    await expect(discoverOpenAIModels({ baseUrl: "" })).rejects.toMatchObject({ code: "discovery.endpoint" });
+  });
 });

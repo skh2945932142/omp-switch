@@ -9,7 +9,7 @@ export interface OmpSwitchApi {
   preview(profileId: string, patch: ConfigPatch): Promise<{ preview: PatchPreview; modelsText: string; settingsText: string }>;
   listSnapshots(profileId: string): Promise<Snapshot[]>;
   snapshot(profileId: string): Promise<Snapshot>;
-  restore(snapshot: Snapshot): Promise<EffectiveConfig>;
+  restore(profileId: string, snapshotId: string, options?: { force?: boolean }): Promise<EffectiveConfig>;
   restoreLatest(profileId: string): Promise<{ snapshot: Snapshot; config: EffectiveConfig }>;
   discover(options: { baseUrl: string; apiKey?: string; headers?: Record<string, string>; timeoutMs?: number; type?: "ollama" | "llama.cpp" | "lm-studio" | "openai-models-list" | "proxy" | "litellm" }): Promise<DiscoveryResult>;
   listCatalog(query?: string): Promise<ProviderPreset[]>;

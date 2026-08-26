@@ -194,7 +194,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
       modelsPath: get(id).models.path,
       settingsPath: get(id).settings.path,
     }),
-    restore: async (snapshot: Snapshot) => get(snapshot.profile),
+    restore: async (profileId: string, _snapshotId: string, _options?: { force?: boolean }) => get(profileId),
     restoreLatest: async (profileId: string) => ({
       snapshot: {
         id: "demo-snapshot",

@@ -19,3 +19,10 @@ export function blockRendererNavigation(event: { preventDefault(): void }): void
 export function denyRendererWindowOpen(): { action: "deny" } {
   return { action: "deny" };
 }
+
+export function getContentSecurityPolicy(isDev: boolean): string {
+  if (isDev) {
+    return "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: http:; object-src 'none'; base-uri 'none'; form-action 'none'";
+  }
+  return "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockRendererNavigation, denyRendererWindowOpen, isLoopbackHttpUrl, mayUseDevRenderer } from "./renderer-security";
+import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPolicy, isLoopbackHttpUrl, mayUseDevRenderer } from "./renderer-security";
 
 describe("renderer loading security", () => {
   it("accepts only loopback HTTP development URLs", () => {
@@ -22,5 +22,16 @@ describe("renderer loading security", () => {
     blockRendererNavigation({ preventDefault: () => { prevented = true; } });
     expect(prevented).toBe(true);
     expect(denyRendererWindowOpen()).toEqual({ action: "deny" });
+  });
+
+  it("builds strict Content-Security-Policy for production and dev", () => {
+    const prodCsp = getContentSecurityPolicy(false);
+    expect(prodCsp).toContain("connect-src 'none'");
+    expect(prodCsp).toContain("default-src 'self'");
+    expect(prodCsp).toContain("object-src 'none'");
+
+    const devCsp = getContentSecurityPolicy(true);
+    expect(devCsp).toContain("connect-src 'self' ws: http:");
+    expect(devCsp).toContain("'unsafe-eval'");
   });
 });

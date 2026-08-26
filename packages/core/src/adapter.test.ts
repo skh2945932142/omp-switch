@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfigConflictError, ConfigValidationError, OmpFilesystemAdapter } from "./index";
+import { ConfigConflictError, ConfigValidationError, OmpFilesystemAdapter, Snapshot } from "./index";
 
 const tempRoots: string[] = [];
 
@@ -247,6 +247,71 @@ describe("OmpFilesystemAdapter", () => {
 
     await adapter.restoreSnapshot(result.snapshot, { force: true });
     await expect(fs.access(result.config.models.path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses to restore snapshot with invalid profile or id traversal", async () => {
+    const { adapter } = await makeAdapter();
+    const invalidProfileSnapshot: Snapshot = {
+      id: "snapshot-1",
+      profile: "../escaping-profile",
+      createdAt: new Date().toISOString(),
+      modelsPath: "/tmp/models.yml",
+      settingsPath: "/tmp/config.yml",
+    };
+    await expect(adapter.restoreSnapshot(invalidProfileSnapshot)).rejects.toThrow();
+
+    const invalidIdSnapshot: Snapshot = {
+      id: "../../escaping-id",
+      profile: "default",
+      createdAt: new Date().toISOString(),
+      modelsPath: "/tmp/models.yml",
+      settingsPath: "/tmp/config.yml",
+    };
+    await expect(adapter.restoreSnapshot(invalidIdSnapshot)).rejects.toThrow();
+  });
+
+  it("refuses to restore snapshot with target paths escaping agentDir", async () => {
+    const { root, adapter } = await makeAdapter();
+    const maliciousSnapshot: Snapshot = {
+      id: "snapshot-1",
+      profile: "default",
+      createdAt: new Date().toISOString(),
+      modelsPath: path.join(root, "outside", "models.yml"),
+      settingsPath: path.join(root, ".omp", "agent", "config.yml"),
+      modelsHash: "abcd",
+      settingsHash: "ef01",
+    };
+    await expect(adapter.restoreSnapshot(maliciousSnapshot, { force: true })).rejects.toThrow(/escapes profile agent directory/);
+  });
+
+  it("refuses to restore unhashable snapshot without force and succeeds with force", async () => {
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    const modelsPath = path.join(agentDir, "models.yml");
+    const settingsPath = path.join(agentDir, "config.yml");
+    await fs.writeFile(modelsPath, "providers: {}\n", "utf8");
+    await fs.writeFile(settingsPath, "{}\n", "utf8");
+
+    const snapshotDir = path.join(root, "snapshots", "default", "legacy-snap");
+    await fs.mkdir(snapshotDir, { recursive: true });
+    await fs.writeFile(path.join(snapshotDir, "models.yml"), "providers:\n  legacy: {}\n", "utf8");
+    await fs.writeFile(path.join(snapshotDir, "config.yml"), "legacy: true\n", "utf8");
+
+    // Snapshot with NO hash fields (like early legacy snapshots)
+    const legacySnapshot: Snapshot = {
+      id: "legacy-snap",
+      profile: "default",
+      createdAt: new Date().toISOString(),
+      modelsPath,
+      settingsPath,
+      modelsExisted: true,
+      settingsExisted: true,
+    };
+
+    await expect(adapter.restoreSnapshot(legacySnapshot)).rejects.toBeInstanceOf(ConfigConflictError);
+    await adapter.restoreSnapshot(legacySnapshot, { force: true });
+    await expect(fs.readFile(modelsPath, "utf8")).resolves.toContain("legacy");
   });
 
   it("edits an anchored provider in place so the anchor and its aliases survive", async () => {

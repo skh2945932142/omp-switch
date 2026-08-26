@@ -88,7 +88,23 @@ async function fetchDiscoveryPayload(endpoint: string, options: DiscoverOptions)
   }
 }
 
+function validateBaseUrl(baseUrl: string): void {
+  if (typeof baseUrl !== "string" || !baseUrl.trim()) {
+    throw new DiscoveryError("discovery.endpoint", "baseUrl must be a non-empty string");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new DiscoveryError("discovery.endpoint", "Invalid baseUrl format");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new DiscoveryError("discovery.endpoint", `Unsupported baseUrl protocol: ${parsed.protocol}`);
+  }
+}
+
 export async function discoverModels(options: DiscoverOptions): Promise<DiscoveryResult> {
+  validateBaseUrl(options.baseUrl);
   const type = options.type ?? "openai-models-list";
   const endpoint = type === "ollama" ? resolveOllamaEndpoint(options.baseUrl) : resolveModelsEndpoint(options.baseUrl);
   const startedAt = Date.now();

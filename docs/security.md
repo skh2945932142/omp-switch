@@ -55,8 +55,19 @@ Consequences worth stating plainly:
 - **YAML anchors.** Deleting an anchored node or rewriting an alias is refused (`YamlAnchorError`)
   because it would leave dangling aliases and an unparseable file. Editing an anchored node in place
   is allowed and preserves the anchor.
-- **Version gating.** Only Oh My Pi schema majors 16 and 17 are writable; anything else opens
+- **Version gating.** Only Oh My Pi schema majors 16, 17, and 18 are writable; anything else opens
   read-only rather than being migrated on a guess.
+
+## Renderer security & Desktop sandbox
+
+- **Content Security Policy (CSP).** The main process injects strict CSP headers on all renderer loads.
+  In production builds (`connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`),
+  network requests from the renderer are completely disabled since all IPC flows through `contextIsolation`.
+  Development mode safely isolates Vite's local HMR WebSocket while keeping strict origin boundaries.
+- **Single-instance locking.** `app.requestSingleInstanceLock()` prevents concurrent GUI instances from
+  corrupting shared SQLite metadata handles or conflicting on the loopback gateway port.
+- **Renderer navigation lockdown.** `will-navigate` and `setWindowOpenHandler` strictly block unexpected
+  renderer navigation and child windows.
 
 ## Loopback gateway
 
@@ -80,10 +91,14 @@ It mirrors Oh My Pi's own auth-gateway posture:
 
 ## Input validation
 
-Every identifier that reaches disk, a URL, or a spawned process is checked against an anchored regex
-before use: profile names, credential ids, gateway pool/upstream ids, surface names. Surface paths are
-additionally verified not to escape their root. Imported catalog bundles are validated field by field,
-including `baseUrl` scheme.
+- Every identifier that reaches disk, a URL, or a spawned process is checked against an anchored regex
+  before use: profile names, credential ids, gateway pool/upstream ids, surface names, snapshot ids.
+- `restoreSnapshot` verifies that target paths are strictly contained within the profile's agent directory
+  and retrieves snapshot records from the trusted `MetadataStore` rather than untrusted renderer objects.
+- Surface and project overlay upward searches are bounded by the user's `homeDir` to prevent root escape.
+- Model discovery (`discoverModels`) enforces http/https schemes on `baseUrl`.
+- Secret vault creation (`secret:put`) validates input types and enforces string length limits.
+- The JSON CLI (`--json get`) masks plaintext API keys by default to prevent accidental disclosure.
 
 ## Sessions and exports
 
@@ -93,7 +108,7 @@ carry transcripts.
 
 ## Supply chain
 
-- Runtime dependencies are intentionally minimal: `react`, `react-dom`, `lucide-react`, `yaml`.
+- Runtime dependencies are focused: `react`, `react-dom`, `@radix-ui/*`, `motion`, `cmdk`, `sonner`, `i18next`, `react-i18next`, `lucide-react`, `yaml`, `zod`.
 - The headless CLI bundle inlines its dependencies and has **zero** runtime dependencies.
 - CI and release workflows pin every GitHub Action to a commit SHA.
 - Releases carry GitHub build-provenance attestations and a `SHA256SUMS.txt`; verify both before

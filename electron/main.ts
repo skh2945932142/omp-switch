@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session } from "electron";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -41,7 +41,7 @@ import {
   type GatewayUpstream,
 } from "@omp-switch/core";
 import { MetadataStore } from "./metadata-store";
-import { blockRendererNavigation, denyRendererWindowOpen, mayUseDevRenderer } from "./renderer-security";
+import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPolicy, mayUseDevRenderer } from "./renderer-security";
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
 import { SecretStoreService } from "./secret-store";
 import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
@@ -198,6 +198,18 @@ async function loadGatewayToken(): Promise<string> {
   return token;
 }
 
+function installContentSecurityPolicy(): void {
+  const isDev = Boolean(mayUseDevRenderer(app.isPackaged, process.env.ELECTRON_RENDERER_URL));
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [getContentSecurityPolicy(isDev)],
+      },
+    });
+  });
+}
+
 async function createWindow(): Promise<void> {
   // Mica (Win11 22H2+) is the Windows parallel of Apple's sidebar vibrancy: the desktop
   // material shows through the chrome while panels stay opaque. An opaque backgroundColor
@@ -287,9 +299,12 @@ function registerIpc(): void {
     await metadata.addSnapshot(snapshot as unknown as Record<string, unknown>);
     return snapshot;
   });
-  ipcMain.handle("omp:restore", async (_event, snapshot: Snapshot) => {
-    await adapter.restoreSnapshot(snapshot);
-    return adapter.loadProfile(adapterProfile(snapshot.profile));
+  ipcMain.handle("omp:restore", async (_event, profileId: string, snapshotId: string, options?: { force?: boolean }) => {
+    if (typeof profileId !== "string" || typeof snapshotId !== "string") throw new Error("Invalid restore arguments");
+    const snapshot = metadata.getSnapshot(profileId, snapshotId);
+    if (!snapshot) throw new Error("No local snapshot exists for this profile and snapshot ID");
+    await adapter.restoreSnapshot(snapshot, options);
+    return adapter.loadProfile(adapterProfile(profileId));
   });
   ipcMain.handle("omp:restore-latest", async (_event, profileId: string) => {
     const snapshot = metadata.getLatestSnapshot(profileId);
@@ -462,10 +477,15 @@ function registerIpc(): void {
   });
   ipcMain.handle("omp:update", (_event, profileId: string = "default") => runOmpUpdate(profileId));
   ipcMain.handle("secret:put", async (_event, input: { id?: string; label: string; value: string }) => {
+    if (!input || typeof input !== "object") throw new Error("Secret input must be an object");
+    if (typeof input.label !== "string" || !input.label.trim()) throw new Error("Secret label must be a non-empty string");
+    if (input.label.length > 256) throw new Error("Secret label exceeds maximum length of 256 characters");
+    if (typeof input.value !== "string" || !input.value) throw new Error("Secret value must be a non-empty string");
+    if (input.value.length > 65536) throw new Error("Secret value exceeds maximum length of 65536 characters");
     const id = input.id?.trim() || `credential-${crypto.randomUUID()}`;
     if (!isSafeCredentialId(id)) throw new Error("Credential ID contains unsupported characters");
     const command = await buildSecretCommand(id);
-    await secrets.put(id, input.label, input.value);
+    await secrets.put(id, input.label.trim(), input.value);
     return { id, command };
   });
   ipcMain.handle("secret:status", (_event, id: string) => secrets.status(id));
@@ -628,7 +648,7 @@ async function setProjectRoot(root: string): Promise<void> {
   projectRoot = resolved;
   projectRootExplicit = true;
   await metadata.setPreference("project.root", resolved);
-  surfaces = new OmpSurfaceAdapter({ projectRoot: resolved });
+  surfaces = new OmpSurfaceAdapter({ projectRoot: resolved, homeDir: os.homedir() });
 }
 
 async function resolveProjectContext(profileId: string): Promise<ProjectContext> {
@@ -702,7 +722,7 @@ app.whenReady().then(async () => {
     projectRoot = storedRoot;
     projectRootExplicit = true;
   }
-  surfaces = new OmpSurfaceAdapter({ projectRoot });
+  surfaces = new OmpSurfaceAdapter({ projectRoot, homeDir: os.homedir() });
   makeAdapter();
   registerIpc();
   const secretIndex = process.argv.indexOf("--secret-get");
@@ -731,6 +751,20 @@ app.whenReady().then(async () => {
     await writeCliLine(process.stderr, `Gateway listening on 127.0.0.1:${started.port}; bearer token in ${path.join(app.getPath("userData"), "gateway", "gateway.token")}`);
     return;
   }
+
+  const gotSingleInstanceLock = app.requestSingleInstanceLock();
+  if (!gotSingleInstanceLock) {
+    app.quit();
+    return;
+  }
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  installContentSecurityPolicy();
   await createWindow();
   // The update checker is bound to the GUI lifecycle only — the headless --json/--gateway/--secret
   // paths above `return` before this point, so they never spawn background network work. It is

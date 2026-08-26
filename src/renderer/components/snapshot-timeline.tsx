@@ -35,10 +35,10 @@ export function SnapshotTimeline({ api, profileId, busy, onRestored, onNotice }:
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function restore(snapshot: Snapshot): Promise<void> {
+  async function restore(snapshot: Snapshot, force = false): Promise<void> {
     setLoading(true);
     try {
-      const config = await api.restore(snapshot);
+      const config = await api.restore(snapshot.profile, snapshot.id, { force });
       onRestored(config, snapshot);
       onNotice({ tone: "success", text: t("snapshots.restored", { date: formatDateTime(snapshot.createdAt) }) });
     } catch (error) {

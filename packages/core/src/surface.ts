@@ -20,6 +20,7 @@ export interface SurfaceSource {
 export interface SurfaceAdapterOptions {
   extraSources?: Partial<Record<SurfaceKind, SurfaceSource[]>>;
   projectRoot?: string;
+  homeDir?: string;
   pluginRoots?: Partial<Record<SurfaceKind, string[]>>;
 }
 
@@ -58,11 +59,12 @@ export class OmpSurfaceAdapter {
 
   private projectSource(projectRoot: string | undefined, kind: SurfaceKind): SurfaceSource | undefined {
     if (!projectRoot) return undefined;
+    const homeDir = this.options.homeDir ? path.resolve(this.options.homeDir) : undefined;
     let current = path.resolve(projectRoot);
     while (true) {
-      const candidates = [path.join(current, ".omp", kind === "prompt" ? "prompts" : "skills"), path.join(current, kind === "prompt" ? "prompts" : "skills")];
-      const root = candidates.find((candidate) => fsSync.existsSync(candidate));
-      if (root) return { root, source: "project", writable: false };
+      if (homeDir && current === homeDir) return undefined;
+      const candidate = path.join(current, ".omp", kind === "prompt" ? "prompts" : "skills");
+      if (fsSync.existsSync(candidate)) return { root: candidate, source: "project", writable: false };
       const parent = path.dirname(current);
       if (parent === current) return undefined;
       current = parent;
