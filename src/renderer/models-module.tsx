@@ -10,12 +10,13 @@ import {
   CloudDownload,
   Copy,
   LoaderCircle,
+  LockKeyhole,
   Pencil,
   Plus,
   Search,
   Trash2,
 } from "lucide-react";
-import type { OmpModel, OmpProvider } from "@omp-switch/core";
+import { looksLikePlaintextSecret, type OmpModel, type OmpProvider } from "@omp-switch/core";
 import { IconButton, IconButtonTip } from "./components/ui-primitives";
 import { QuickAssign } from "./components/quick-assign";
 import { providerModels } from "./hooks/use-provider-form";
@@ -52,6 +53,7 @@ export interface ModelsModuleProps {
   onOpenRoles: () => void;
   coverageFor: (provider: OmpProvider, id: string) => number;
   onNotice?: (notice: { tone: "info" | "success" | "error"; text: string }) => void;
+  onMigratePlaintext?: (providerId: string) => void;
 }
 
 export type ProviderCategory = "all" | "enabled" | "local" | "cloud";
@@ -89,6 +91,7 @@ export function ModelsModule({
   onOpenRoles,
   coverageFor,
   onNotice,
+  onMigratePlaintext,
 }: ModelsModuleProps): ReactElement {
   const { t } = useTranslation();
   const catalogInput = useRef<HTMLInputElement | null>(null);
@@ -312,17 +315,50 @@ export function ModelsModule({
                       {provider.baseUrl ?? t("models.noEndpoint")}
                     </span>
                     <span className="provider-meta-sep">·</span>
-                    <span
-                      className={`provider-meta-status ${
-                        provider.auth === "none" ? "ok" : provider.apiKey ? "ok" : "warn"
-                      }`}
-                    >
-                      {provider.auth === "none"
-                        ? t("models.noKeyNeeded")
-                        : provider.apiKey
-                          ? t("models.keyConfigured")
-                          : t("models.keyNotConfigured")}
-                    </span>
+                    {(() => {
+                      const isPlaintext = typeof provider.apiKey === "string" && looksLikePlaintextSecret(provider.apiKey);
+                      return (
+                        <>
+                          <span
+                            className={`provider-meta-status ${
+                              provider.auth === "none"
+                                ? "ok"
+                                : isPlaintext
+                                  ? "warn"
+                                  : provider.apiKey
+                                    ? "ok"
+                                    : "warn"
+                            }`}
+                          >
+                            {provider.auth === "none"
+                              ? t("models.noKeyNeeded")
+                              : isPlaintext
+                                ? t("models.plaintextKeyWarn")
+                                : provider.apiKey
+                                  ? t("models.keyConfigured")
+                                  : t("models.keyNotConfigured")}
+                          </span>
+                          {isPlaintext && onMigratePlaintext && !readOnly ? (
+                            <>
+                              <span className="provider-meta-sep">·</span>
+                              <button
+                                type="button"
+                                className="provider-meta-migrate-btn"
+                                disabled={busy || pendingSave}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onMigratePlaintext(id);
+                                }}
+                                title={t("models.migrateToVaultTooltip")}
+                              >
+                                <LockKeyhole size={11} />
+                                <span>{t("models.migrateToVault")}</span>
+                              </button>
+                            </>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                     {models.length > 0 && coverage < models.length ? (
                       <>
                         <span className="provider-meta-sep">·</span>

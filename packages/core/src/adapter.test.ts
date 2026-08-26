@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfigConflictError, ConfigValidationError, OmpFilesystemAdapter, Snapshot } from "./index";
+import { ConfigConflictError, ConfigValidationError, findPlaintextCredentials, OmpFilesystemAdapter, Snapshot } from "./index";
 
 const tempRoots: string[] = [];
 
@@ -706,5 +706,64 @@ describe("OmpFilesystemAdapter", () => {
     const reloaded = await adapter.loadProfile(profile);
     expect(reloaded.models.value.providers.demo.models?.[0].disabledReason).toBe("Deprecated by upstream provider");
     expect(reloaded.models.raw).toContain("disabledReason: Deprecated by upstream provider");
+  });
+
+  it("migrates plaintext API keys to vault commands cleanly and idempotently", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-migrate-plaintext-"));
+    tempRoots.push(root);
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(
+      path.join(agentDir, "models.yml"),
+      [
+        "providers:",
+        "  provider1:",
+        "    baseUrl: https://api.openai.com/v1",
+        "    api: openai-completions",
+        "    apiKey: sk-plaintext-key-1234567890123456",
+        "    models:",
+        "      - id: m-1",
+        "  provider2:",
+        "    baseUrl: https://api.anthropic.com",
+        "    api: anthropic-messages",
+        "    apiKey: sk-ant-api03-abcdef1234567890123456",
+        "    models:",
+        "      - id: claude-3-5-sonnet",
+      ].join("\n"),
+    );
+
+    const adapter = new OmpFilesystemAdapter({
+      homeDir: root,
+      snapshotDir: path.join(root, "snapshots"),
+    });
+    const profile = (await adapter.listProfiles())[0];
+    const initial = await adapter.loadProfile(profile);
+
+    // Initial load has plaintext warnings
+    expect(initial.diagnostics.filter((d) => d.code === "provider.apiKey-plaintext")).toHaveLength(2);
+
+    // Identify plaintext credentials
+    const plaintextList = findPlaintextCredentials(initial.models.value);
+    expect(plaintextList).toHaveLength(2);
+
+    // Plan migration patch
+    const preview = adapter.planPatch(initial, {
+      providers: plaintextList.map((item) => ({
+        id: item.providerId,
+        apiKey: `!"C:\\omp-switch-secret.exe" --secret-get "${item.providerId}-vault"`,
+        auth: "apiKey",
+      })),
+    });
+    await adapter.commitPatch(initial, preview);
+
+    // Reloaded profile has zero plaintext warnings and apiKey as command
+    const reloaded = await adapter.loadProfile(profile);
+    expect(reloaded.diagnostics.filter((d) => d.code === "provider.apiKey-plaintext")).toHaveLength(0);
+    expect(reloaded.models.value.providers.provider1.apiKey).toBe('!"C:\\omp-switch-secret.exe" --secret-get "provider1-vault"');
+    expect(reloaded.models.value.providers.provider2.apiKey).toBe('!"C:\\omp-switch-secret.exe" --secret-get "provider2-vault"');
+
+    // Idempotency: subsequent scan finds zero plaintext keys
+    const secondScan = findPlaintextCredentials(reloaded.models.value);
+    expect(secondScan).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMisusedRoleThinkingSuffix, looksLikePlaintextSecret, parseRoleSelector, validateModelsDocument, validateRoleSelector, validateSettingsDocument } from "./validation";
+import { findMisusedRoleThinkingSuffix, findPlaintextCredentials, looksLikePlaintextSecret, parseRoleSelector, validateModelsDocument, validateRoleSelector, validateSettingsDocument } from "./validation";
 
 describe("OMP configuration validation", () => {
   it("requires baseUrl, api and apiKey for a custom model provider", () => {
@@ -171,17 +171,27 @@ describe("OMP configuration validation", () => {
     expect(diagnostics).toEqual([expect.objectContaining({ severity: "warning", code: "provider.apiKey-fragile-command", path: "providers.devish.apiKey" })]);
   });
 
-  it("flags a plaintext credential sitting in models.yml", () => {
+  it("flags a plaintext credential sitting in models.yml and extracts it via findPlaintextCredentials", () => {
     expect(looksLikePlaintextSecret("!\"C:\\omp-switch-secret.exe\" --secret-get \"cred\"")).toBe(false);
     expect(looksLikePlaintextSecret("OPENAI_API_KEY")).toBe(false);
     expect(looksLikePlaintextSecret("sk-EXAMPLE-not-a-real-key-000000")).toBe(true);
     expect(looksLikePlaintextSecret("f7c3bd9a41e84b2c9d0e5a6f8b1c2d3e")).toBe(true);
-    const diagnostics = validateModelsDocument({
-      providers: { leaky: { baseUrl: "https://api.example/v1", api: "openai-completions", apiKey: "sk-EXAMPLE-not-a-real-key-000000", models: [{ id: "m" }] } },
-    });
+    const modelsDoc = {
+      providers: {
+        leaky: { baseUrl: "https://api.example/v1", api: "openai-completions", apiKey: "sk-EXAMPLE-not-a-real-key-000000", models: [{ id: "m" }] },
+        safeVault: { baseUrl: "https://api.example/v1", api: "openai-completions", apiKey: '!"C:\\secret.exe" --secret-get "cred-1"', models: [{ id: "m" }] },
+        safeEnv: { baseUrl: "https://api.example/v1", api: "openai-completions", apiKey: "ANTHROPIC_API_KEY", models: [{ id: "m" }] },
+        noKey: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none" as const, models: [{ id: "m" }] },
+      },
+    };
+    const diagnostics = validateModelsDocument(modelsDoc);
     expect(diagnostics).toEqual([
       expect.objectContaining({ severity: "warning", code: "provider.apiKey-plaintext", path: "providers.leaky.apiKey" }),
     ]);
+
+    const found = findPlaintextCredentials(modelsDoc);
+    expect(found).toEqual([{ providerId: "leaky", key: "sk-EXAMPLE-not-a-real-key-000000" }]);
+    expect(findPlaintextCredentials({})).toEqual([]);
   });
 
   it("accepts the nested cost.longContext tier object OMP v17.4.0+ writes", () => {

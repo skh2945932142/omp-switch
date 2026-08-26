@@ -117,7 +117,11 @@
       "disabled": "此供应商已被当前 Profile 禁用",
       "no-models": "此供应商暂无可应用的模型",
       "missing-key": "此供应商尚未配置密钥"
-    }
+    },
+    "plaintextKeyWarn": "明文存储（未加密）",
+    "plaintextKeyTooltip": "此 API 密钥以明文保存在配置文件中，建议存入系统凭据保险箱",
+    "migrateToVault": "存入保险箱",
+    "migrateToVaultTooltip": "将此明文密钥存入 Windows DPAPI 保险箱并替换为安全命令引用"
   },
   "providerEditor": {
     "edit": "编辑",
@@ -161,7 +165,8 @@
     "discovered": "发现 {{count}} 个模型，耗时 {{ms}}ms",
     "migrateLegacy": "迁移旧 models.json",
     "migrateConfirm": "检测到旧 models.json。继续将写入 models.yml；旧文件会保留在写入前快照中。",
-    "migrateButton": "继续并迁移"
+    "migrateButton": "继续并迁移",
+    "migrateKeyTitle": "迁移 {{id}} 密钥至凭据保险箱"
   },
   "roles": {
     "heading": "角色",
@@ -327,7 +332,10 @@
     "empty": "暂无诊断。写入前自动校验。",
     "countError": "错误",
     "countWarning": "警告",
-    "countInfo": "信息"
+    "countInfo": "信息",
+    "plaintextBanner": "检测到 {{count}} 个供应商正在明文存储 API Key，建议立即迁移至系统凭据保险箱。",
+    "migrateAllPlaintext": "一键迁移全部明文密钥",
+    "migrateAllPlaintextTitle": "一键迁移全部明文密钥至凭据保险箱"
   },
   "save": {
     "review": "审阅",
@@ -573,7 +581,9 @@
     "catalogExported": "目录已导出",
     "ompUnsupported": "当前 OMP 版本不受支持",
     "readingProfile": "读取中",
-    "modulesAria": "模块"
+    "modulesAria": "模块",
+    "noPlaintextFound": "未检测到需要迁移的明文 API 密钥",
+    "migratedPlaintextSuccess": "成功迁移 {{count}} 个明文密钥至安全凭据保险箱"
   },
   "modelPicker": {
     "placeholderDefault": "选择模型",

@@ -261,8 +261,13 @@ export interface ProviderDraft {
   codeMode?: string | null;
 }
 
+export interface ProviderPatch extends Partial<OmpProvider> {
+  id: string;
+}
+
 export interface ConfigPatch {
   provider?: ProviderDraft;
+  providers?: Array<ProviderDraft | ProviderPatch>;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
   settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel">>;

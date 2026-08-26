@@ -144,6 +144,25 @@ export function looksLikePlaintextSecret(value: string): boolean {
   return trimmed.length >= 24 && /[0-9]/.test(trimmed) && /[a-z]/.test(trimmed);
 }
 
+export interface PlaintextCredential {
+  providerId: string;
+  key: string;
+}
+
+export function findPlaintextCredentials(models: ModelsDocument | Record<string, unknown>): PlaintextCredential[] {
+  const list: PlaintextCredential[] = [];
+  const providers = (models && typeof models === "object" && "providers" in models)
+    ? (models.providers as Record<string, OmpProvider> | undefined)
+    : undefined;
+  if (!providers || typeof providers !== "object") return list;
+  for (const [providerId, provider] of Object.entries(providers)) {
+    if (provider && typeof provider.apiKey === "string" && looksLikePlaintextSecret(provider.apiKey)) {
+      list.push({ providerId, key: provider.apiKey.trim() });
+    }
+  }
+  return list;
+}
+
 /**
  * OMP's `cost` mapping: scalar price fields (`input`, `output`, `cacheRead`, `cacheWrite`) are
  * numbers, and since v17.4.0 subscription Codex GPT-5.6 models also carry a nested `longContext`

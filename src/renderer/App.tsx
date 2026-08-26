@@ -11,7 +11,7 @@ import type {
   ProviderPreset,
   UpdateStatus,
 } from "@omp-switch/core";
-import { parseRoleSelector } from "@omp-switch/core/validation";
+import { parseRoleSelector, findPlaintextCredentials } from "@omp-switch/core/validation";
 import { api } from "./api";
 import { useOmpConfig } from "./hooks/use-omp-config";
 import {
@@ -367,6 +367,56 @@ export default function App(): ReactElement {
           closeForm();
           setDrawerOpen(true);
           notify({ tone: "success", text: t("providerEditor.saved", { id }) });
+        },
+      );
+    } catch (error) {
+      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  async function handleMigratePlaintext(targetProviderId?: string): Promise<void> {
+    if (readOnly) {
+      notify({ tone: "error", text: readOnlyReason ?? t("toasts.readonlyConfig") });
+      return;
+    }
+    if (!config) return;
+    const allPlaintext = findPlaintextCredentials(config.models.value);
+    const toMigrate = targetProviderId
+      ? allPlaintext.filter((item) => item.providerId === targetProviderId)
+      : allPlaintext;
+    if (toMigrate.length === 0) {
+      notify({ tone: "info", text: t("toasts.noPlaintextFound") });
+      return;
+    }
+
+    try {
+      const providerDrafts = [];
+      for (const item of toMigrate) {
+        const existing = config.models.value.providers[item.providerId] ?? {};
+        const credential = await api.secretPut({
+          label: `${item.providerId} API key`,
+          value: item.key,
+        });
+        providerDrafts.push({
+          ...existing,
+          id: item.providerId,
+          apiKey: `!${credential.command}`,
+          auth: "apiKey" as const,
+        });
+      }
+
+      await requestSave(
+        toMigrate.length === 1
+          ? t("providerEditor.migrateKeyTitle", { id: toMigrate[0].providerId })
+          : t("diagnostics.migrateAllPlaintextTitle"),
+        {
+          providers: providerDrafts,
+        },
+        () => {
+          notify({
+            tone: "success",
+            text: t("toasts.migratedPlaintextSuccess", { count: toMigrate.length }),
+          });
         },
       );
     } catch (error) {
@@ -744,6 +794,7 @@ export default function App(): ReactElement {
                   }}
                   coverageFor={coverageFor}
                   onNotice={notify}
+                  onMigratePlaintext={handleMigratePlaintext}
                 />
               ) : section === "roles" ? (
                 <RolesModule
@@ -856,7 +907,13 @@ export default function App(): ReactElement {
                   />
                 ) : null}
 
-                {diagnosticsOpen ? <DiagnosticsDrawer diagnostics={config?.diagnostics ?? []} /> : null}
+                {diagnosticsOpen ? (
+                  <DiagnosticsDrawer
+                    diagnostics={config?.diagnostics ?? []}
+                    onMigratePlaintext={handleMigratePlaintext}
+                    busy={busy || Boolean(pendingSave)}
+                  />
+                ) : null}
 
                 {!profileDrawerOpen && !diagnosticsOpen && (formOpen || selectedProvider) ? (
                   <ProviderDrawer

@@ -117,7 +117,11 @@
       "disabled": "This provider is disabled for the current profile",
       "no-models": "This provider has no models to apply",
       "missing-key": "This provider has no configured key"
-    }
+    },
+    "plaintextKeyWarn": "Plaintext (unencrypted)",
+    "plaintextKeyTooltip": "This API key is stored in plaintext in the config file. Moving it to the vault is recommended",
+    "migrateToVault": "Move to vault",
+    "migrateToVaultTooltip": "Store this plaintext key in the DPAPI vault and reference it securely"
   },
   "providerEditor": {
     "edit": "Edit",
@@ -161,7 +165,8 @@
     "discovered": "Discovered {{count}} models in {{ms}}ms",
     "migrateLegacy": "Migrate legacy models.json",
     "migrateConfirm": "A legacy models.json was detected. Continuing writes to models.yml; the old file is kept in a pre-write snapshot.",
-    "migrateButton": "Continue and migrate"
+    "migrateButton": "Continue and migrate",
+    "migrateKeyTitle": "Migrate {{id}} key to vault"
   },
   "roles": {
     "heading": "Roles",
@@ -327,7 +332,10 @@
     "empty": "No diagnostics yet. Validated before writing.",
     "countError": "errors",
     "countWarning": "warnings",
-    "countInfo": "info"
+    "countInfo": "info",
+    "plaintextBanner": "{{count}} provider(s) are storing plaintext API keys. Migrating them to the secure vault is recommended.",
+    "migrateAllPlaintext": "Migrate all to vault",
+    "migrateAllPlaintextTitle": "Migrate all plaintext keys to vault"
   },
   "save": {
     "review": "Review",
@@ -573,7 +581,9 @@
     "catalogExported": "Catalog exported",
     "ompUnsupported": "Current OMP version is unsupported",
     "readingProfile": "Loading",
-    "modulesAria": "Modules"
+    "modulesAria": "Modules",
+    "noPlaintextFound": "No plaintext API keys found to migrate",
+    "migratedPlaintextSuccess": "Successfully migrated {{count}} plaintext key(s) to the secure vault"
   },
   "modelPicker": {
     "placeholderDefault": "Select model",

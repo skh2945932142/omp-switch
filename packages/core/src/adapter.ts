@@ -134,16 +134,16 @@ export class OmpFilesystemAdapter implements OmpAdapter {
     const settings = clone(config.settings.value);
     if (!models.providers || typeof models.providers !== "object") models.providers = {};
     if (patch.removeProviderId) delete models.providers[patch.removeProviderId];
-    if (patch.provider) {
-      const provider = patch.provider;
+    const providerDrafts = patch.providers ? patch.providers : patch.provider ? [patch.provider] : [];
+    for (const provider of providerDrafts) {
       const existing = models.providers[provider.id] ?? {};
       const next = {
         ...existing,
-        baseUrl: provider.baseUrl,
-        api: provider.api,
+        baseUrl: provider.baseUrl ?? existing.baseUrl,
+        api: provider.api ?? existing.api,
         ...(provider.auth !== undefined ? { auth: provider.auth } : {}),
         ...(provider.discovery !== undefined ? { discovery: provider.discovery } : {}),
-        models: provider.models,
+        models: provider.models ?? existing.models,
       };
       applyOptionalField(next, "apiKey", provider.apiKey);
       applyOptionalField(next, "headers", provider.headers);
