@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.8 - 2026-08-26
+
+### Security & Credential Management
+- **Plaintext Credential Migration into DPAPI Vault**:
+  - Implemented `findPlaintextCredentials` to audit unencrypted API keys across `models.yml`.
+  - Added one-click and per-provider migration actions in the Diagnostics drawer and Models workspace, sealing plaintext secrets into the local Windows DPAPI vault.
+  - Added atomic multi-provider batch patching support in `planPatch`, updating YAML configurations to use secure `!command` references while preserving comments.
+
+### Changed & Refined (Quiet Instrument UI)
+- **Visual Design Tokens & Tone Convergence**:
+  - Refactored `tokens.css` into a complete semantic token system (`--paper`, `--panel`, `--raised`, `--sunken`, `--rail`, `--topbar`, `--sheet`, `--overlay`).
+  - Purged all legacy undefined CSS variables (`--accent`, `--accent-soft`, `--border`) and raw hex/rgba values, consolidating them into semantic status tokens (`--signal`, `--ok`, `--warn`, `--danger`).
+  - Restrained component radiuses (lists straight-edged, tool panels max 8px) and removed non-functional gradients.
+- **Models Module Convergence**:
+  - Restructured `.model-row` into a 6-column precision grid (Name/ID, API, Context Window, Capabilities, QuickAssign, Copy), preventing column overflow and misalignment.
+  - Fixed missing styles for `.provider-grid`, `.empty-card`, and `.model-disabled-reason`.
+  - Converted category filter pills into an inset Segmented Control.
+  - Decoupled card header expansion from opening the provider inspector sheet.
+- **Roles & Gateway Layout Unification**:
+  - Streamlined Roles module into a 3-column high-density layout (Role identity, Flow resolution chain, ModelPicker).
+  - Unsaved states in roles now use local 3px amber edge markers and status dots instead of distracting full-surface highlights.
+  - Unified Gateway module into a standard dual-column view with semantic `.health-badge` CSS status classes.
+- **Platform Portability & Core Decoupling**:
+  - Replaced Node.js `node:util.isDeepStrictEqual` in `packages/core` with a lightweight, pure TypeScript `deepEqual` implementation, eliminating browser preview bundler compatibility errors.
+
 ## 0.5.7 - 2026-08-26
 
 ### Security
