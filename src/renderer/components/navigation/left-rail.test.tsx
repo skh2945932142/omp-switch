@@ -73,4 +73,50 @@ describe("LeftRail responsive mode", () => {
     expect(modelsButton?.getAttribute("aria-label")).toBeNull();
     expect(modelsButton?.textContent).toContain("模型");
   });
+
+  it("satisfies layout invariants: in-flow button children never exceed grid column capacity", async () => {
+    // Test a combination of active models (count) + dirty roles (dot)
+    await act(async () => root.render(
+      <TooltipPrimitive.Provider>
+        <LeftRail
+          {...baseProps}
+          section="roles"
+          rolesDirty={true}
+          providerCount={12}
+          settingsDirty={true}
+          errorCount={3}
+        />
+      </TooltipPrimitive.Provider>,
+    ));
+
+    const sectionButtons = Array.from(host.querySelectorAll<HTMLButtonElement>(".section-nav button"));
+    expect(sectionButtons.length).toBe(7);
+
+    // CSS grid-template-columns is 4 columns (20px minmax(0, 1fr) auto auto)
+    const MAX_IN_FLOW_COLUMNS = 4;
+    for (const btn of sectionButtons) {
+      const allChildren = Array.from(btn.children);
+      const inFlowChildren = allChildren.filter((child) => !child.classList.contains("nav-active-pill"));
+      expect(inFlowChildren.length).toBeLessThanOrEqual(MAX_IN_FLOW_COLUMNS);
+      expect(inFlowChildren.length).toBeGreaterThanOrEqual(2); // at least icon + label
+
+      // If active, pill must be present with absolute positioning class
+      if (btn.classList.contains("active")) {
+        const pill = btn.querySelector(".nav-active-pill");
+        expect(pill).not.toBeNull();
+      }
+    }
+
+    // Check footer rail-actions
+    const railActions = Array.from(host.querySelectorAll<HTMLButtonElement>(".rail-action"));
+    expect(railActions.length).toBeGreaterThanOrEqual(2);
+    for (const action of railActions) {
+      const count = action.querySelector(".nav-count");
+      const dot = action.querySelector(".nav-dot");
+      const labelSpan = Array.from(action.querySelectorAll("span")).find(
+        (s) => !s.classList.contains("nav-count") && !s.classList.contains("nav-dot"),
+      );
+      expect(labelSpan).toBeDefined();
+    }
+  });
 });

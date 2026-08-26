@@ -16,7 +16,7 @@ export interface OmpSwitchApi {
   importCatalog(bundle: unknown): Promise<{ version: 1; source: string; entries: ProviderPreset[] }>;
   exportCatalog(): Promise<{ version: 1; source: string; entries: ProviderPreset[] }>;
   projectOverlay(profileId?: string): Promise<ProjectContext>;
-  chooseProjectRoot(profileId?: string): Promise<ProjectContext>;
+  chooseProjectRoot(profileId?: string, title?: string): Promise<ProjectContext>;
 
   listSurface(profileId: string, kind: "prompt" | "skill"): Promise<ManagedSurfaceEntry[]>;
   readSurface(profileId: string, kind: "prompt" | "skill", name: string): Promise<string>;
@@ -50,8 +50,8 @@ export interface OmpSwitchApi {
   secretDelete(id: string, force?: boolean): Promise<{ deleted: boolean; references: string[] }>;
   secretOrphans(profileId?: string): Promise<Array<{ id: string; label: string }>>;
 
-  authStatus(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
-  authLogin(provider: string): Promise<{ ok: boolean; output: string; error?: string }>;
+  authStatus(provider: string): Promise<{ ok: boolean; output: string; code?: string; error?: string }>;
+  authLogin(provider: string): Promise<{ ok: boolean; output: string; code?: string; error?: string }>;
 
   checkForUpdates(force?: boolean): Promise<UpdateStatus | null>;
   updateStatus(): Promise<{ enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null }>;

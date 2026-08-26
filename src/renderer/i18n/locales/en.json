@@ -265,6 +265,7 @@
     "inferredDir": "Inferred dir",
     "inferredTitle": "Unconfirmed directory, from the process start location",
     "chooseDir": "Choose directory",
+    "chooseDirTitle": "Select project directory",
     "copyPatch": "Copy Patch",
     "patchCopied": "Patch copied",
     "copyFailed": "Copy failed",
@@ -297,7 +298,8 @@
   "oauth": {
     "oauth": "OAuth",
     "done": "Done",
-    "commandFailed": "Command failed"
+    "commandFailed": "Command failed",
+    "launched": "Launched OMP login process in a separate terminal"
   },
   "about": {
     "version": "Version",

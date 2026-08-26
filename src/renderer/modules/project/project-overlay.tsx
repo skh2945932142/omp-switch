@@ -15,7 +15,7 @@ export function ProjectOverlayBadge({ api, profileId, onNotice }: { api: AppApi;
   async function chooseRoot(): Promise<void> {
     setBusy(true);
     try {
-      setContext(await api.chooseProjectRoot(profileId));
+      setContext(await api.chooseProjectRoot(profileId, t("project.chooseDirTitle")));
     } catch (error) {
       onNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {

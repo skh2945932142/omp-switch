@@ -17,7 +17,7 @@ const api = {
   importCatalog: (bundle: unknown) => ipcRenderer.invoke("catalog:import", bundle),
   exportCatalog: () => ipcRenderer.invoke("catalog:export"),
   projectOverlay: (profileId = "default") => ipcRenderer.invoke("project:overlay", profileId),
-  chooseProjectRoot: (profileId = "default") => ipcRenderer.invoke("project:choose-root", profileId),
+  chooseProjectRoot: (profileId = "default", title?: string) => ipcRenderer.invoke("project:choose-root", profileId, title),
 
   listSurface: (profileId: string, kind: "prompt" | "skill"): Promise<ManagedSurfaceEntry[]> => ipcRenderer.invoke("surface:list", profileId, kind),
   readSurface: (profileId: string, kind: "prompt" | "skill", name: string): Promise<string> => ipcRenderer.invoke("surface:read", profileId, kind, name),
@@ -44,8 +44,8 @@ const api = {
   secretDelete: (id: string, force?: boolean) => ipcRenderer.invoke("secret:delete", id, force),
   secretOrphans: (profileId = "default") => ipcRenderer.invoke("secret:orphans", profileId),
 
-  authStatus: (provider: string) => ipcRenderer.invoke("omp:auth-status", provider),
-  authLogin: (provider: string) => ipcRenderer.invoke("omp:auth-login", provider),
+  authStatus: (provider: string): Promise<{ ok: boolean; output: string; code?: string; error?: string }> => ipcRenderer.invoke("omp:auth-status", provider),
+  authLogin: (provider: string): Promise<{ ok: boolean; output: string; code?: string; error?: string }> => ipcRenderer.invoke("omp:auth-login", provider),
 
   checkForUpdates: (force?: boolean): Promise<UpdateStatus | null> => ipcRenderer.invoke("update:check", force),
   updateStatus: (): Promise<{ enabled: boolean; lastCheckAt: string | null; lastResult: UpdateStatus | null }> => ipcRenderer.invoke("update:status"),

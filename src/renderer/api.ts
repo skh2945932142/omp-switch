@@ -242,7 +242,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
     importCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
     exportCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
     projectOverlay: async () => ({ root: "D:/demo-project", explicit: false, overlay: null, precedence: [] }),
-    chooseProjectRoot: async () => ({ root: "D:/demo-project", explicit: true, overlay: null, precedence: [] }),
+    chooseProjectRoot: async (_profileId?: string, _title?: string) => ({ root: "D:/demo-project", explicit: true, overlay: null, precedence: [] }),
     listSurface: async () => [],
     readSurface: async () => "",
     writeSurface: async (_profileId, _kind, name) => ({

@@ -285,7 +285,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .section-nav button {
   position: relative;
   display: grid;
-  grid-template-columns: 20px 1fr auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   min-height: 34px;
@@ -319,9 +319,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   z-index: 0;
   pointer-events: none;
 }
-.section-nav button > * {
+.section-nav button > *:not(.nav-active-pill) {
   position: relative;
   z-index: 1;
+}
+.section-nav button > span:not(.nav-icon):not(.nav-count):not(.nav-dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .section-nav button.active .nav-icon { color: var(--signal); }
 .nav-icon { display: inline-grid; place-items: center; }
@@ -387,7 +392,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   transition: background-color var(--ease-fast), color var(--ease-fast);
 }
 .rail-action:hover { background: var(--hover); color: var(--ink); }
-.rail-action span { margin-left: auto; min-width: 16px; text-align: right; }
+.rail-action .nav-count,
+.rail-action .nav-dot {
+  margin-left: auto;
+}
+.rail-action .nav-count {
+  min-width: 16px;
+  text-align: right;
+}
 
 /* ---- Workspace chrome (OpenAI confident whitespace & Apple depth) ---- */
 

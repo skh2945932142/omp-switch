@@ -265,6 +265,7 @@
     "inferredDir": "推测目录",
     "inferredTitle": "未确认的目录，来自进程启动位置",
     "chooseDir": "选择目录",
+    "chooseDirTitle": "选择项目目录",
     "copyPatch": "复制 Patch",
     "patchCopied": "Patch 已复制",
     "copyFailed": "复制失败",
@@ -297,7 +298,8 @@
   "oauth": {
     "oauth": "OAuth",
     "done": "已完成",
-    "commandFailed": "命令失败"
+    "commandFailed": "命令失败",
+    "launched": "已在单独终端启动 OMP 登录流程"
   },
   "about": {
     "version": "版本",

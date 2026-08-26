@@ -479,7 +479,10 @@ export default function App(): ReactElement {
   async function checkAuth(provider: "openai-codex" | "anthropic", mode: "status" | "login"): Promise<void> {
     try {
       const result = mode === "login" ? await api.authLogin(provider) : await api.authStatus(provider);
-      setAuthResult(result.output || result.error || (result.ok ? t("omp.authOk") : t("omp.authFailed")));
+      const text = result.code === "terminal_launched"
+        ? t("oauth.launched")
+        : result.output || result.error || (result.ok ? t("oauth.done") : t("oauth.commandFailed"));
+      setAuthResult(text);
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     }

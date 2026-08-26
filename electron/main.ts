@@ -328,9 +328,9 @@ function registerIpc(): void {
   });
   ipcMain.handle("catalog:export", () => ({ version: 1, source: "local", entries: metadata.getPreference<import("@omp-switch/core").ProviderPreset[]>("catalog.entries") ?? [] } satisfies CatalogBundle));
   ipcMain.handle("project:overlay", (_event, profileId: string = "default") => resolveProjectContext(profileId));
-  ipcMain.handle("project:choose-root", async (_event, profileId: string = "default") => {
+  ipcMain.handle("project:choose-root", async (_event, profileId: string = "default", title?: string) => {
     const result = await dialog.showOpenDialog({
-      title: "选择项目目录",
+      title: typeof title === "string" && title.trim() ? title.trim() : undefined,
       properties: ["openDirectory"],
       defaultPath: projectRoot,
     });
@@ -661,7 +661,7 @@ async function resolveProjectContext(profileId: string): Promise<ProjectContext>
   return { root: projectRoot, explicit: projectRootExplicit, overlay, precedence };
 }
 
-async function runOmpAuth(provider: string, action: "status" | "login"): Promise<{ ok: boolean; output: string; error?: string }> {
+async function runOmpAuth(provider: string, action: "status" | "login"): Promise<{ ok: boolean; output: string; code?: string; error?: string }> {
   const executable = adapter.installation.executable;
   if (!executable) return { ok: false, output: "", error: "OMP executable was not found" };
   if (provider !== "openai-codex" && provider !== "anthropic") return { ok: false, output: "", error: "Unsupported OAuth provider" };
@@ -671,7 +671,7 @@ async function runOmpAuth(provider: string, action: "status" | "login"): Promise
         const command = `"${executable.replaceAll('"', '\\"')}" auth login ${provider}`;
         const child = spawnSync("cmd.exe", ["/c", "start", "OMP Switch OAuth", "cmd.exe", "/k", command], { windowsHide: false });
         if (child.status !== 0) throw new Error("Unable to open an interactive OMP login terminal");
-        return { ok: true, output: "已在单独终端启动 OMP 登录流程" };
+        return { ok: true, output: "", code: "terminal_launched" };
       }
       return { ok: false, output: "", error: "Interactive OAuth launch is currently implemented for Windows" };
     }
