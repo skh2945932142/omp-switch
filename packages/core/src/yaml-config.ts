@@ -2,8 +2,29 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isAlias, isCollection, isMap, isScalar, Document, Node, parseDocument, stringify, visit, YAMLMap } from "yaml";
-import { isDeepStrictEqual } from "node:util";
 import { ConfigConflictError, Diagnostic, LoadedConfig } from "./domain";
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const arrB = b as unknown[];
+    if (a.length !== arrB.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], arrB[i])) return false;
+    }
+    return true;
+  }
+  const keysA = Object.keys(a as Record<string, unknown>);
+  const keysB = Object.keys(b as Record<string, unknown>);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if (!deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) return false;
+  }
+  return true;
+}
 
 /**
  * Replacing a node that carries an anchor, or that is an alias, would rewrite the value as plain
@@ -177,7 +198,7 @@ export function patchModelsYaml(raw: string, before: Record<string, unknown>, af
     }
   }
   for (const [key, value] of Object.entries(afterProviders)) {
-    if (!isDeepStrictEqual(beforeProviders[key], value)) {
+    if (!deepEqual(beforeProviders[key], value)) {
       const existing = providers.get(key, true);
       if (isMap(existing) && isRecord(beforeProviders[key]) && isRecord(value)) {
         patchMap(existing, beforeProviders[key], value, `providers.${key}`);
@@ -205,7 +226,7 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
       }
     }
     for (const [key, value] of Object.entries(afterRoles)) {
-      if (!isDeepStrictEqual(beforeRoles[key], value)) {
+      if (!deepEqual(beforeRoles[key], value)) {
         assertReplaceable(roles.get(key, true), `modelRoles.${key}`);
         roles.set(key, value);
       }
@@ -218,7 +239,7 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
   for (const key of ["modelProviderOrder", "enabledModels", "disabledProviders", "defaultThinkingLevel", "extendedContext", "externalThinking", "personality", "unexpectedStopDetection", "updateChannel"]) {
     const beforeValue = before[key];
     const afterValue = after[key];
-    if (isDeepStrictEqual(beforeValue, afterValue)) continue;
+    if (deepEqual(beforeValue, afterValue)) continue;
     assertReplaceable(root.get(key, true), key);
     if (afterValue === undefined || (Array.isArray(afterValue) && afterValue.length === 0)) root.delete(key);
     else root.set(key, afterValue);
@@ -269,7 +290,7 @@ function ensureChildMap(document: Document, parent: YAMLMap, key: string): YAMLM
 function patchChildMap(document: Document, root: YAMLMap, before: Record<string, unknown>, after: Record<string, unknown>, key: string): void {
   const beforeValue = before[key];
   const afterValue = after[key];
-  if (isDeepStrictEqual(beforeValue, afterValue)) return;
+  if (deepEqual(beforeValue, afterValue)) return;
   if (afterValue === undefined || (isRecord(afterValue) && Object.keys(afterValue).length === 0)) {
     // Empty or cleared: drop the key entirely rather than leaving `compaction: {}`.
     const existing = root.get(key, true);
@@ -289,7 +310,7 @@ function patchMap(map: YAMLMap, before: Record<string, unknown>, after: Record<s
     }
   }
   for (const [key, value] of Object.entries(after)) {
-    if (isDeepStrictEqual(before[key], value)) continue;
+    if (deepEqual(before[key], value)) continue;
     const existing = map.get(key, true);
     if (isMap(existing) && isRecord(before[key]) && isRecord(value)) {
       patchMap(existing, before[key], value, `${keyPath}.${key}`);

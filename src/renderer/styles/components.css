@@ -249,7 +249,10 @@
   transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 .role-card:hover { border-color: var(--line); }
-.role-card.changed { background: var(--signal-soft); border-color: var(--signal); }
+.role-card.changed {
+  border-color: var(--warn);
+  box-shadow: inset 3px 0 0 var(--warn), var(--shadow-card);
+}
 .role-id { display: grid; gap: 1px; min-width: 0; }
 .role-id strong { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 650; }
 .role-id small { color: var(--muted); font-size: var(--fs-micro); }
@@ -347,7 +350,7 @@
 .diff-marker { text-align: center; color: var(--muted); user-select: none; font-size: 11px; }
 .diff-text { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 10px; }
 .diff-line.gap { color: var(--muted); text-align: center; padding: 2px 0; grid-template-columns: 1fr; font-size: 11px; }
-.primary-button.danger { background: var(--danger); color: #ffffff; }
+.primary-button.danger { background: var(--danger); color: var(--invert-ink); }
 .primary-button.danger:hover { filter: brightness(1.08); }
 .shortcut-row { display: grid; grid-template-columns: 130px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--hairline); font-size: var(--fs-small); }
 .shortcut-row:last-child { border-bottom: 0; }
@@ -537,44 +540,45 @@
 @keyframes tip-in { from { opacity: 0; } }
 
 /* ---- Filter pill bar (Models & Workspace) ---- */
-.filter-pill-bar {
-  display: flex;
+.filter-pills, .filter-pill-bar {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-s);
+  background: var(--sunken);
+  border: 1px solid var(--hairline);
   margin-bottom: 12px;
   overflow-x: auto;
-  padding-bottom: 2px;
 }
 .filter-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--control-border);
-  background: var(--panel);
-  color: var(--ink-soft);
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
   font-size: var(--fs-micro);
   font-weight: 550;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
   cursor: pointer;
   white-space: nowrap;
 }
 .filter-pill:hover {
-  background: var(--hover);
   color: var(--ink);
-  border-color: var(--line);
 }
 .filter-pill.active {
-  background: var(--selected);
+  background: var(--panel);
   color: var(--ink);
   border-color: var(--hairline);
   font-weight: 600;
   box-shadow: 0 1px 2px var(--shadow-tint);
 }
 .pill-count {
-  padding: 1px 5px;
+  padding: 0 4px;
   border-radius: var(--radius-pill);
   background: var(--sunken);
   color: var(--muted);
@@ -583,8 +587,8 @@
   line-height: 1.2;
 }
 .filter-pill.active .pill-count {
-  background: var(--signal-soft);
-  color: var(--signal);
+  background: var(--selected);
+  color: var(--ink);
 }
 
 /* ---- Flow chain badges (Roles resolution chain) ---- */
@@ -609,7 +613,7 @@
 }
 .flow-node.highlight {
   background: var(--signal-soft);
-  border-color: rgba(13, 118, 110, 0.25);
+  border-color: var(--signal);
   color: var(--signal);
 }
 .flow-arrow {
@@ -689,7 +693,7 @@
 .health-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   font-size: var(--fs-micro);
@@ -701,24 +705,29 @@
   cursor: default;
   white-space: nowrap;
 }
+.health-badge .status-led { background: var(--muted); }
 .health-badge.healthy {
   color: var(--ok);
   background: var(--ok-soft);
-  border-color: rgba(21, 128, 61, 0.2);
+  border-color: var(--ok);
 }
+.health-badge.healthy .status-led { background: var(--ok); }
 .health-badge.degraded {
   color: var(--warn);
   background: var(--warn-soft);
-  border-color: rgba(217, 119, 6, 0.2);
+  border-color: var(--warn);
 }
+.health-badge.degraded .status-led { background: var(--warn); }
 .health-badge.unhealthy {
   color: var(--danger);
   background: var(--danger-soft);
-  border-color: rgba(220, 38, 38, 0.2);
+  border-color: var(--danger);
 }
+.health-badge.unhealthy .status-led { background: var(--danger); }
 .health-badge.untested {
   color: var(--muted);
 }
+.health-badge.untested .status-led { background: var(--muted); }
 .health-history-list {
   display: flex;
   flex-direction: column;
@@ -739,13 +748,13 @@
 /* ---- Session FTS Match Banner & Snippets ---- */
 .fts-match-banner {
   padding: 4px 8px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--signal-soft);
+  color: var(--signal);
   font-size: var(--fs-micro);
   font-weight: 550;
   border-radius: var(--radius-s);
   margin-bottom: 6px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid var(--signal);
 }
 .fts-snippet {
   display: block;
@@ -758,7 +767,7 @@
   white-space: nowrap;
 }
 .fts-snippet mark {
-  background: rgba(234, 179, 8, 0.25);
+  background: var(--warn-soft);
   color: var(--ink);
   font-weight: 600;
   padding: 0 2px;

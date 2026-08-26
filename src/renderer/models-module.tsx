@@ -16,7 +16,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { looksLikePlaintextSecret, type OmpModel, type OmpProvider } from "@omp-switch/core";
+import type { OmpModel, OmpProvider } from "@omp-switch/core";
+import { looksLikePlaintextSecret } from "@omp-switch/core/validation";
 import { IconButton, IconButtonTip } from "./components/ui-primitives";
 import { QuickAssign } from "./components/quick-assign";
 import { providerModels } from "./hooks/use-provider-form";
@@ -220,8 +221,19 @@ export function ModelsModule({
         {filteredProviders.length === 0 ? (
           <div className="empty-card">
             <CloudDownload size={24} />
-            <strong>{t("models.noProviders")}</strong>
-            <span>{t("models.noProvidersHint")}</span>
+            <strong>{providers.length === 0 ? t("models.emptyNone") : t("models.emptyNoMatch")}</strong>
+            <span>{providers.length === 0 ? t("models.emptyNoneHint") : t("models.emptyNoMatchHint")}</span>
+            {providers.length === 0 && !readOnly ? (
+              <div className="empty-actions">
+                <button type="button" className="primary-button compact" onClick={onAddPreset} disabled={busy || pendingSave}>
+                  <Plus size={14} />
+                  <span>{t("models.preset")}</span>
+                </button>
+                <button type="button" className="secondary-button compact" onClick={onAddCustom} disabled={busy || pendingSave}>
+                  <span>{t("models.custom")}</span>
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {filteredProviders.map(([id, provider]) => {

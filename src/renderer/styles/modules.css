@@ -1,9 +1,29 @@
 /* Feature modules: provider inset groups, surface/sessions/gateway columns, diagnostics, usage, overlays.
    Separation is tone + soft shadow; borders only as hairlines inside a list. */
 
-/* ---- Providers: Apple-style Grouped Inset Cards ---- */
+/* ---- Providers: Quiet Instrument Grouped Inset Cards ---- */
 
-.provider-stack { display: grid; gap: 8px; }
+.provider-grid, .provider-stack { display: grid; gap: 8px; width: 100%; }
+.empty-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 36px 20px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-m);
+  background: var(--sunken);
+  color: var(--muted);
+  text-align: center;
+}
+.empty-card strong {
+  font-size: var(--fs-title);
+  color: var(--ink);
+  font-weight: 650;
+}
+.empty-card span {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
 .provider-card {
   overflow: hidden;
   border: 1px solid var(--hairline);
@@ -144,15 +164,15 @@
 .model-list-wrap > .model-list-clip { overflow: hidden; min-height: 0; }
 .model-list { border-top: 1px solid var(--hairline); }
 
-/* Compact high-density model row */
+/* Compact high-density 6-column model row */
 .model-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) minmax(130px, 1fr) 90px minmax(110px, 0.8fr) 28px;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(100px, 0.9fr) 80px minmax(110px, 0.8fr) 28px 28px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   min-height: 40px;
-  padding: 0 14px 0 38px;
+  padding: 0 12px 0 36px;
   border: 0;
   border-bottom: 1px solid var(--hairline);
   color: var(--ink);
@@ -166,6 +186,8 @@
 .model-name { display: grid; gap: 1px; min-width: 0; }
 .model-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small); font-weight: 600; }
 .model-name small { overflow: hidden; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.model-disabled-reason { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-micro); color: var(--warn); margin-top: 1px; }
+.model-disabled-reason svg { flex-shrink: 0; }
 .model-api { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); }
 .model-context { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
 .capabilities { display: flex; flex-wrap: wrap; gap: 3px; justify-self: start; }
@@ -268,7 +290,7 @@
   overflow-x: auto;
 }
 .msg-code code { font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre; display: block; }
-.msg-user .msg-code { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.18); }
+.msg-user .msg-code { background: var(--veil); border-color: var(--hairline); }
 .msg-user .msg-code code { color: var(--invert-ink); }
 .msg-bubble { display: grid; gap: 5px; min-width: 0; max-width: min(560px, 82%); padding: 10px 14px; border-radius: var(--radius-m); }
 .msg-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -363,7 +385,7 @@
 
 .model-editor { display: grid; gap: 8px; }
 .model-editor-card { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-m); background: var(--sunken); transition: border-color 140ms ease; }
-.model-editor-card:hover { border-color: var(--border); }
+.model-editor-card:hover { border-color: var(--line); }
 .model-editor-top { display: flex; gap: 8px; align-items: flex-end; width: 100%; min-width: 0; }
 .model-editor-field { display: grid; gap: 3px; min-width: 0; }
 .model-editor-field.model-id-field { flex: 1.25; }

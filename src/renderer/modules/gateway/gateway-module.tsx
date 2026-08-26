@@ -366,19 +366,7 @@ export function GatewayModule({ api, profileId, readOnly, onNotice, providers }:
                         }
                       >
                         <span className={`health-badge ${healthState}`}>
-                          <span
-                            className="status-led"
-                            style={{
-                              background:
-                                healthState === "healthy"
-                                ? "var(--ok)"
-                                : healthState === "degraded"
-                                ? "var(--warn)"
-                                : healthState === "unhealthy"
-                                ? "var(--danger)"
-                                : "var(--muted)",
-                            }}
-                          />
+                          <span className="status-led" />
                           <span>{latency !== undefined ? `${latency}ms` : t("gateway.untested")}</span>
                         </span>
                       </Tip>

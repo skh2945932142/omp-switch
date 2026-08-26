@@ -1,12 +1,12 @@
 /*
- * Design tokens — "Quiet Instrument" (Apple × OpenAI Hybrid).
+ * Design tokens — "Quiet Instrument" (OpenAI Information Density × Apple Tactile Materials).
  *
  * Untinted zinc neutrals carry the chrome. Teal (--signal) is reserved for selection,
- * focus, and links. Primary actions use ink/paper inversion.
- * State is a refined colored dot plus quiet micro text.
+ * focus, and active links. Primary actions use ink/paper inversion.
+ * State is expressed via refined status dots, subtle lines, and muted micro badges.
  *
  * Theming is dual-track: `light-dark()` resolves against `color-scheme`.
- * All colors resolve through tokens. A hex outside this file is a bug.
+ * All colors resolve strictly through tokens.
  */
 
 :root {
@@ -14,62 +14,71 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "SFMono-Regular", "Cascadia Code", "Cascadia Mono", Menlo, Consolas, monospace;
 
-  /* Type scale with tight tracking for confident headings and crisp data density. */
+  /* Type scale with tight tracking for confident headings and crisp data density */
   --fs-micro: 11px;
   --fs-small: 12.5px;
   --fs-body: 13.5px;
   --fs-strong: 14.5px;
   --fs-title: 16px;
-  --fs-display: 24px;
+  --fs-display: 22px;
 
-  --radius-xs: 4px;
-  --radius-s: 7px;
-  --radius-m: 10px;
-  --radius-l: 14px;
-  --radius-xl: 18px;
+  /* Restrained radiuses: lists use straight edges; panels/dialogs max out at 8-12px */
+  --radius-xs: 3px;
+  --radius-s: 5px;
+  --radius-m: 8px;
+  --radius-l: 12px;
   --radius-pill: 9999px;
 
-  /* Surfaces.
+  /* Surfaces & Canvas hierarchy.
      --paper: window background canvas.
-     --panel: elevated card/inset surface.
+     --panel: elevated card & list surface.
+     --raised: popup menus, dropdowns, floating selectors.
      --sunken: recessed tier for inset inputs, search bars, chips.
-     --rail: sleek left navigation panel.
-     --topbar: translucent titlebar header. */
+     --rail: left navigation panel.
+     --topbar: translucent titlebar header.
+     --sheet: side drawer detail sheet.
+     --overlay: modal dialog canvas. */
   --paper: light-dark(#fbfbfc, #0d0d10);
   --panel: light-dark(#ffffff, #16161a);
+  --raised: light-dark(#ffffff, #1a1a20);
   --sunken: light-dark(#f2f2f5, #1e1e23);
   --hover: light-dark(#ededf1, #24242b);
   --selected: light-dark(#e4e4eb, #2b2b34);
   --rail: light-dark(#f7f7f9, #121215);
-  --topbar: light-dark(rgba(251, 251, 252, 0.84), rgba(13, 13, 16, 0.84));
+  --topbar: light-dark(rgba(251, 251, 252, 0.86), rgba(13, 13, 16, 0.86));
+  --sheet: light-dark(rgba(255, 255, 255, 0.94), rgba(22, 22, 26, 0.94));
+  --overlay: light-dark(#ffffff, #16161a);
   --veil: light-dark(rgba(255, 255, 255, 0.72), rgba(22, 22, 26, 0.72));
+  --scrim: light-dark(rgba(17, 17, 20, 0.36), rgba(0, 0, 0, 0.64));
 
   /* Ink typography hierarchy */
   --ink: light-dark(#111114, #f4f4f7);
   --ink-soft: light-dark(#383842, #c8c8d2);
   --muted: light-dark(#6e6e7c, #848494);
+  --ink-faint: light-dark(#9898a6, #5c5c6c);
 
   /* Hairlines & structural borders */
   --hairline: light-dark(#e6e6ec, #26262e);
   --line: light-dark(#d0d0d8, #363640);
   --control-border: light-dark(#92929f, #626274);
+  --control-border-hover: light-dark(#6e6e7c, #848494);
 
-  /* Signal: selection, focus ring, active links. */
+  /* Signal: selection, focus ring, active links */
   --signal: light-dark(#0d766e, #3ec5b4);
   --signal-soft: light-dark(rgba(13, 118, 110, 0.09), rgba(62, 197, 180, 0.13));
 
-  /* Primary action = ink/paper inversion with subtle button depth. */
+  /* Primary action = ink/paper inversion with subtle tactile depth */
   --invert-bg: light-dark(#111114, #f4f4f7);
   --invert-bg-hover: light-dark(#26262e, #e2e2ea);
   --invert-ink: light-dark(#ffffff, #111114);
 
   /* Semantic state colors */
   --ok: light-dark(#15803d, #34d399);
-  --danger: light-dark(#dc2626, #f87171);
-  --warn: light-dark(#d97706, #fbbf24);
   --ok-soft: light-dark(rgba(21, 128, 61, 0.08), rgba(52, 211, 153, 0.12));
-  --danger-soft: light-dark(rgba(220, 38, 38, 0.08), rgba(248, 113, 113, 0.12));
+  --warn: light-dark(#d97706, #fbbf24);
   --warn-soft: light-dark(rgba(217, 119, 6, 0.08), rgba(251, 191, 36, 0.12));
+  --danger: light-dark(#dc2626, #f87171);
+  --danger-soft: light-dark(rgba(220, 38, 38, 0.08), rgba(248, 113, 113, 0.12));
 
   /* Usage trend & visualization */
   --trend-top: light-dark(#3b82f6, #60a5fa);
@@ -90,7 +99,6 @@
   --shadow-switch: 0 1px 2px light-dark(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.4));
 
   --switch-thumb: #ffffff;
-  --scrim: light-dark(rgba(17, 17, 20, 0.32), rgba(0, 0, 0, 0.56));
 
   /* Motion & easing */
   --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
@@ -116,4 +124,8 @@
 :root.mica .left-rail {
   background: light-dark(rgba(247, 247, 249, 0.5), rgba(18, 18, 21, 0.52));
   backdrop-filter: blur(20px);
+}
+:root.mica .detail-drawer {
+  background: light-dark(rgba(255, 255, 255, 0.8), rgba(22, 22, 26, 0.82));
+  backdrop-filter: blur(24px);
 }
