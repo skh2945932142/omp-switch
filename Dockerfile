@@ -16,6 +16,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.json vite.cli.config.ts ./
 COPY packages/core packages/core
+COPY packages/shared packages/shared
 COPY packages/cli packages/cli
 RUN pnpm build:cli
 

@@ -216,8 +216,8 @@ jobs:
               models:
                 - id: demo-1
           YML
-          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/index.js --json list 2>/dev/null | grep -q '"ok":true'
-          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/index.js --json validate --profile default 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/main.js --json list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/main.js --json validate --profile default 2>/dev/null | grep -q '"ok":true'
           echo "Linux headless smoke passed"
 
   linux-package:

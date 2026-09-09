@@ -109,7 +109,9 @@ let fakeKeyringPath: string;
 
 let fakeBinDir: string | null = null;
 
-describe("LinuxCredentialStore", () => {
+// POSIX-only suite: the permission-bit assertions and the real-sh execution are meaningless (and
+// wrong) on Windows (NTFS permission mapping differs; no POSIX sh contract to verify).
+describe.skipIf(process.platform !== "linux")("LinuxCredentialStore", () => {
   it("round-trips a credential through libsecret and freezes the resolver command", async () => {
     fakeBinDir = await fakeBackendDir();
     const userData = await mkdtemp(path.join(tmpdir(), "omp-user-"));
