@@ -202,10 +202,11 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # Electron needs a handful of shared libraries even with no display (the JSON argv path
-      # returns before any window opens, but Chromium still links NSS/Gtk on startup).
-      - name: Install Electron runtime libraries
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+      # Electron needs a handful of shared libraries and an X display even for the JSON argv path
+      # (Chromium initializes the UI platform layer before app code runs). xvfb provides the
+      # display; the runner user cannot chown chrome-sandbox to root:4755, hence --no-sandbox.
+      - name: Install Electron runtime libraries and xvfb
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
 
       - name: Smoke-test the app binary (headless argv dispatch)
         run: |
@@ -225,9 +226,9 @@ jobs:
           # must be root:4755; the runner user cannot chown). Chromium sandboxing is not what this
           # smoke tests — the JSON argv path never opens a window.
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            npx electron out/main/main.js --no-sandbox --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+            xvfb-run -a npx electron out/main/main.js --no-sandbox --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            npx electron out/main/main.js --no-sandbox --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+            xvfb-run -a npx electron out/main/main.js --no-sandbox --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
           echo "Linux headless smoke passed"
 
   linux-package:
