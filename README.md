@@ -8,37 +8,47 @@
 
 **v0.6.0 起 Linux 完整支持**：桌面 GUI（AppImage/deb）+ 终端 TUI + 凭据库（libsecret 主 / age 回退）。Windows 版本行为不变。
 
-> `v0.5.8` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
+> `v0.6.0` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)：**Linux 完整支持**（桌面 AppImage/deb、终端 TUI、libsecret 凭据库），Windows 行为不变。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归已由夜间 workflow 覆盖（`.github/workflows/windows-install-regression.yml`）。
 
 ![OMP Switch 模型工作区](docs/images/provider-workspace.png)
 
 ![角色页（暗色主题）](docs/images/roles-dark.png)
 
-## 两种交付形态
+## 三种交付形态
 
-| 形态 | Windows | Linux / macOS | 内容 |
+| 形态 | Windows | Linux | 内容 |
 | --- | --- | --- | --- |
-| **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | **暂不支持** | 全部功能 |
+| **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | 支持（v0.6.0） | 全部功能 |
 | **headless CLI**（`omp-switch-cli`） | 支持 | 支持 | 配置读写、校验、快照 |
 | **TUI**（`omp-switch-tui`，从源码构建） | 支持 | 支持 | 终端交互式配置编辑（`pnpm build:tui`） |
 
-桌面应用限定 Windows 是**架构原因而非打包缺失**：API key 由 Electron `safeStorage`（Windows 用户级 DPAPI）加密，OMP 需要在 GUI 关闭时通过 `native/secret-bridge`（`net10.0-windows`，调用 `crypt32.dll`）解出密钥。移植到 Linux 意味着**重新设计凭据后端**，细节与阻塞点见 [docs/install.md](docs/install.md#linux-support)。
+凭据后端按平台分流：Windows 用 Electron `safeStorage`（用户级 DPAPI）+ C# secret bridge；Linux 把每把 API key **直存 libsecret keyring 条目**，由 `secret-tool` 解析（无需桥二进制、毫秒级冷启动），无 Secret Service 时回退 age 加密文件（诚实的降级说明见 [docs/security.md](docs/security.md)）。命令语法已对照真实 OMP 18.x 在 Linux 上实测冻结。
 
-headless CLI 完全不依赖 Electron（`packages/core` 是纯 Node），因此任何有 Node 24 的平台都能跑；它也**无法**打开凭据库——只有封装该密钥的那台机器可以。
+headless CLI 与 TUI 完全不依赖 Electron（`packages/core` / `packages/shared` 是纯 Node），任何有 Node 24 的平台都能跑；CLI **无法**打开凭据库——只有封装该密钥的那台机器可以。
 
 ## 安装
 
 ```powershell
+# winget（0.3.0 新包已上架 microsoft/winget-pkgs；0.6.0 增量更新已提交）
+winget install skh2945932142.OMPSwitch
+
+# Scoop（本仓库自带 bucket，release 后自动同步）
 scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
 scoop install omp-switch
 ```
 
-或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载安装包 / 便携版。
-winget 与 Chocolatey 清单已准备好，但**尚未提交上架**，详见 [docs/install.md](docs/install.md)。
+```bash
+# Linux：deb 或 AppImage（Releases 页下载）
+sudo dpkg -i OMP-Switch-0.6.0-linux.deb
+# 或 chmod +x OMP-Switch-0.6.0-linux.AppImage 后直接运行
+```
+
+或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包 / 便携版（Linux AppImage/deb 同页）。
+Chocolatey 清单已就绪，feed 提交与审核待办，详见 [docs/install.md](docs/install.md)。
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.5.4 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.6.0 validate --profile default
 ```
 
 > 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
@@ -67,6 +77,8 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
 - Prompts、Skills、Sessions 索引与按需原文读取；用量仪表盘（花费/请求/tokens/趋势/按模型与供应商分组，成本带来源标注）。
 - Loopback Gateway：`/healthz`、`/v1/models`、Chat、Responses 与流式前故障转移；强制 Bearer token、校验 Host、拒绝跨源请求。
 - Windows DPAPI 密钥桥、OMP OAuth 状态/登录入口、稳定 JSON CLI。
+- **Linux 凭据库（v0.6.0）**：libsecret keyring 直存 + `secret-tool` 解析，age 加密文件回退（无 Secret Service 时），孤儿/引用追踪双平台一致。
+- **Linux TUI（v0.6.0）**：`omp-switch-tui`——providers/角色/快照/诊断四屏 + 两步保存（diff 预览→确认），无头子命令 `list`/`validate` 可脚本化。
 
 **界面**
 

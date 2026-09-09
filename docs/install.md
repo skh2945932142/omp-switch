@@ -2,22 +2,24 @@
 
 ## What runs where
 
-OMP Switch ships two different things. They have different platform support, and the difference is
-architectural rather than a packaging gap:
+OMP Switch ships three things. Platform support differs by artifact, and the differences are
+architectural choices, not packaging gaps:
 
-| Artifact | Windows | Linux / macOS | Contains |
+| Artifact | Windows | Linux | Contains |
 | --- | --- | --- | --- |
-| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | **Not supported yet** | Everything |
+| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | Supported (v0.6.0) | Everything |
 | **Headless CLI** (`omp-switch-cli`) | Supported | Supported | Config read/write, validation, snapshots |
+| **TUI** (`omp-switch-tui`, from source) | Supported | Supported | Interactive terminal config editing |
 
-The desktop app is Windows-only because the credential path is: API keys are sealed with Electron
-`safeStorage` (the Windows user's DPAPI key) and Oh My Pi resolves them by running
-`native/secret-bridge`, a `net10.0-windows` binary that calls `crypt32.dll`. Porting the GUI to Linux
-means choosing and implementing a different credential backend, not adding a build target. See
-[Linux support](#linux-support) below.
+The credential path is platform-keyed. Windows: API keys are sealed with Electron `safeStorage`
+(the user's DPAPI key) and Oh My Pi resolves them by running `native/secret-bridge`, a
+`net10.0-windows` binary that calls `crypt32.dll`. Linux: each key is a **direct libsecret keyring
+entry** resolved by `secret-tool` (no bridge binary), with an age keyfile fallback when no Secret
+Service is available — see [Linux support](#linux-support) below and [docs/security.md](security.md).
 
-The headless CLI has no Electron dependency at all — `packages/core` is pure Node — so it runs
-anywhere Node 24 does. It cannot open the credential vault (only the machine that sealed a key can),
+The headless CLI and TUI have no Electron dependency at all — `packages/core` and
+`@omp-switch/shared` are pure Node — so they run anywhere Node 24 does. The CLI cannot open the
+credential vault (only the machine that sealed a key can),
 so it manages configuration, not secrets.
 
 ---
@@ -29,10 +31,10 @@ planned:
 
 | Channel | Status |
 | --- | --- |
-| Direct download (GitHub Releases) | **Works** |
-| Scoop (bucket hosted in this repository) | **Works** |
-| winget | Manifest prepared; **pending submission** to `microsoft/winget-pkgs` |
-| Chocolatey | Package prepared; **pending submission** and moderation on the community feed |
+| Direct download (GitHub Releases) | **Works** — Windows exe/zip + Linux AppImage/deb |
+| Scoop (bucket hosted in this repository) | **Works** — auto-syncs on every release |
+| winget | **Live since 0.3.0** (`skh2945932142.OMPSwitch`); 0.6.0 update submitted |
+| Chocolatey | Package prepared; feed submission and moderation **pending** |
 
 The winget and Chocolatey manifests live in `packaging/` and are rendered with real release hashes by
 `pnpm render:packaging`. Until those submissions are accepted, `winget install` and `choco install`
@@ -139,8 +141,10 @@ packaged app; `native/cli-proxy` exists only for Windows. Interactive OAuth logi
 terminal emulator (resolution order: `$OMP_SWITCH_TERMINAL`, xdg-terminal-exec, gnome-terminal,
 konsole, xfce4-terminal, xterm, alacritty, kitty, foot).
 
-**The credential vault is Windows-only for now.** Oh My Pi resolves an API key by running the
-command in `apiKey: '!…'` with a 10 second timeout, with the GUI closed. On Windows that command is
-the DPAPI-backed secret bridge; the Linux backend (libsecret/age) is a security design decision
-that is being designed — until it lands, Linux users write API keys per OMP's own conventions and
-the `secret:*` IPC surface reports the vault as unavailable.
+**The Linux credential vault landed in v0.6.0.** Each API key is stored as a direct libsecret
+keyring entry and resolved by `secret-tool lookup …` (the `!command` grammar was verified against
+real OMP 18.x on Linux). Without a Secret Service the store falls back to an age-encrypted keyfile
+under `~/.config/OMP Switch/` — an honest downgrade documented in [docs/security.md](security.md).
+`OMP_SWITCH_SECRET_BACKEND=libsecret|age` forces either backend for testing. The one runtime
+dependency to know about: `secret-tool` comes from the `libsecret-tools` distro package (GNOME
+desktops usually have the daemon already).

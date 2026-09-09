@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-OMP Switch is a Windows-first Electron desktop app that manages [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP) model-provider configuration. It edits **user-owned files it does not own**: `~/.omp/agent/models.yml` and `config.yml`. Everything about the architecture follows from that: hash-guarded writes, YAML comment preservation, snapshots before every commit, and read-only mode for unknown OMP schema versions.
+OMP Switch is a cross-platform (Windows + Linux) Electron desktop app that manages [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP) model-provider configuration. It edits **user-owned files it does not own**: `~/.omp/agent/models.yml` and `config.yml`. Everything about the architecture follows from that: hash-guarded writes, YAML comment preservation, snapshots before every commit, and read-only mode for unknown OMP schema versions.
 
 ## Commands
 
@@ -152,7 +152,7 @@ A non-secret index `credentials.v1.json` (labels + backend, 0600) backs `list()`
 
 `app.whenReady()` in `electron/main.ts` dispatches on argv *before* opening a window: `--secret-get <id>` (prints the secret to stdout, exits), `--json <cmd>` (the versioned JSON CLI, `packages/core/src/cli.ts`), `--gateway [profile]` (headless gateway), otherwise the GUI.
 
-`native/cli-proxy` builds `omp-switch-cli.exe`, a console shim that spawns `OMP Switch.exe --json …` and relays stdout/stderr/exit code — necessary because a GUI-subsystem Electron binary cannot write to an attached console. CLI stdout must stay **pure JSON** in the `{version: 1, ok, data | error}` envelope (exit 0 ok, 1 command failure, 2 usage error); `verify:package-cli` asserts nothing leaks to stderr.
+`native/cli-proxy` builds `omp-switch-cli.exe`, a console shim that spawns `OMP Switch.exe --json …` and relays stdout/stderr/exit code — necessary because a GUI-subsystem Electron binary cannot write to an attached console. On Linux the shim is `bin/omp-switch-cli` (a shell wrapper resolving the packaged `omp-switch` binary next to itself; `ELECTRON_DISABLE_SANDBOX` appends `--no-sandbox` for headless/CI use) installed by `scripts/after-pack.mjs`, which also sets the 0755 bit electron-builder's FileSet cannot express. CLI stdout must stay **pure JSON** in the `{version: 1, ok, data | error}` envelope (exit 0 ok, 1 command failure, 2 usage error); `verify:package-cli` asserts nothing leaks to stderr.
 
 ### Loopback gateway
 

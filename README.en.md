@@ -42,13 +42,19 @@ scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
 scoop install omp-switch
 ```
 
-Or download the installer / portable build from
-[Releases](https://github.com/skh2945932142/omp-switch/releases/latest). The winget and Chocolatey
-manifests are prepared but **not yet submitted** — see [docs/install.md](docs/install.md).
+```bash
+# Linux (deb / AppImage from the Releases page)
+sudo dpkg -i OMP-Switch-0.6.0-linux.deb
+# or chmod +x OMP-Switch-0.6.0-linux.AppImage and run it
+```
+
+winget carries the package since 0.3.0 (`winget install skh2945932142.OMPSwitch`, the 0.6.0
+update is submitted); the Chocolatey package is prepared with its feed submission still pending —
+see [docs/install.md](docs/install.md).
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.5.4 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.6.0 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
