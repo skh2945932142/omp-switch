@@ -123,6 +123,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Chromium initializes the UI platform layer before app code (see ci.yml verify-linux).
+      - name: Install Electron runtime libraries and xvfb
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
       - name: Package Linux artifacts
         run: pnpm package:linux
 
@@ -141,9 +144,11 @@ jobs:
                 - id: demo-1
           YML
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            "dist/linux-unpacked/omp-switch" --json list 2>/dev/null | grep -q '"ok":true'
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            dist/linux-unpacked/omp-switch-cli --json list 2>/dev/null | grep -q '"ok":true'
+            xvfb-run -a "dist/linux-unpacked/omp-switch" --no-sandbox --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            xvfb-run -a dist/linux-unpacked/omp-switch-cli --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
 
       - name: Attest Linux artifact provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
