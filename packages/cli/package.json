@@ -1,0 +1,13 @@
+{
+  "name": "omp-switch-cli",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "types": "./src/main.ts",
+  "bin": {
+    "omp-switch-cli": "./dist/main.js"
+  },
+  "dependencies": {
+    "@omp-switch/core": "workspace:*"
+  }
+}
