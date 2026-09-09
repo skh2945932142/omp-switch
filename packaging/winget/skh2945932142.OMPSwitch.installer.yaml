@@ -12,7 +12,7 @@ UpgradeBehavior: install
 # Per-user NSIS install: OMP Switch stores credentials with the Windows user's DPAPI key, so a
 # per-machine install would produce a vault the other accounts on the box cannot read.
 Scope: user
-ReleaseDate: 2026-08-19
+ReleaseDate: 2026-09-10
 Installers:
   - Architecture: x64
     InstallerType: nullsoft

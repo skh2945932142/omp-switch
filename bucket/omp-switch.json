@@ -5,7 +5,7 @@
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.6.0/./OMP-Switch-0.6.0-win.zip",
+      "url": "https://github.com/skh2945932142/omp-switch/releases/download/v0.6.0/OMP-Switch-0.6.0-win.zip",
       "hash": "7842db925dd7f684d23b15532103f7eb063e7ecf6cc5c68a44884467a56f269f"
     }
   },
