@@ -57,6 +57,19 @@ describe("provider selection helpers", () => {
     expect(isProviderDisabled("openai", [{ providers: ["openai"] }], "C:\\Users\\admin\\.omp\\agent")).toBe(false);
   });
 
+  it("matches POSIX-scoped rules on Linux profiles (sep = '/')", () => {
+    const profile = "/home/sikaha/.omp/agent";
+    expect(isProviderDisabled("openai", ["openai"], profile, "/")).toBe(true);
+    expect(isProviderDisabled("openai", [{ path: "~/.omp/agent", providers: ["openai"] }], profile, "/")).toBe(true);
+    expect(isProviderDisabled("openai", [{ path: "~/.omp/other", providers: ["openai"] }], profile, "/")).toBe(false);
+    // backslash-written scopes still match a POSIX profile: both separators fold to the platform sep
+    expect(isProviderDisabled("openai", [{ path: "~\\.omp\\agent", providers: ["openai"] }], profile, "/")).toBe(true);
+  });
+
+  it("keeps the historical Windows default when sep is omitted", () => {
+    expect(isProviderDisabled("openai", [{ path: "~/.omp/agent", providers: ["openai"] }], "C:\\Users\\admin\\.omp\\agent")).toBe(true);
+  });
+
   it("reports the first actionable reason a provider cannot be applied", () => {
     expect(providerApplyBlockReason({ readOnly: true, modelCount: 1, auth: "none" })).toBe("readonly");
     expect(providerApplyBlockReason({ modelCount: 0, auth: "none" })).toBe("no-models");

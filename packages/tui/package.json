@@ -1,0 +1,12 @@
+{
+  "name": "omp-switch-tui",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "omp-switch-tui": "./dist/main.js"
+  },
+  "dependencies": {
+    "@omp-switch/core": "workspace:*",
+    "@omp-switch/shared": "workspace:*"
+  }
+}

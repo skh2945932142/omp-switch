@@ -85,8 +85,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar-actions {
   justify-content: flex-end;
   gap: 6px;
-  padding-right: 148px; /* clears the native Windows overlay buttons */
+  padding-right: 8px;
 }
+/* Reserves space for the native overlay buttons (Windows 10+ hidden title bar). */
+html[data-platform="win32"] .topbar-actions { padding-right: 148px; }
 
 /* Status = colored dot plus quiet text */
 .profile-chip {

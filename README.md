@@ -1,10 +1,12 @@
 # OMP Switch
 
-[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md)
+[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md) · [OMP schema 跟踪](docs/omp-schema-tracking.md)
 
 安全管理 [Oh My Pi](https://github.com/can1357/oh-my-pi)（OMP）模型供应商配置的桌面伴侣应用。
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
+
+**v0.6.0 起 Linux 完整支持**：桌面 GUI（AppImage/deb）+ 终端 TUI + 凭据库（libsecret 主 / age 回退）。Windows 版本行为不变。
 
 > `v0.5.8` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
 
@@ -18,6 +20,7 @@
 | --- | --- | --- | --- |
 | **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | **暂不支持** | 全部功能 |
 | **headless CLI**（`omp-switch-cli`） | 支持 | 支持 | 配置读写、校验、快照 |
+| **TUI**（`omp-switch-tui`，从源码构建） | 支持 | 支持 | 终端交互式配置编辑（`pnpm build:tui`） |
 
 桌面应用限定 Windows 是**架构原因而非打包缺失**：API key 由 Electron `safeStorage`（Windows 用户级 DPAPI）加密，OMP 需要在 GUI 关闭时通过 `native/secret-bridge`（`net10.0-windows`，调用 `crypt32.dll`）解出密钥。移植到 Linux 意味着**重新设计凭据后端**，细节与阻塞点见 [docs/install.md](docs/install.md#linux-support)。
 

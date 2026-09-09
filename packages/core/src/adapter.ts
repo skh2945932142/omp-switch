@@ -70,6 +70,58 @@ export interface OmpAdapter {
   restoreSnapshot(snapshot: Snapshot, options?: RestoreOptions): Promise<void>;
 }
 
+/**
+ * Pure merge semantics of {@link OmpFilesystemAdapter.planPatch}: deep-clone the config documents
+ * and apply a patch without validation, hashing, or diagnostics. Exported so non-adapter consumers
+ * (the renderer's mock save) compute the same result the adapter would, instead of re-implementing
+ * the merge and drifting.
+ */
+export function applyConfigPatch(config: Pick<EffectiveConfig, "models" | "settings">, patch: ConfigPatch): { models: ModelsDocument; settings: SettingsDocument } {
+  const models = clone(config.models.value);
+  const settings = clone(config.settings.value);
+  if (!models.providers || typeof models.providers !== "object") models.providers = {};
+  if (patch.removeProviderId) delete models.providers[patch.removeProviderId];
+  const providerDrafts = patch.providers ? patch.providers : patch.provider ? [patch.provider] : [];
+  for (const provider of providerDrafts) {
+    const existing = models.providers[provider.id] ?? {};
+    const next = {
+      ...existing,
+      baseUrl: provider.baseUrl ?? existing.baseUrl,
+      api: provider.api ?? existing.api,
+      ...(provider.auth !== undefined ? { auth: provider.auth } : {}),
+      ...(provider.discovery !== undefined ? { discovery: provider.discovery } : {}),
+      models: provider.models ?? existing.models,
+    };
+    applyOptionalField(next, "apiKey", provider.apiKey);
+    applyOptionalField(next, "headers", provider.headers);
+    applyOptionalField(next, "compat", provider.compat);
+    applyOptionalField(next, "modelOverrides", provider.modelOverrides);
+    applyOptionalField(next, "authHeader", provider.authHeader);
+    applyOptionalField(next, "disableStrictTools", provider.disableStrictTools);
+    applyOptionalField(next, "transport", provider.transport);
+    applyOptionalField(next, "remoteCompaction", provider.remoteCompaction);
+    applyOptionalField(next, "cost", provider.cost);
+    applyOptionalField(next, "codeMode", provider.codeMode);
+    models.providers[provider.id] = next;
+  }
+  if (patch.roleAssignments) {
+    settings.modelRoles = { ...(settings.modelRoles ?? {}) };
+    for (const [role, selector] of Object.entries(patch.roleAssignments)) {
+      if (selector === null || selector === "") delete settings.modelRoles[role];
+      else settings.modelRoles[role] = selector;
+    }
+    if (Object.keys(settings.modelRoles).length === 0) delete settings.modelRoles;
+  }
+  if (patch.settings) {
+    for (const [key, value] of Object.entries(patch.settings)) {
+      if (value === undefined) continue;
+      if (Array.isArray(value) && value.length === 0) delete settings[key];
+      else settings[key] = value;
+    }
+  }
+  return { models, settings };
+}
+
 export class OmpFilesystemAdapter implements OmpAdapter {
   readonly homeDir: string;
   readonly snapshotDir: string;
@@ -130,48 +182,7 @@ export class OmpFilesystemAdapter implements OmpAdapter {
   }
 
   planPatch(config: EffectiveConfig, patch: ConfigPatch): PatchPreview {
-    const models = clone(config.models.value);
-    const settings = clone(config.settings.value);
-    if (!models.providers || typeof models.providers !== "object") models.providers = {};
-    if (patch.removeProviderId) delete models.providers[patch.removeProviderId];
-    const providerDrafts = patch.providers ? patch.providers : patch.provider ? [patch.provider] : [];
-    for (const provider of providerDrafts) {
-      const existing = models.providers[provider.id] ?? {};
-      const next = {
-        ...existing,
-        baseUrl: provider.baseUrl ?? existing.baseUrl,
-        api: provider.api ?? existing.api,
-        ...(provider.auth !== undefined ? { auth: provider.auth } : {}),
-        ...(provider.discovery !== undefined ? { discovery: provider.discovery } : {}),
-        models: provider.models ?? existing.models,
-      };
-      applyOptionalField(next, "apiKey", provider.apiKey);
-      applyOptionalField(next, "headers", provider.headers);
-      applyOptionalField(next, "compat", provider.compat);
-      applyOptionalField(next, "modelOverrides", provider.modelOverrides);
-      applyOptionalField(next, "authHeader", provider.authHeader);
-      applyOptionalField(next, "disableStrictTools", provider.disableStrictTools);
-      applyOptionalField(next, "transport", provider.transport);
-      applyOptionalField(next, "remoteCompaction", provider.remoteCompaction);
-      applyOptionalField(next, "cost", provider.cost);
-      applyOptionalField(next, "codeMode", provider.codeMode);
-      models.providers[provider.id] = next;
-    }
-    if (patch.roleAssignments) {
-      settings.modelRoles = { ...(settings.modelRoles ?? {}) };
-      for (const [role, selector] of Object.entries(patch.roleAssignments)) {
-        if (selector === null || selector === "") delete settings.modelRoles[role];
-        else settings.modelRoles[role] = selector;
-      }
-      if (Object.keys(settings.modelRoles).length === 0) delete settings.modelRoles;
-    }
-    if (patch.settings) {
-      for (const [key, value] of Object.entries(patch.settings)) {
-        if (value === undefined) continue;
-        if (Array.isArray(value) && value.length === 0) delete settings[key];
-        else settings[key] = value;
-      }
-    }
+    const { models, settings } = applyConfigPatch(config, patch);
     const diagnostics = [...validateModelsDocument(models), ...validateSettingsDocument(settings, Object.keys(models.providers ?? {}))];
     return {
       profile: config.profile,
@@ -413,7 +424,12 @@ export function collectReferencedCredentialIds(models: ModelsDocument): Set<stri
   const found = new Set<string>();
   const scan = (value: unknown): void => {
     if (typeof value === "string") {
+      // Windows bridge: `… --secret-get "<id>" --data-dir "<dir>"`.
       for (const match of value.matchAll(/--secret-get\s+"([A-Za-z0-9][A-Za-z0-9._-]{0,127})"/g)) found.add(match[1]);
+      // Linux libsecret: `<secret-tool path> lookup service omp-switch credential <id>` (unquoted by contract).
+      for (const match of value.matchAll(/secret-tool\s+lookup\s+service\s+omp-switch\s+credential\s+([A-Za-z0-9][A-Za-z0-9._-]{0,127})/g)) found.add(match[1]);
+      // Linux age: `age -d -i "<identity>" "<userData>/secrets/<id>.age"` (double-quoted, spaces possible).
+      for (const match of value.matchAll(/secrets\/([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.age/g)) found.add(match[1]);
       return;
     }
     if (Array.isArray(value)) {

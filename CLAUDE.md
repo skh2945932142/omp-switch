@@ -8,18 +8,19 @@ OMP Switch is a Windows-first Electron desktop app that manages [Oh My Pi](https
 
 ## Commands
 
-Requires Windows, Node 24+, pnpm 11 (`corepack enable`), **.NET SDK 10.0**, and the Visual Studio **"Desktop development with C++"** workload — `native/secret-bridge` publishes as Native AOT, which links with MSVC. `scripts/build-secret-bridge.ps1` prepends the fixed `vswhere.exe` location to PATH because the ILCompiler shells out to it and Visual Studio does not put it on PATH; without that a machine with the C++ workload still fails to link with a confusing `MSB3073`.
+On Windows: Node 24+, pnpm 11 (`corepack enable`), **.NET SDK 10.0**, and the Visual Studio **"Desktop development with C++"** workload — `native/secret-bridge` publishes as Native AOT, which links with MSVC. `scripts/build-secret-bridge.ps1` prepends the fixed `vswhere.exe` location to PATH because the ILCompiler shells out to it and Visual Studio does not put it on PATH; without that a machine with the C++ workload still fails to link with a confusing `MSB3073`. On Linux none of that is needed — `build:native` is a platform-keyed no-op off Windows (`scripts/build-native.mjs`).
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm dev                 # predev runs build:native first, so dotnet is required even for dev
+pnpm dev                 # predev runs build:native (no-op on Linux)
 pnpm typecheck           # tsc --noEmit over electron/, src/, packages/
 pnpm test                # vitest run
 pnpm test:watch
-pnpm build               # build:native + electron-vite build -> out/
+pnpm build               # build:native + build:cli + electron-vite build -> out/
 pnpm package:win         # -> dist/ NSIS installer + portable ZIP
+pnpm package:linux       # -> dist/ AppImage + deb (console shim via scripts/after-pack.mjs)
 pnpm verify:package-cli  # runs the packaged JSON CLI in a temp HOME; needs dist/ from package:win
-pnpm build:native        # build:secret-bridge + build:cli-proxy (dotnet publish)
+pnpm build:native        # platform-keyed: secret-bridge + cli-proxy on Windows, no-op elsewhere
 ```
 
 Single test file / single case:
@@ -44,13 +45,17 @@ $env:OMP_SWITCH_DATA_DIR = "D:\tmp\omp-data"                        # moves user
 
 ## Architecture
 
-Three layers with a strict dependency direction: `packages/core` → `electron/` → `src/renderer`.
+Three layers with a strict dependency direction: `packages/core` → `packages/shared` → `electron/` / `src/renderer` (and, later, the TUI).
 
-**`packages/core/src` — all domain logic, zero Electron imports.** Pure Node + TypeScript so it is directly unit-testable. Imported everywhere as `@omp-switch/core`, an alias (not a built package) declared in three places that must stay in sync: `tsconfig.json` paths, `electron.vite.config.ts` (main + renderer), and `vitest.config.ts`. New modules must be re-exported from `packages/core/src/index.ts`.
+**`packages/core/src` — all domain logic, zero Electron imports.** Pure Node + TypeScript so it is directly unit-testable. Imported everywhere as `@omp-switch/core`, a real pnpm workspace package (`packages/core/package.json`, resolved through the workspace link — no build step, `main: src/index.ts`). New modules must be re-exported from `packages/core/src/index.ts`.
+
+**`packages/shared/src` — pure UI-facing logic, no React/DOM/Electron.** The diff engine (`diff.ts`: `diffLines`/`trimContext`), provider form builders (`provider-form.ts`: `blankForm`/`buildModels`/`toModelEditorEntry` — errors are `SharedError(code, params)` where the code is an i18n key; the renderer translates via `formatError` in `src/renderer/error-format.ts`), role catalog + resolution chain (`roles.ts`: `ROLE_CATALOG`/`resolveChain`/`KNOWN_ROLE_IDS`), `modelLabel`, and provider selection (`provider-selection.ts` — `isProviderDisabled` takes a platform `sep`, `"/"` on POSIX, default `"\"` keeps the Windows behavior). Resolved as the `@omp-switch/shared` workspace package. The mock API's save delegates to core's `applyConfigPatch` (the merge half of `planPatch`), pinning demo and real save to identical semantics.
 
 **`electron/` — main process.** Owns the OS: `ipcMain.handle` surface in `main.ts`, `safeStorage` credential vault (`secret-store.ts`), and `metadata-store.ts`. Holds no domain logic of its own. `createWindow` enables the Mica material on Windows 11 22H2+ (`backgroundMaterial: "mica"`, mutually exclusive with an opaque `backgroundColor`) and injects the `mica` class on `<html>` via `executeJavaScript` after load; `tokens.css` makes only the chrome transparent under that class, panels stay opaque, and every other environment falls back to solid surfaces. On Windows 10+ it also hides the OS title bar (`titleBarStyle: "hidden"` + `titleBarOverlay`) so the web topbar is the drag region — `.topbar` carries `-webkit-app-region: drag` with buttons opted back out, `.topbar-actions` reserves right padding for the overlay buttons, and a `nativeTheme.on("updated")` listener re-tints the overlay glyphs. `app:set-theme` forwards the renderer's manual theme choice into `nativeTheme.themeSource` so those glyphs follow it.
 
-**`src/renderer` — React 19 UI**, sandboxed with `contextIsolation`. It reaches the filesystem only through `window.ompSwitch`. `App.tsx` falls back to `createMockApi()` when that global is absent, so the UI can be previewed in a plain browser (`pnpm preview:renderer`; the config mirrors the electron-vite alias) — meaning **every new IPC method needs five coordinated edits**: core function → `ipcMain.handle` in `electron/main.ts` → method in `electron/preload.ts` → signature in `src/renderer/global.d.ts` (`OmpSwitchApi`) → stub in `createMockApi()`. The renderer is otherwise split by feature: `App.tsx` (shell, profile state, two-step save orchestration with dirty tracking, global shortcuts), `theme.ts` (light/dark/system controller — sets `color-scheme` on `:root`, which is what resolves every `light-dark()` token in `tokens.css`; no `[data-theme]` selector duplication), `locale.ts` + `locale-detect.ts` + `i18n/` (i18next, statically inlined zh/en; `lng` is resolved from `omp.locale` / `navigator` before React mounts so the first paint is not always Chinese), `roles-module.tsx` (role sheet), `workbench-modules.tsx` (surfaces/sessions/gateway), `usage-module.tsx`, and shared `components/` (`model-picker.tsx` — the searchable selector used by roles *and* gateway upstreams, `quick-assign.tsx`, `save-flow.tsx` — diff preview/conflict/confirm dialogs and the LCS diff, `command-palette.tsx` — cmdk `Ctrl+K`, `snapshot-timeline.tsx`, `theme-switch.tsx`, `locale-switch.tsx`, `ui-primitives.tsx` — Radix Select/Tooltip wrappers). Every save goes through `requestSave`: preview via `omp:preview`, then the diff dialog, then commit; `Ctrl+K`, `Ctrl+1…7`, `?`, and `Ctrl+S` are bound in the App keydown effect. `window.confirm` is banned — use `ConfirmDialog`. Styles live in `styles/{tokens,base,components,modules}.css` imported in that order; **every color resolves through a token in `tokens.css` — a hex value anywhere else is a bug**.
+**`packages/tui/src` — Ink/React terminal app** (Linux-first, runs anywhere Node 24 does). Imports `@omp-switch/core` **directly** (not the JSON CLI protocol — it lacks restore and text previews) plus `@omp-switch/shared` for the diff engine and role chain. Entry (`main.tsx`) answers `--help`/`list`/`validate` non-interactively before requiring a TTY, so CI can smoke it headlessly. Screens: providers, roles, snapshots, diagnostics, save-diff (the two-step save: `previewPatch` → line diff → `commitPatch(config, preview)`). Bundled by `vite.tui.config.ts` (mirrors the CLI config) via `pnpm build:tui`. The credential vault is out of scope by design — `apiKey` is written as a literal/env reference and core's plaintext warning surfaces in diagnostics.
+
+**`src/renderer` — React 19 UI**, sandboxed with `contextIsolation`. It reaches the filesystem only through `window.ompSwitch`. `App.tsx` falls back to `createMockApi()` when that global is absent, so the UI can be previewed in a plain browser (`pnpm preview:renderer`; the config resolves `@omp-switch/core` through the same workspace link) — meaning **every new IPC method needs five coordinated edits**: core function → `ipcMain.handle` in `electron/main.ts` → method in `electron/preload.ts` → signature in `src/renderer/global.d.ts` (`OmpSwitchApi`) → stub in `createMockApi()`. The renderer is otherwise split by feature: `App.tsx` (shell, profile state, two-step save orchestration with dirty tracking, global shortcuts), `theme.ts` (light/dark/system controller — sets `color-scheme` on `:root`, which is what resolves every `light-dark()` token in `tokens.css`; no `[data-theme]` selector duplication), `locale.ts` + `locale-detect.ts` + `i18n/` (i18next, statically inlined zh/en; `lng` is resolved from `omp.locale` / `navigator` before React mounts so the first paint is not always Chinese), `roles-module.tsx` (role sheet), `workbench-modules.tsx` (surfaces/sessions/gateway), `usage-module.tsx`, and shared `components/` (`model-picker.tsx` — the searchable selector used by roles *and* gateway upstreams, `quick-assign.tsx`, `save-flow.tsx` — diff preview/conflict/confirm dialogs and the LCS diff, `command-palette.tsx` — cmdk `Ctrl+K`, `snapshot-timeline.tsx`, `theme-switch.tsx`, `locale-switch.tsx`, `ui-primitives.tsx` — Radix Select/Tooltip wrappers). Every save goes through `requestSave`: preview via `omp:preview`, then the diff dialog, then commit; `Ctrl+K`, `Ctrl+1…7`, `?`, and `Ctrl+S` are bound in the App keydown effect. `window.confirm` is banned — use `ConfirmDialog`. Styles live in `styles/{tokens,base,components,modules}.css` imported in that order; **every color resolves through a token in `tokens.css` — a hex value anywhere else is a bug**.
 
 **Interaction model of the provider cards** (the class of bug this wording prevents): the card header's only job is expand/collapse — a `.provider-card-toggle` button animating `.model-list-wrap` between `grid-template-rows: 0fr/1fr`; the drawer-opening edit pencil is a *sibling* button, not the same click target. Do not merge expand/collapse and select/open-drawer back into one onClick; that was a real bug (collapsing opened the drawer). Model rows are display-only. The detail/editor drawer is a floating sheet (`position: fixed`, motion spring) overlaying the workspace — it must never return to being a grid column that squeezes content on open.
 
@@ -120,13 +125,24 @@ Every override is echoed back as an `omp.path-override` info diagnostic so the U
 
 Role selectors (`provider/model:high`, `@default`, `*`) are parsed by `parseRoleSelector`, which resolves the provider prefix against known provider IDs longest-first because model IDs themselves contain slashes (`openrouter/openai/gpt-4.1`).
 
-### Credentials: the secret-bridge contract
+### Credentials: the platform-keyed contract
 
-API keys never enter OMP config. `SecretStoreService` encrypts them with Electron `safeStorage` (user-level DPAPI) into `secrets.v1.json` under `userData`, and the config file receives only a command reference:
+API keys never enter OMP config. Both platforms write only a command reference into the file; the resolver differs:
+
+**Windows** — `SecretStoreService` encrypts with Electron `safeStorage` (user-level DPAPI) into `secrets.v1.json` under `userData`:
 
 ```yaml
 apiKey: '!"...\omp-switch-secret.exe" --secret-get "credential-id" --data-dir "..."'
 ```
+
+**Linux** — `electron/credential-store-linux.ts` stores each credential as a **direct libsecret keyring entry** (service `omp-switch`, attribute `credential=<id>`), resolved by `secret-tool` (no bridge binary; the command grammar is unquoted absolute-path tokens — verified against real OMP 18.x on Linux). Without a Secret Service it falls back to an age X25519 keyfile identity (`<userData>/age/identity` 0600, ciphertexts `<userData>/secrets/<id>.age` 0700, double-quoted paths because `userData` contains a space); that fallback is honestly weaker and only engages when no keyring answers:
+
+```yaml
+apiKey: '!/usr/bin/secret-tool lookup service omp-switch credential <id>'
+apiKey: '!age -d -i "<userData>/age/identity" "<userData>/secrets/<id>.age"'
+```
+
+A non-secret index `credentials.v1.json` (labels + backend, 0600) backs `list()`/orphan detection on Linux. `createCredentialStore(userDataDir)` in `electron/credential-store.ts` is the factory; win32 returns the unchanged `SecretStoreService`, so **the Windows vault JSON shape and `userData` layout remain a cross-language contract** — changing one side requires changing the other.
 
 `native/secret-bridge` (C#) independently re-implements that decryption — AES-GCM with the `v10`/`v11` key unwrapped from Electron's `Local State`, falling back to raw DPAPI — so OMP can resolve keys with the GUI closed. **The vault JSON shape and the `userData` layout are a cross-language contract; changing one side requires changing the other.** The bridge is copied to `userData/secret-bridge/v<app-version>/` at first use so an app upgrade cannot invalidate references already written into config.
 

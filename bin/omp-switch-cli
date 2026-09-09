@@ -1,0 +1,7 @@
+#!/bin/sh
+# Linux console shim for omp-switch-cli. Windows needs native/cli-proxy because a GUI-subsystem
+# binary cannot write to an attached console; Electron's stdout works fine on Linux, so a shell
+# wrapper that forwards argv to the packaged app replaces the whole .NET project.
+# The binary name is "omp-switch" (electron-builder executableName from packageName); resolve it
+# next to this script so it works both in /opt/OMP Switch/ (deb) and linux-unpacked/.
+exec "$(dirname "$0")/omp-switch" --json "$@"

@@ -20,12 +20,12 @@ import type { OmpModel, OmpProvider } from "@omp-switch/core";
 import { looksLikePlaintextSecret } from "@omp-switch/core/validation";
 import { IconButton, IconButtonTip } from "./components/ui-primitives";
 import { QuickAssign } from "./components/quick-assign";
-import { providerModels } from "./hooks/use-provider-form";
 import {
   isProviderDisabled,
   providerApplyBlockReason,
+  providerModels,
   type DisabledProviderRule,
-} from "./provider-selection";
+} from "@omp-switch/shared";
 
 export interface ModelsModuleProps {
   profileId: string;

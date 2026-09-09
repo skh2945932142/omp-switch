@@ -1,0 +1,35 @@
+name: OMP schema watch
+
+# Weekly canary: fails (and opens an issue) when OMP upstream ships a major we cannot write yet.
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check upstream OMP schema support
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Compare upstream latest against WRITABLE_OMP_SCHEMA_MAJORS
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-omp-version.mjs
+
+      - name: Open a tracking issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "OMP upstream released a new major — schema support needed" \
+            --body "The weekly schema watch detected that Oh My Pi upstream shipped a major version that OMP Switch cannot write yet. Users on that version get a read-only app until support lands. See the check output in the failed run for the maintainer checklist (schema.ts, validation.ts, catalog.ts, tests)." \
+            --label "maintenance" || true

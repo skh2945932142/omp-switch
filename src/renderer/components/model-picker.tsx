@@ -4,6 +4,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OmpModel, OmpProvider, RoleThinkingLevel } from "@omp-switch/core";
+import { modelLabel } from "@omp-switch/shared";
 import { ROLE_THINKING_LEVELS, findMisusedRoleThinkingSuffix, parseRoleSelector } from "@omp-switch/core/validation";
 
 /**
@@ -40,9 +41,6 @@ function stripLevelSuffix(value: string): string {
   return value.replace(/:(minimal|low|medium|high|xhigh|max|off|auto)$/, "");
 }
 
-export function modelLabel(providers: Array<[string, OmpProvider]>, providerId: string, modelId: string): OmpModel | undefined {
-  return providers.find(([id]) => id === providerId)?.[1]?.models?.find((model) => model.id === modelId);
-}
 
 export function ModelPicker({ providers, value, onValueChange, allowSpecial, allowLevel, isEnabled, placeholder, ariaLabel }: ModelPickerProps): ReactElement {
   const { t } = useTranslation();

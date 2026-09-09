@@ -7,8 +7,10 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
-    resolve: { alias: { "@omp-switch/core": resolve(rootDir, "packages/core/src") } },
+    // `@omp-switch/core` and `@omp-switch/shared` are workspace source packages (main:
+    // src/index.ts); they must be bundled into the output, not left as runtime imports that would
+    // only resolve in a dev checkout.
+    plugins: [externalizeDepsPlugin({ exclude: ["@omp-switch/core", "@omp-switch/shared"] })],
     build: {
       lib: { entry: resolve(rootDir, "electron/main.ts"), formats: ["es"], fileName: "index" },
     },
@@ -21,7 +23,6 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
-    resolve: { alias: { "@omp-switch/core": resolve(rootDir, "packages/core/src") } },
     build: { rollupOptions: { input: resolve(rootDir, "src/renderer/index.html") } },
   },
 });

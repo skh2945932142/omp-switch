@@ -43,14 +43,15 @@ import {
 import { MetadataStore } from "./metadata-store";
 import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPolicy, mayUseDevRenderer } from "./renderer-security";
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
-import { SecretStoreService } from "./secret-store";
+import { createCredentialStore, type CredentialStore } from "./credential-store";
 import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
+import { launchCommandInTerminal } from "./terminal-launch";
 import { activeUpdateChecker, initUpdateChecker, openExternalAllowed } from "./update-checker";
 
 const execFileAsync = promisify(execFile);
 let mainWindow: BrowserWindow | null = null;
 let adapter: OmpFilesystemAdapter;
-let secrets: SecretStoreService;
+let secrets: CredentialStore;
 let metadata: MetadataStore;
 let surfaces: OmpSurfaceAdapter;
 let gateway: GatewayServer | null = null;
@@ -250,6 +251,11 @@ async function createWindow(): Promise<void> {
   // browser preview) every surface stays solid and Mica never enters the picture.
   if (micaSupported) mainWindow.webContents.once("did-finish-load", () => {
     mainWindow?.webContents.executeJavaScript('document.documentElement.classList.add("mica")', true).catch(() => undefined);
+  });
+  // Platform marker for renderer CSS that must differ per OS (e.g. topbar padding reserved for the
+  // Windows overlay buttons). App.tsx re-asserts it from app:info so browser preview also has it.
+  mainWindow.webContents.once("did-finish-load", () => {
+    mainWindow?.webContents.executeJavaScript(`document.documentElement.dataset.platform = ${JSON.stringify(process.platform)}`, true).catch(() => undefined);
   });
   // Overlay button glyphs must flip with the manual theme choice, not just the OS one.
   const syncOverlaySymbols = (): void => {
@@ -673,7 +679,10 @@ async function runOmpAuth(provider: string, action: "status" | "login"): Promise
         if (child.status !== 0) throw new Error("Unable to open an interactive OMP login terminal");
         return { ok: true, output: "", code: "terminal_launched" };
       }
-      return { ok: false, output: "", error: "Interactive OAuth launch is currently implemented for Windows" };
+      // POSIX: run the prompt-driven login flow inside a real terminal emulator.
+      const launched = launchCommandInTerminal(executable, ["auth", "login", provider]);
+      if (!launched.ok) return { ok: false, output: "", code: launched.code, error: launched.error };
+      return { ok: true, output: "", code: "terminal_launched" };
     }
     const result = await execFileAsync(executable, ["auth", "status", provider], { windowsHide: true, timeout: 30_000, maxBuffer: 2 * 1024 * 1024 });
     return { ok: true, output: `${result.stdout}${result.stderr}`.trim() };
@@ -704,6 +713,11 @@ async function handleSecretGet(id: string): Promise<void> {
 }
 
 async function buildSecretCommand(id: string): Promise<string> {
+  // Linux: the resolver is secret-tool/age directly (LinuxCredentialStore.describe) — no bridge.
+  if (process.platform !== "win32") {
+    const described = await (secrets as import("./credential-store-linux").LinuxCredentialStore).describe(id);
+    return described.command;
+  }
   const bundledBridgePath = app.isPackaged
     ? path.join(process.resourcesPath, "secret-bridge", "omp-switch-secret.exe")
     : path.join(app.getAppPath(), "native", "secret-bridge", "publish", "omp-switch-secret.exe");
@@ -714,7 +728,7 @@ async function buildSecretCommand(id: string): Promise<string> {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId("com.omp.switch");
-  secrets = new SecretStoreService(app.getPath("userData"));
+  secrets = createCredentialStore(app.getPath("userData"));
   metadata = new MetadataStore(app.getPath("userData"));
   await metadata.init();
   const storedRoot = metadata.getPreference<string>("project.root");
@@ -725,8 +739,10 @@ app.whenReady().then(async () => {
   surfaces = new OmpSurfaceAdapter({ projectRoot, homeDir: os.homedir() });
   makeAdapter();
   registerIpc();
+  // Windows: the Electron binary is its own bridge in the dev-checkout flow. Linux credentials
+  // resolve through secret-tool/age, so this argv mode is dead code there — guard to win32.
   const secretIndex = process.argv.indexOf("--secret-get");
-  if (secretIndex >= 0 && process.argv[secretIndex + 1]) {
+  if (secretIndex >= 0 && process.argv[secretIndex + 1] && process.platform === "win32") {
     await handleSecretGet(process.argv[secretIndex + 1]);
     return;
   }

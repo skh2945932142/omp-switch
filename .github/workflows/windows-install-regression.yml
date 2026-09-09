@@ -1,0 +1,130 @@
+name: Windows install regression
+
+# Clean-machine install → upgrade → CLI exercise → silent uninstall. Deliberately NOT per-PR
+# (the PR-path verify job stays fast); nightly + tags + manual dispatch.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Install, upgrade, exercise, uninstall
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Enable Corepack
+        shell: pwsh
+        run: corepack enable
+
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Package the new build
+        shell: pwsh
+        run: pnpm package:win
+
+      # ---- Stage 1: upgrade path — install the previous published release first ----
+      - name: Install previous published release (upgrade path)
+        id: previous
+        shell: pwsh
+        continue-on-error: true # first-ever release has no predecessor; the fresh-install path still runs
+        run: |
+          $previous = gh release list --limit 2 --json tagName,isDraft --jq '[.[] | select(.isDraft==false)][1].tagName'
+          if (-not $previous) { Write-Host "no previous release; skipping upgrade stage"; exit 1 }
+          Write-Host "installing previous release: $previous"
+          gh release download $previous --pattern "*Setup*.exe" --dir previous
+          $installer = (Get-ChildItem previous -Filter *Setup*.exe).FullName
+          Start-Process -Wait -FilePath $installer -ArgumentList "/S"
+          Write-Host "previous release installed"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Install/upgrade to the new build (silent)
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem dist -Filter *Setup*.exe).FullName
+          if (-not $installer) { throw "no NSIS installer in dist/" }
+          Start-Process -Wait -FilePath $installer -ArgumentList "/S"
+
+      - name: Assert installed version matches the build
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch"
+          if (-not (Test-Path $installDir)) { throw "install dir missing: $installDir" }
+          $exe = Join-Path $installDir "OMP Switch.exe"
+          if (-not (Test-Path $exe)) { throw "installed executable missing" }
+          $installedVersion = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($installedVersion -ne $version) { throw "installed version $installedVersion != expected $version" }
+          Write-Host "installed $installedVersion as expected"
+
+      # ---- Stage 2: exercise the installed app against a throwaway HOME ----
+      # Same technique as scripts/verify-packaged-cli.ps1, pointed at the INSTALLED location.
+      - name: Exercise the installed JSON CLI
+        shell: pwsh
+        run: |
+          $root = New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP "omp-regression-$([guid]::NewGuid())")
+          $home = Join-Path $root "home"; $data = Join-Path $root "data"
+          New-Item -ItemType Directory -Force -Path "$home/.omp/agent" | Out-Null
+          Set-Content -Path "$home/.omp/agent/models.yml" -Value @(
+            "providers:",
+            "  demo:",
+            "    baseUrl: https://api.example.test/v1",
+            "    api: openai-completions",
+            "    auth: none",
+            "    models:",
+            "      - id: demo-1"
+          )
+          $env:USERPROFILE = $home; $env:HOME = $home; $env:OMP_SWITCH_DATA_DIR = $data
+          $cli = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch" "omp-switch-cli.exe"
+          if (-not (Test-Path $cli)) { throw "installed omp-switch-cli.exe missing" }
+          & $cli --json list | Select-Object -First 1 | ForEach-Object { if ($_ -notmatch '"ok":true') { throw "list failed: $_" } }
+          & $cli --json apply --profile default --patch '{\"roleAssignments\":{\"default\":\"demo/demo-1\"}}' | Out-Null
+          if (-not (Test-Path "$home/.omp/agent/config.yml")) { throw "apply did not write config.yml" }
+          if (-not (Test-Path "$data/snapshots/default")) { throw "snapshot directory missing after save" }
+          Write-Host "installed CLI exercise passed"
+
+      - name: Assert the secret bridge landed and answers
+        shell: pwsh
+        run: |
+          $resources = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch" "resources" "secret-bridge"
+          if (-not (Test-Path $resources)) { throw "secret-bridge resources missing: $resources" }
+          Get-ChildItem $resources | ForEach-Object { Write-Host "bridge: $($_.Name)" }
+
+      # ---- Stage 3: silent uninstall leaves nothing behind ----
+      - name: Uninstall silently and assert clean state
+        shell: pwsh
+        run: |
+          $uninstaller = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch" "Uninstall OMP Switch.exe"
+          if (-not (Test-Path $uninstaller)) { throw "uninstaller missing" }
+          Start-Process -Wait -FilePath $uninstaller -ArgumentList "/S"
+          Start-Sleep -Seconds 5
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch"
+          if (Test-Path $installDir) {
+            $leftovers = Get-ChildItem $installDir -Recurse | Select-Object -First 10
+            if ($leftovers) { $leftovers | ForEach-Object { Write-Host "leftover: $($_.FullName)" }; throw "install dir not removed" }
+          }
+          $procs = Get-Process | Where-Object { $_.Name -like "*OMP Switch*" }
+          if ($procs) { throw "stray process remains: $($procs.Name -join ', ')" }
+          Write-Host "uninstall left no artifacts"

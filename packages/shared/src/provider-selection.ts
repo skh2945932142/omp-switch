@@ -41,20 +41,25 @@ export function effectivePreferredProviderId(providerIds: string[], order: strin
   return order.find((id) => configured.has(id)) ?? providerIds[0] ?? null;
 }
 
-function normalizedPath(value: string): string {
-  const normalized = value.trim().replaceAll("/", "\\").replace(/[\\]+$/, "").toLowerCase();
-  return normalized || "\\";
+/**
+ * Normalize a path for scope comparison. `sep` is the platform separator (`"\\"` on Windows, `"/`
+ * on POSIX); user-written scopes may still use the other convention, so both are folded to `sep`
+ * before comparison — matching OMP's own tolerance for either spelling.
+ */
+function normalizedPath(value: string, sep: string): string {
+  const normalized = value.trim().replaceAll("/", sep).replaceAll("\\", sep).replace(/[\\/]+$/, "").toLowerCase();
+  return normalized || sep;
 }
 
-function scopeMatches(scope: string, profilePath: string): boolean {
-  const candidate = normalizedPath(scope);
-  const current = normalizedPath(profilePath);
+function scopeMatches(scope: string, profilePath: string, sep: string): boolean {
+  const candidate = normalizedPath(scope, sep);
+  const current = normalizedPath(profilePath, sep);
   if (candidate === "~") return true;
-  if (candidate.startsWith("~\\")) return current.endsWith(candidate.slice(1));
-  return current === candidate || current.startsWith(`${candidate}\\`);
+  if (candidate.startsWith(`~${sep}`)) return current.endsWith(candidate.slice(1));
+  return current === candidate || current.startsWith(`${candidate}${sep}`);
 }
 
-function scopedRuleMatches(rule: Record<string, unknown>, providerId: string, profilePath: string): boolean {
+function scopedRuleMatches(rule: Record<string, unknown>, providerId: string, profilePath: string, sep: string): boolean {
   const values = VALUE_KEYS.flatMap((key) => {
     const value = rule[key];
     return Array.isArray(value) ? value : value === undefined ? [] : [value];
@@ -65,14 +70,17 @@ function scopedRuleMatches(rule: Record<string, unknown>, providerId: string, pr
     const value = rule[key];
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : typeof value === "string" ? [value] : [];
   });
-  return scopes.length > 0 && scopes.some((scope) => scopeMatches(scope, profilePath));
+  return scopes.length > 0 && scopes.some((scope) => scopeMatches(scope, profilePath, sep));
 }
 
-/** Match only explicit bare rules or scoped rules that apply to the current profile path. */
-export function isProviderDisabled(providerId: string, rules: DisabledProviderRule[] | undefined, profilePath: string): boolean {
+/**
+ * Match only explicit bare rules or scoped rules that apply to the current profile path.
+ * `sep` is the platform separator; omitting it preserves the historical Windows-only behavior.
+ */
+export function isProviderDisabled(providerId: string, rules: DisabledProviderRule[] | undefined, profilePath: string, sep = "\\"): boolean {
   const id = providerId.trim();
   if (!id || !rules?.length) return false;
-  return rules.some((rule) => typeof rule === "string" ? rule.trim() === id : scopedRuleMatches(rule, id, profilePath));
+  return rules.some((rule) => typeof rule === "string" ? rule.trim() === id : scopedRuleMatches(rule, id, profilePath, sep));
 }
 
 export function providerApplyBlockReason(input: {

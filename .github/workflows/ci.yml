@@ -115,6 +115,31 @@ jobs:
           test -z "${out:-}"
           echo "CLI smoke test passed"
 
+      - name: Build TUI
+        run: pnpm build:tui
+
+      - name: Smoke-test the TUI (non-interactive modes + TTY guard)
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          tui="node $PWD/packages/tui/dist/main.js"
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui --help 2>&1 | grep -q "omp-switch-tui"
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui validate --profile default 2>/dev/null | grep -q '"ok":true'
+          # Piped stdin must not hang waiting for a TTY.
+          if echo | HOME="$root/home" $tui 2>/dev/null; then echo "expected TTY guard to fail"; exit 1; fi
+          echo "TUI smoke test passed"
+
   docker:
     name: Build and smoke-test the Docker image
     runs-on: ubuntu-latest
@@ -147,3 +172,125 @@ jobs:
           docker run --rm omp-switch-cli:ci --help 2>&1 | grep -q "omp-switch-cli <command>"
           echo "Docker smoke test passed"
 
+  verify-linux:
+    name: Verify desktop app on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # build:native is a no-op off Windows, so no .NET/MSVC is needed here.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # Electron needs a handful of shared libraries and an X display even for the JSON argv path
+      # (Chromium initializes the UI platform layer before app code runs). xvfb provides the
+      # display; the runner user cannot chown chrome-sandbox to root:4755, hence --no-sandbox.
+      - name: Install Electron runtime libraries and xvfb
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+
+      - name: Smoke-test the app binary (headless argv dispatch)
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          # --no-sandbox: the SUID sandbox helper cannot be configured on CI runners (chrome-sandbox
+          # must be root:4755; the runner user cannot chown). Chromium sandboxing is not what this
+          # smoke tests — the JSON argv path never opens a window.
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            xvfb-run -a npx electron out/main/main.js --no-sandbox --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            xvfb-run -a npx electron out/main/main.js --no-sandbox --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+          echo "Linux headless smoke passed"
+
+  linux-package:
+    name: Package and smoke-test Linux artifacts
+    runs-on: ubuntu-latest
+    # Heavy; keep PRs fast — the verify-linux job already covers the build.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package (AppImage + deb)
+        run: pnpm package:linux
+
+      - name: Smoke-test the unpacked binary and console shim
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             "dist/linux-unpacked/omp-switch" --json list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             dist/linux-unpacked/omp-switch-cli --json list 2>/dev/null | grep -q '"ok":true'
+          echo "Unpacked + shim smoke passed"
+
+      - name: Smoke-test the AppImage
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          # Extract-then-run: --appimage-extract-and-run pollutes stdout with the file listing,
+          # which would break the pure-JSON assertion.
+          ./dist/*.AppImage --appimage-extract >/dev/null 2>&1
+          HOME="$root/home" timeout 120 squashfs-root/AppRun --json list 2>/dev/null | grep -q '"ok":true'
+          rm -rf squashfs-root
+          echo "AppImage smoke passed"

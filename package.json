@@ -1,6 +1,6 @@
 {
   "name": "omp-switch",
-  "version": "0.5.8",
+  "version": "0.6.0",
   "private": true,
   "description": "A focused desktop companion for managing Oh My Pi model providers.",
   "author": "OMP Switch contributors",
@@ -30,8 +30,8 @@
   "scripts": {
     "build:secret-bridge": "powershell -ExecutionPolicy Bypass -File scripts/build-secret-bridge.ps1",
     "build:cli-proxy": "dotnet publish native/cli-proxy/OmpSwitch.CliProxy.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false -o native/cli-proxy/publish",
-    "build:native": "pnpm build:secret-bridge && pnpm build:cli-proxy",
-    "predev": "pnpm build:native",
+    "build:native": "node scripts/build-native.mjs",
+    "predev": "node scripts/build-native.mjs",
     "dev": "electron-vite dev",
     "build": "pnpm build:native && pnpm build:cli && electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -39,16 +39,20 @@
     "test:watch": "vitest",
     "preview": "electron-vite preview",
     "package:win": "pnpm build && electron-builder --win nsis zip --publish never",
+    "package:linux": "pnpm build && electron-builder --linux AppImage deb --publish never",
     "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
     "build:cli": "vite build --config vite.cli.config.ts",
+    "build:tui": "vite build --config vite.tui.config.ts",
     "preview:renderer": "vite dev --config vite.preview.config.ts --port 5199 --strictPort",
-    "render:packaging": "powershell -ExecutionPolicy Bypass -File scripts/render-packaging.ps1"
+    "render:packaging": "node scripts/render-packaging.mjs"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "dependencies": {
+    "@omp-switch/core": "workspace:*",
+    "@omp-switch/shared": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-popover": "^1.1.23",
@@ -56,6 +60,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "cmdk": "^1.1.1",
     "i18next": "^26.4.0",
+    "ink": "^7.1.1",
     "lucide-react": "^0.511.0",
     "motion": "^13.1.0",
     "react": "^19.2.8",
@@ -76,7 +81,8 @@
     "jsdom": "^27.0.0",
     "typescript": "^5.9.3",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "ink-testing-library": "^4.0.0"
   },
   "build": {
     "appId": "com.omp.switch",
@@ -86,23 +92,40 @@
       "out/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "native/secret-bridge/publish/omp-switch-secret.exe",
-        "to": "secret-bridge/omp-switch-secret.exe"
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "native/cli-proxy/publish/omp-switch-cli.exe",
-        "to": "omp-switch-cli.exe"
-      }
-    ],
     "win": {
       "target": [
         "nsis",
         "zip"
+      ],
+      "extraResources": [
+        {
+          "from": "native/secret-bridge/publish/omp-switch-secret.exe",
+          "to": "secret-bridge/omp-switch-secret.exe"
+        }
+      ],
+      "extraFiles": [
+        {
+          "from": "native/cli-proxy/publish/omp-switch-cli.exe",
+          "to": "omp-switch-cli.exe"
+        }
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "天晴风吹过 <2945932142@qq.com>",
+      "category": "Development",
+      "icon": "build/icon.png",
+      "artifactName": "OMP-Switch-${version}-linux.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "OMP Switch",
+          "Comment": "Manage Oh My Pi model providers",
+          "Categories": "Development;Utility"
+        }
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -110,6 +133,7 @@
       "allowToChangeInstallationDirectory": true,
       "artifactName": "OMP-Switch-Setup-${version}.${ext}"
     },
-    "artifactName": "OMP-Switch-${version}-win.${ext}"
+    "artifactName": "OMP-Switch-${version}-win.${ext}",
+    "afterPack": "./scripts/after-pack.mjs"
   }
 }

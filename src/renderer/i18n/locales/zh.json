@@ -304,7 +304,8 @@
     "oauth": "OAuth",
     "done": "已完成",
     "commandFailed": "命令失败",
-    "launched": "已在单独终端启动 OMP 登录流程"
+    "launched": "已在单独终端启动 OMP 登录流程",
+    "noTerminal": "未找到终端模拟器。请在自己的终端中运行 `omp auth login <provider>` 完成登录。"
   },
   "about": {
     "version": "版本",

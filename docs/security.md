@@ -19,13 +19,36 @@ malicious Oh My Pi builds.
 
 ## Credentials
 
-API keys never enter Oh My Pi configuration. They are encrypted with Electron `safeStorage` — the
-Windows user's DPAPI key — into `secrets.v1.json` under the app's `userData`. The configuration
-receives only a command reference:
+API keys never enter Oh My Pi configuration. The configuration receives only a command reference
+whose shape depends on the platform:
+
+**Windows** — keys are encrypted with Electron `safeStorage` (the user's DPAPI key) into
+`secrets.v1.json` under the app's `userData`, and resolved by the C# secret bridge:
 
 ```yaml
 apiKey: '!"…\omp-switch-secret.exe" --secret-get "credential-id" --data-dir "…"'
 ```
+
+**Linux** — each credential is a **direct libsecret keyring entry** (service `omp-switch`,
+attribute `credential=<id>`), resolved by `secret-tool` with no bridge binary:
+
+```yaml
+apiKey: '!/usr/bin/secret-tool lookup service omp-switch credential <id>'
+```
+
+When no Secret Service is reachable (headless machine, no keyring daemon), the store falls back to
+an age X25519 keyfile identity under `<userData>/age/identity` (0600) with per-credential ciphertext
+files under `<userData>/secrets/<id>.age` (0700), resolved by:
+
+```yaml
+apiKey: '!age -d -i "<userData>/age/identity" "<userData>/secrets/<id>.age"'
+```
+
+The age fallback is **honestly weaker**: the identity sits beside the ciphertext, so it protects
+against casual copy or file sync, not against a user-level attacker on the machine. It only engages
+when the Secret Service is unreachable, and `OMP_SWITCH_SECRET_BACKEND=libsecret|age` forces either
+backend for testing. A non-secret index (`<userData>/credentials.v1.json`, labels + backend only,
+0600) tracks entries for orphan detection because `secret-tool` has no machine-readable listing.
 
 Consequences worth stating plainly:
 

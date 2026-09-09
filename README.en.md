@@ -1,6 +1,6 @@
 # OMP Switch
 
-[中文文档](README.md) · [Install and downloads](docs/install.md) · [Architecture](CLAUDE.md)
+[中文文档](README.md) · [Install and downloads](docs/install.md) · [Architecture](CLAUDE.md) · [OMP schema tracking](docs/omp-schema-tracking.md)
 
 A desktop companion for safely managing [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP)
 model-provider configuration.
@@ -9,29 +9,31 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> `v0.5.8` is released — see [Releases](https://github.com/skh2945932142/omp-switch/releases). The
-> binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the
-> build-provenance attestation. A clean-Windows install/upgrade/uninstall regression is still pending.
+> **v0.6.0: full Linux support** — desktop GUI (AppImage/deb), a terminal UI, and the credential
+> vault (libsecret primary / age fallback). Windows behavior is unchanged. The binaries are
+> **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the build-provenance
+> attestations. A clean-Windows install/upgrade/uninstall regression now runs nightly.
 
 ![OMP Switch provider workspace](docs/images/provider-workspace.png)
 
 ![Roles page, dark theme](docs/images/roles-dark.png)
 
-## Two artifacts
+## Three artifacts
 
-| Artifact | Windows | Linux / macOS | Contains |
+| Artifact | Windows | Linux | Contains |
 | --- | --- | --- | --- |
-| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | **Not yet** | Everything |
+| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | Supported (v0.6.0) | Everything |
 | **Headless CLI** (`omp-switch-cli`) | Supported | Supported | Config read/write, validation, snapshots |
+| **TUI** (`omp-switch-tui`, built from source) | Supported | Supported | Interactive terminal config editing (`pnpm build:tui`) |
 
-The desktop app is Windows-only for an **architectural** reason, not a packaging gap: API keys are
-sealed with Electron `safeStorage` (the Windows user's DPAPI key) and OMP resolves them with the GUI
-closed by running `native/secret-bridge`, a `net10.0-windows` binary calling `crypt32.dll`. A Linux
-port means designing a different credential backend; the blockers are enumerated in
-[docs/install.md](docs/install.md#linux-support).
+Credentials are platform-keyed: on Windows, API keys are sealed with Electron `safeStorage` (the
+user's DPAPI key) and resolved by the C# secret bridge; on Linux, each key is a **direct libsecret
+keyring entry** resolved by `secret-tool` (no bridge binary), with an age keyfile fallback when no
+Secret Service is available — see [docs/security.md](docs/security.md).
 
-The headless CLI has no Electron dependency (`packages/core` is pure Node), so it runs anywhere Node
-24 does. It cannot open the credential vault — only the machine that sealed a key can.
+The headless CLI and the TUI have no Electron dependency (`packages/core` / `packages/shared` are
+pure Node), so they run anywhere Node 24 does. The CLI cannot open the credential vault — only the
+machine that sealed a key can.
 
 ## Install
 

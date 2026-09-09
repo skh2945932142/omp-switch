@@ -94,6 +94,21 @@ describe("credential references", () => {
     expect(Array.from(ids).sort()).toEqual(["credential-abc", "credential-xyz"]);
   });
 
+  it("extracts credential ids from Linux libsecret and age command references", () => {
+    const ids = collectReferencedCredentialIds({
+      providers: {
+        anthropic: { apiKey: "!/usr/bin/secret-tool lookup service omp-switch credential anthropic-key" },
+        openai: { apiKey: '!age -d -i "/home/user/.config/OMP Switch/age/identity" "/home/user/.config/OMP Switch/secrets/openai-key.age"' },
+        mixed: { headers: { "X-Key": '!age -d -i "/data/identity" "/data/secrets/other-key.age"' } },
+        // charset-legal prefix before a foreign char still extracts (greedy to the boundary,
+        // same truncation semantics as the Windows pattern — it is a *reference scan*, not a
+        // validator; config validation is what rejects malformed ids).
+        partial: { apiKey: "!/usr/bin/secret-tool lookup service omp-switch credential partial-id!" },
+      },
+    });
+    expect(Array.from(ids).sort()).toEqual(["anthropic-key", "openai-key", "other-key", "partial-id"]);
+  });
+
   it("returns nothing for a config with no command references", () => {
     expect(collectReferencedCredentialIds({ providers: {} }).size).toBe(0);
     expect(collectReferencedCredentialIds({ providers: { a: { apiKey: "sk-literal" } } }).size).toBe(0);

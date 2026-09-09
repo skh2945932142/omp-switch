@@ -304,7 +304,8 @@
     "oauth": "OAuth",
     "done": "Done",
     "commandFailed": "Command failed",
-    "launched": "Launched OMP login process in a separate terminal"
+    "launched": "Launched OMP login process in a separate terminal",
+    "noTerminal": "No terminal emulator found. Run `omp auth login <provider>` in your own terminal to log in."
   },
   "about": {
     "version": "Version",

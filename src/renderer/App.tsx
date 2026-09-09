@@ -13,7 +13,9 @@ import type {
 } from "@omp-switch/core";
 import { parseRoleSelector, findPlaintextCredentials } from "@omp-switch/core/validation";
 import { api } from "./api";
+import { formatError } from "./error-format";
 import { useOmpConfig } from "./hooks/use-omp-config";
+import { useProviderForm } from "./hooks/use-provider-form";
 import {
   buildModels,
   parseCost,
@@ -21,8 +23,7 @@ import {
   parseModelOverrides,
   parseObjectJson,
   providerModels,
-  useProviderForm,
-} from "./hooks/use-provider-form";
+} from "@omp-switch/shared";
 import { ModelsModule } from "./models-module";
 import { RolesModule } from "./roles-module";
 import { GatewayModule, SessionsModule, SurfaceModule } from "./workbench-modules";
@@ -43,7 +44,7 @@ import {
   mergeProviderApplyDraft,
   providerApplyBlockReason,
   type ProviderApplyBlockReason,
-} from "./provider-selection";
+} from "@omp-switch/shared";
 import i18n from "./i18n";
 
 export default function App(): ReactElement {
@@ -293,7 +294,7 @@ export default function App(): ReactElement {
       const draft = mergeProviderApplyDraft(pId, draftProviderOrder, settingsDirty ? settingsPatch() : {}, roles, rolesDirty);
       patch = draft;
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
       return;
     }
 
@@ -370,7 +371,7 @@ export default function App(): ReactElement {
         },
       );
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -420,7 +421,7 @@ export default function App(): ReactElement {
         },
       );
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -522,7 +523,7 @@ export default function App(): ReactElement {
       );
       notify({ tone: "success", text: t("providerEditor.discovered", { count: result.models.length, ms: result.durationMs }) });
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -531,10 +532,12 @@ export default function App(): ReactElement {
       const result = mode === "login" ? await api.authLogin(provider) : await api.authStatus(provider);
       const text = result.code === "terminal_launched"
         ? t("oauth.launched")
-        : result.output || result.error || (result.ok ? t("oauth.done") : t("oauth.commandFailed"));
+        : result.code === "no_terminal"
+          ? t("oauth.noTerminal")
+          : result.output || result.error || (result.ok ? t("oauth.done") : t("oauth.commandFailed"));
       setAuthResult(text);
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -544,7 +547,7 @@ export default function App(): ReactElement {
       const result = await api.updateOmp();
       notify({ tone: result.ok ? "success" : "error", text: result.output || (result.ok ? t("omp.updated") : t("omp.updateFailed")) });
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     } finally {
       setUpdatingOmp(false);
     }
@@ -589,7 +592,7 @@ export default function App(): ReactElement {
     try {
       await api.openExternal(url);
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -603,7 +606,7 @@ export default function App(): ReactElement {
       setCatalog(result.entries);
       notify({ tone: "success", text: t("toasts.catalogImported", { count: result.entries.length }) });
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 
@@ -619,7 +622,7 @@ export default function App(): ReactElement {
       URL.revokeObjectURL(url);
       notify({ tone: "success", text: t("toasts.catalogExported") });
     } catch (error) {
-      notify({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+      notify({ tone: "error", text: formatError(error, t) });
     }
   }
 

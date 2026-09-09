@@ -120,19 +120,27 @@ the files Oh My Pi actually reads.
 
 ## Linux support
 
-What already works on Linux today: `packages/core` (all domain logic), the headless CLI, and the
-test suite.
+What works on Linux today: the **desktop app** (AppImage + deb), `packages/core` (all domain
+logic), the headless CLI, and the test suite.
 
-What blocks the desktop app, in order of difficulty:
+```bash
+# From a release (AppImage or deb)
+sudo dpkg -i OMP-Switch-<version>-linux.deb
+# or chmod +x OMP-Switch-<version>-linux.AppImage and run it
 
-1. **Credential backend.** Oh My Pi resolves an API key by running the command in `apiKey: '!…'`
-   with a 10 second timeout, with the GUI closed. On Windows that command is the DPAPI-backed
-   secret bridge. Linux needs an equivalent — `libsecret`/`kwallet` via `secret-tool`, or an
-   age/gpg-encrypted vault — and that is a security design decision, not a port.
-2. **`native/cli-proxy`** is unnecessary on Linux (it only exists because a GUI-subsystem Windows
-   binary cannot write to an attached console); a shell wrapper replaces it.
-3. **Interactive OAuth launch** currently shells out to `cmd.exe /c start`.
-4. **Packaging**: `electron-builder` can emit AppImage/deb/rpm once the above are settled.
+# From source — no .NET/MSVC needed on Linux (build:native is a no-op off Windows)
+pnpm install --frozen-lockfile
+pnpm dev
+pnpm package:linux
+```
 
-Until then, `deb`/`rpm`/AppImage packages are deliberately not published rather than shipped with a
-credential path that silently fails or stores keys in plaintext.
+`omp-switch-cli` on Linux is a shell shim (`bin/omp-switch-cli`) that forwards `--json` argv to the
+packaged app; `native/cli-proxy` exists only for Windows. Interactive OAuth login opens your
+terminal emulator (resolution order: `$OMP_SWITCH_TERMINAL`, xdg-terminal-exec, gnome-terminal,
+konsole, xfce4-terminal, xterm, alacritty, kitty, foot).
+
+**The credential vault is Windows-only for now.** Oh My Pi resolves an API key by running the
+command in `apiKey: '!…'` with a 10 second timeout, with the GUI closed. On Windows that command is
+the DPAPI-backed secret bridge; the Linux backend (libsecret/age) is a security design decision
+that is being designed — until it lands, Linux users write API keys per OMP's own conventions and
+the `secret:*` IPC surface reports the vault as unavailable.
