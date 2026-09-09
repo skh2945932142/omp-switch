@@ -241,6 +241,9 @@ export function useOmpConfig(
         ]);
         setProfiles(profileList);
         setProfileId(targetProfileId);
+        // Belt-and-braces platform marker (the main process injects it earlier; this covers the
+        // browser preview, where createMockApi supplies the platform instead).
+        if (info.platform) document.documentElement.dataset.platform = info.platform;
         setReadOnlyReason(info.installation.supported ? null : info.installation.reason ?? i18n.t("toasts.readonlyConfig"));
         applyConfig(effective);
         setSnapshot(snaps[0] ?? null);

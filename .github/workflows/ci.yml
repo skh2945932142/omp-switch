@@ -147,3 +147,114 @@ jobs:
           docker run --rm omp-switch-cli:ci --help 2>&1 | grep -q "omp-switch-cli <command>"
           echo "Docker smoke test passed"
 
+  verify-linux:
+    name: Verify desktop app on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # build:native is a no-op off Windows, so no .NET/MSVC is needed here.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Smoke-test the app binary (headless argv dispatch)
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/index.js --json list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/index.js --json validate --profile default 2>/dev/null | grep -q '"ok":true'
+          echo "Linux headless smoke passed"
+
+  linux-package:
+    name: Package and smoke-test Linux artifacts
+    runs-on: ubuntu-latest
+    # Heavy; keep PRs fast — the verify-linux job already covers the build.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package (AppImage + deb)
+        run: pnpm package:linux
+
+      - name: Smoke-test the unpacked binary and console shim
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             "dist/linux-unpacked/omp-switch" --json list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             dist/linux-unpacked/omp-switch-cli --json list 2>/dev/null | grep -q '"ok":true'
+          echo "Unpacked + shim smoke passed"
+
+      - name: Smoke-test the AppImage
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          # Extract-then-run: --appimage-extract-and-run pollutes stdout with the file listing,
+          # which would break the pure-JSON assertion.
+          ./dist/*.AppImage --appimage-extract >/dev/null 2>&1
+          HOME="$root/home" timeout 120 squashfs-root/AppRun --json list 2>/dev/null | grep -q '"ok":true'
+          rm -rf squashfs-root
+          echo "AppImage smoke passed"

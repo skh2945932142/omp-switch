@@ -75,7 +75,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
   return {
     getInfo: async () => ({
       version: "0.5.3",
-      platform: "win32",
+      platform: typeof navigator !== "undefined" && /linux/i.test(navigator.platform) ? "linux" : "win32",
       installation: {
         executable: "omp",
         version: "omp/18.0.3",

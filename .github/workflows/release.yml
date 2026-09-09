@@ -99,9 +99,71 @@ jobs:
             dist/*.zip
             dist/SHA256SUMS.txt
 
+  build-linux:
+    name: Build and attest Linux assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package Linux artifacts
+        run: pnpm package:linux
+
+      - name: Smoke-test the unpacked binary
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent" "$root/data"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            "dist/linux-unpacked/omp-switch" --json list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            dist/linux-unpacked/omp-switch-cli --json list 2>/dev/null | grep -q '"ok":true'
+
+      - name: Attest Linux artifact provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: |
+            dist/*.AppImage
+            dist/*.deb
+
+      - name: Upload Linux release assets
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: release-assets-linux
+          if-no-files-found: error
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+
   draft-release:
     name: Create release draft
-    needs: build
+    needs: [build, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -109,11 +171,27 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Download release assets
+      - name: Download Windows release assets
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: release-assets
           path: release-assets
+
+      - name: Download Linux release assets
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: release-assets-linux
+          path: release-assets
+
+      # One SHA256SUMS.txt covering both platforms: the Windows job writes its own copy into its
+      # artifact; regenerate here over everything so the published file is the complete manifest.
+      - name: Regenerate checksums over all assets
+        run: |
+          set -euo pipefail
+          cd release-assets
+          find . -maxdepth 1 -type f ! -name "SHA256SUMS.txt" -print0 | sort -z |
+          xargs -0 sha256sum > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Generate and sign the update manifest
         env:

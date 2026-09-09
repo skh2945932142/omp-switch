@@ -532,7 +532,9 @@ export default function App(): ReactElement {
       const result = mode === "login" ? await api.authLogin(provider) : await api.authStatus(provider);
       const text = result.code === "terminal_launched"
         ? t("oauth.launched")
-        : result.output || result.error || (result.ok ? t("oauth.done") : t("oauth.commandFailed"));
+        : result.code === "no_terminal"
+          ? t("oauth.noTerminal")
+          : result.output || result.error || (result.ok ? t("oauth.done") : t("oauth.commandFailed"));
       setAuthResult(text);
     } catch (error) {
       notify({ tone: "error", text: formatError(error, t) });

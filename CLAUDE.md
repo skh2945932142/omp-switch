@@ -8,18 +8,19 @@ OMP Switch is a Windows-first Electron desktop app that manages [Oh My Pi](https
 
 ## Commands
 
-Requires Windows, Node 24+, pnpm 11 (`corepack enable`), **.NET SDK 10.0**, and the Visual Studio **"Desktop development with C++"** workload — `native/secret-bridge` publishes as Native AOT, which links with MSVC. `scripts/build-secret-bridge.ps1` prepends the fixed `vswhere.exe` location to PATH because the ILCompiler shells out to it and Visual Studio does not put it on PATH; without that a machine with the C++ workload still fails to link with a confusing `MSB3073`.
+On Windows: Node 24+, pnpm 11 (`corepack enable`), **.NET SDK 10.0**, and the Visual Studio **"Desktop development with C++"** workload — `native/secret-bridge` publishes as Native AOT, which links with MSVC. `scripts/build-secret-bridge.ps1` prepends the fixed `vswhere.exe` location to PATH because the ILCompiler shells out to it and Visual Studio does not put it on PATH; without that a machine with the C++ workload still fails to link with a confusing `MSB3073`. On Linux none of that is needed — `build:native` is a platform-keyed no-op off Windows (`scripts/build-native.mjs`).
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm dev                 # predev runs build:native first, so dotnet is required even for dev
+pnpm dev                 # predev runs build:native (no-op on Linux)
 pnpm typecheck           # tsc --noEmit over electron/, src/, packages/
 pnpm test                # vitest run
 pnpm test:watch
-pnpm build               # build:native + electron-vite build -> out/
+pnpm build               # build:native + build:cli + electron-vite build -> out/
 pnpm package:win         # -> dist/ NSIS installer + portable ZIP
+pnpm package:linux       # -> dist/ AppImage + deb (console shim via scripts/after-pack.mjs)
 pnpm verify:package-cli  # runs the packaged JSON CLI in a temp HOME; needs dist/ from package:win
-pnpm build:native        # build:secret-bridge + build:cli-proxy (dotnet publish)
+pnpm build:native        # platform-keyed: secret-bridge + cli-proxy on Windows, no-op elsewhere
 ```
 
 Single test file / single case:

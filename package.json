@@ -30,8 +30,8 @@
   "scripts": {
     "build:secret-bridge": "powershell -ExecutionPolicy Bypass -File scripts/build-secret-bridge.ps1",
     "build:cli-proxy": "dotnet publish native/cli-proxy/OmpSwitch.CliProxy.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false -o native/cli-proxy/publish",
-    "build:native": "pnpm build:secret-bridge && pnpm build:cli-proxy",
-    "predev": "pnpm build:native",
+    "build:native": "node scripts/build-native.mjs",
+    "predev": "node scripts/build-native.mjs",
     "dev": "electron-vite dev",
     "build": "pnpm build:native && pnpm build:cli && electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -39,6 +39,7 @@
     "test:watch": "vitest",
     "preview": "electron-vite preview",
     "package:win": "pnpm build && electron-builder --win nsis zip --publish never",
+    "package:linux": "pnpm build && electron-builder --linux AppImage deb --publish never",
     "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
     "build:cli": "vite build --config vite.cli.config.ts",
     "preview:renderer": "vite dev --config vite.preview.config.ts --port 5199 --strictPort",
@@ -88,23 +89,40 @@
       "out/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "native/secret-bridge/publish/omp-switch-secret.exe",
-        "to": "secret-bridge/omp-switch-secret.exe"
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "native/cli-proxy/publish/omp-switch-cli.exe",
-        "to": "omp-switch-cli.exe"
-      }
-    ],
     "win": {
       "target": [
         "nsis",
         "zip"
+      ],
+      "extraResources": [
+        {
+          "from": "native/secret-bridge/publish/omp-switch-secret.exe",
+          "to": "secret-bridge/omp-switch-secret.exe"
+        }
+      ],
+      "extraFiles": [
+        {
+          "from": "native/cli-proxy/publish/omp-switch-cli.exe",
+          "to": "omp-switch-cli.exe"
+        }
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "天晴风吹过 <2945932142@qq.com>",
+      "category": "Development",
+      "icon": "build/icon.png",
+      "artifactName": "OMP-Switch-${version}-linux.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "OMP Switch",
+          "Comment": "Manage Oh My Pi model providers",
+          "Categories": "Development;Utility"
+        }
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -112,6 +130,7 @@
       "allowToChangeInstallationDirectory": true,
       "artifactName": "OMP-Switch-Setup-${version}.${ext}"
     },
-    "artifactName": "OMP-Switch-${version}-win.${ext}"
+    "artifactName": "OMP-Switch-${version}-win.${ext}",
+    "afterPack": "./scripts/after-pack.mjs"
   }
 }

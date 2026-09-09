@@ -45,6 +45,7 @@ import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPoli
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
 import { SecretStoreService } from "./secret-store";
 import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
+import { launchCommandInTerminal } from "./terminal-launch";
 import { activeUpdateChecker, initUpdateChecker, openExternalAllowed } from "./update-checker";
 
 const execFileAsync = promisify(execFile);
@@ -250,6 +251,11 @@ async function createWindow(): Promise<void> {
   // browser preview) every surface stays solid and Mica never enters the picture.
   if (micaSupported) mainWindow.webContents.once("did-finish-load", () => {
     mainWindow?.webContents.executeJavaScript('document.documentElement.classList.add("mica")', true).catch(() => undefined);
+  });
+  // Platform marker for renderer CSS that must differ per OS (e.g. topbar padding reserved for the
+  // Windows overlay buttons). App.tsx re-asserts it from app:info so browser preview also has it.
+  mainWindow.webContents.once("did-finish-load", () => {
+    mainWindow?.webContents.executeJavaScript(`document.documentElement.dataset.platform = ${JSON.stringify(process.platform)}`, true).catch(() => undefined);
   });
   // Overlay button glyphs must flip with the manual theme choice, not just the OS one.
   const syncOverlaySymbols = (): void => {
@@ -673,7 +679,10 @@ async function runOmpAuth(provider: string, action: "status" | "login"): Promise
         if (child.status !== 0) throw new Error("Unable to open an interactive OMP login terminal");
         return { ok: true, output: "", code: "terminal_launched" };
       }
-      return { ok: false, output: "", error: "Interactive OAuth launch is currently implemented for Windows" };
+      // POSIX: run the prompt-driven login flow inside a real terminal emulator.
+      const launched = launchCommandInTerminal(executable, ["auth", "login", provider]);
+      if (!launched.ok) return { ok: false, output: "", code: launched.code, error: launched.error };
+      return { ok: true, output: "", code: "terminal_launched" };
     }
     const result = await execFileAsync(executable, ["auth", "status", provider], { windowsHide: true, timeout: 30_000, maxBuffer: 2 * 1024 * 1024 });
     return { ok: true, output: `${result.stdout}${result.stderr}`.trim() };
