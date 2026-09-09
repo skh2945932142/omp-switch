@@ -4,4 +4,7 @@
 # wrapper that forwards argv to the packaged app replaces the whole .NET project.
 # The binary name is "omp-switch" (electron-builder executableName from packageName); resolve it
 # next to this script so it works both in /opt/OMP Switch/ (deb) and linux-unpacked/.
-exec "$(dirname "$0")/omp-switch" --json "$@"
+# Sandboxing: end-user desktops run with the Chromium sandbox; CI/headless environments cannot
+# configure the SUID helper, so ELECTRON_DISABLE_SANDBOX (set by the caller) or --no-sandbox
+# (appended here when the env var is present) covers them.
+exec "$(dirname "$0")/omp-switch" ${ELECTRON_DISABLE_SANDBOX:+--no-sandbox} --json "$@"
