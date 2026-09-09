@@ -221,10 +221,13 @@ jobs:
               models:
                 - id: demo-1
           YML
+          # --no-sandbox: the SUID sandbox helper cannot be configured on CI runners (chrome-sandbox
+          # must be root:4755; the runner user cannot chown). Chromium sandboxing is not what this
+          # smoke tests — the JSON argv path never opens a window.
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            npx electron out/main/main.js --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+            npx electron out/main/main.js --no-sandbox --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-            npx electron out/main/main.js --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+            npx electron out/main/main.js --no-sandbox --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
           echo "Linux headless smoke passed"
 
   linux-package:
