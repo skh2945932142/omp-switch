@@ -147,7 +147,7 @@ jobs:
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
             xvfb-run -a "dist/linux-unpacked/omp-switch" --no-sandbox --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
-          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" ELECTRON_DISABLE_SANDBOX=1 \
             xvfb-run -a dist/linux-unpacked/omp-switch-cli --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
 
       - name: Attest Linux artifact provenance
