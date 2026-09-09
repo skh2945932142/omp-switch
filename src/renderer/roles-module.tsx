@@ -3,48 +3,9 @@ import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Save } from "lucide-react";
 import type { OmpProvider } from "@omp-switch/core";
-import { findMisusedRoleThinkingSuffix, parseRoleSelector, type ParsedRoleSelector } from "@omp-switch/core/validation";
-import { ModelPicker, modelLabel } from "./components/model-picker";
-
-/** OMP's documented roles with a one-line Chinese gloss. Ids stay English — they are written to config.yml. */
-export const KNOWN_ROLES: Array<[string, string]> = [
-  ["default", "默认主力"],
-  ["smol", "轻量快速"],
-  ["slow", "深度思考"],
-  ["vision", "视觉"],
-  ["plan", "规划"],
-  ["designer", "设计"],
-  ["commit", "提交"],
-  ["tiny", "极小"],
-  ["task", "任务"],
-  ["advisor", "顾问"],
-];
-
-interface Resolution {
-  chain: string[];
-  final: ParsedRoleSelector | null;
-  cycle: boolean;
-}
-
-/**
- * Follows `@role` indirection so the row can show what a role actually resolves to. Stops at the
- * first cycle or unparseable hop rather than looping.
- */
-function resolveChain(roles: Record<string, string>, role: string, providerIds: string[]): Resolution {
-  let selector = (roles[role] ?? "").trim();
-  const seen = new Set<string>([role]);
-  const chain: string[] = [];
-  while (selector) {
-    const parsed = parseRoleSelector(selector, providerIds);
-    if (!parsed) return { chain, final: null, cycle: false };
-    chain.push(selector);
-    if (parsed.kind !== "role") return { chain, final: parsed, cycle: false };
-    if (seen.has(parsed.role)) return { chain, final: parsed, cycle: true };
-    seen.add(parsed.role);
-    selector = (roles[parsed.role] ?? "").trim();
-  }
-  return { chain, final: null, cycle: false };
-}
+import { findMisusedRoleThinkingSuffix, parseRoleSelector } from "@omp-switch/core/validation";
+import { ModelPicker } from "./components/model-picker";
+import { modelLabel, resolveChain } from "@omp-switch/shared";
 
 export interface RolesModuleProps {
   providers: Array<[string, OmpProvider]>;

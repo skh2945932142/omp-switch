@@ -2,10 +2,10 @@ import type {
   ConfigPatch,
   DiscoveryResult,
   EffectiveConfig,
-  OmpProvider,
   PatchPreview,
   Snapshot,
 } from "@omp-switch/core";
+import { applyConfigPatch } from "@omp-switch/core";
 import i18n from "./i18n";
 
 export function createMockApi(): NonNullable<Window["ompSwitch"]> {
@@ -133,49 +133,11 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
         settingsPath: "~/.omp/agent/config.yml",
       })),
     save: async (id: string, patch: ConfigPatch) => {
+      // Delegate to the adapter's own merge semantics so the demo cannot drift from the real save.
       const config = get(id);
-      if (patch.provider) {
-        const existing = config.models.value.providers[patch.provider.id] ?? {};
-        const next: OmpProvider = {
-          ...existing,
-          baseUrl: patch.provider.baseUrl,
-          api: patch.provider.api,
-          auth: patch.provider.auth,
-          models: patch.provider.models,
-        };
-        if (patch.provider.apiKey === null) delete next.apiKey;
-        else if (patch.provider.apiKey !== undefined) next.apiKey = patch.provider.apiKey;
-        if (patch.provider.headers === null) delete next.headers;
-        else if (patch.provider.headers !== undefined) next.headers = patch.provider.headers;
-        if (patch.provider.compat === null) delete next.compat;
-        else if (patch.provider.compat !== undefined) next.compat = patch.provider.compat;
-        if (patch.provider.modelOverrides === null) delete next.modelOverrides;
-        else if (patch.provider.modelOverrides !== undefined) next.modelOverrides = patch.provider.modelOverrides;
-        config.models.value.providers[patch.provider.id] = next;
-      }
-      if (patch.removeProviderId) {
-        delete config.models.value.providers[patch.removeProviderId];
-      }
-      if (patch.roleAssignments) {
-        const nextRoles: Record<string, string> = { ...(config.settings.value.modelRoles ?? {}) };
-        for (const [role, selector] of Object.entries(patch.roleAssignments)) {
-          if (selector === null || selector === "") delete nextRoles[role];
-          else nextRoles[role] = selector;
-        }
-        config.settings.value.modelRoles = nextRoles;
-      }
-      if (patch.settings) {
-        const settings = config.settings.value;
-        if (patch.settings.modelProviderOrder) settings.modelProviderOrder = patch.settings.modelProviderOrder;
-        if (patch.settings.enabledModels) settings.enabledModels = patch.settings.enabledModels;
-        if (patch.settings.disabledProviders) settings.disabledProviders = patch.settings.disabledProviders;
-        if (patch.settings.defaultThinkingLevel) settings.defaultThinkingLevel = patch.settings.defaultThinkingLevel;
-        if (patch.settings.compaction !== undefined) settings.compaction = patch.settings.compaction;
-        if (patch.settings.extendedContext !== undefined) settings.extendedContext = patch.settings.extendedContext;
-        if (patch.settings.externalThinking !== undefined) settings.externalThinking = patch.settings.externalThinking;
-        if (patch.settings.personality !== undefined) settings.personality = patch.settings.personality;
-        if (patch.settings.images !== undefined) settings.images = patch.settings.images;
-      }
+      const { models, settings } = applyConfigPatch(config, patch);
+      config.models.value = models;
+      config.settings.value = settings;
       return {
         snapshot: {
           id: "demo-snapshot",

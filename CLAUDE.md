@@ -44,9 +44,11 @@ $env:OMP_SWITCH_DATA_DIR = "D:\tmp\omp-data"                        # moves user
 
 ## Architecture
 
-Three layers with a strict dependency direction: `packages/core` → `electron/` → `src/renderer`.
+Three layers with a strict dependency direction: `packages/core` → `packages/shared` → `electron/` / `src/renderer` (and, later, the TUI).
 
 **`packages/core/src` — all domain logic, zero Electron imports.** Pure Node + TypeScript so it is directly unit-testable. Imported everywhere as `@omp-switch/core`, a real pnpm workspace package (`packages/core/package.json`, resolved through the workspace link — no build step, `main: src/index.ts`). New modules must be re-exported from `packages/core/src/index.ts`.
+
+**`packages/shared/src` — pure UI-facing logic, no React/DOM/Electron.** The diff engine (`diff.ts`: `diffLines`/`trimContext`), provider form builders (`provider-form.ts`: `blankForm`/`buildModels`/`toModelEditorEntry` — errors are `SharedError(code, params)` where the code is an i18n key; the renderer translates via `formatError` in `src/renderer/error-format.ts`), role catalog + resolution chain (`roles.ts`: `ROLE_CATALOG`/`resolveChain`/`KNOWN_ROLE_IDS`), `modelLabel`, and provider selection (`provider-selection.ts` — `isProviderDisabled` takes a platform `sep`, `"/"` on POSIX, default `"\"` keeps the Windows behavior). Resolved as the `@omp-switch/shared` workspace package. The mock API's save delegates to core's `applyConfigPatch` (the merge half of `planPatch`), pinning demo and real save to identical semantics.
 
 **`electron/` — main process.** Owns the OS: `ipcMain.handle` surface in `main.ts`, `safeStorage` credential vault (`secret-store.ts`), and `metadata-store.ts`. Holds no domain logic of its own. `createWindow` enables the Mica material on Windows 11 22H2+ (`backgroundMaterial: "mica"`, mutually exclusive with an opaque `backgroundColor`) and injects the `mica` class on `<html>` via `executeJavaScript` after load; `tokens.css` makes only the chrome transparent under that class, panels stay opaque, and every other environment falls back to solid surfaces. On Windows 10+ it also hides the OS title bar (`titleBarStyle: "hidden"` + `titleBarOverlay`) so the web topbar is the drag region — `.topbar` carries `-webkit-app-region: drag` with buttons opted back out, `.topbar-actions` reserves right padding for the overlay buttons, and a `nativeTheme.on("updated")` listener re-tints the overlay glyphs. `app:set-theme` forwards the renderer's manual theme choice into `nativeTheme.themeSource` so those glyphs follow it.
 

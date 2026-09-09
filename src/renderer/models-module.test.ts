@@ -5,7 +5,7 @@ import {
   createModelEditorEntry,
   toModelEditorEntry,
   type ModelEditorEntry,
-} from "./hooks/use-provider-form";
+} from "@omp-switch/shared";
 import {
   rolesSignature,
   parseDisabledProviderRules,

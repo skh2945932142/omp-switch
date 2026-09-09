@@ -57,6 +57,7 @@
     "cmdk": "^1.1.1",
     "i18next": "^26.4.0",
     "@omp-switch/core": "workspace:*",
+    "@omp-switch/shared": "workspace:*",
     "lucide-react": "^0.511.0",
     "motion": "^13.1.0",
     "react": "^19.2.8",
