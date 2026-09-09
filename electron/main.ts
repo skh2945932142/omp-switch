@@ -43,7 +43,7 @@ import {
 import { MetadataStore } from "./metadata-store";
 import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPolicy, mayUseDevRenderer } from "./renderer-security";
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
-import { SecretStoreService } from "./secret-store";
+import { createCredentialStore, type CredentialStore } from "./credential-store";
 import { SessionRefreshCoordinator, type RefreshExecution } from "./session-refresh-coordinator";
 import { launchCommandInTerminal } from "./terminal-launch";
 import { activeUpdateChecker, initUpdateChecker, openExternalAllowed } from "./update-checker";
@@ -51,7 +51,7 @@ import { activeUpdateChecker, initUpdateChecker, openExternalAllowed } from "./u
 const execFileAsync = promisify(execFile);
 let mainWindow: BrowserWindow | null = null;
 let adapter: OmpFilesystemAdapter;
-let secrets: SecretStoreService;
+let secrets: CredentialStore;
 let metadata: MetadataStore;
 let surfaces: OmpSurfaceAdapter;
 let gateway: GatewayServer | null = null;
@@ -713,6 +713,11 @@ async function handleSecretGet(id: string): Promise<void> {
 }
 
 async function buildSecretCommand(id: string): Promise<string> {
+  // Linux: the resolver is secret-tool/age directly (LinuxCredentialStore.describe) — no bridge.
+  if (process.platform !== "win32") {
+    const described = await (secrets as import("./credential-store-linux").LinuxCredentialStore).describe(id);
+    return described.command;
+  }
   const bundledBridgePath = app.isPackaged
     ? path.join(process.resourcesPath, "secret-bridge", "omp-switch-secret.exe")
     : path.join(app.getAppPath(), "native", "secret-bridge", "publish", "omp-switch-secret.exe");
@@ -723,7 +728,7 @@ async function buildSecretCommand(id: string): Promise<string> {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId("com.omp.switch");
-  secrets = new SecretStoreService(app.getPath("userData"));
+  secrets = createCredentialStore(app.getPath("userData"));
   metadata = new MetadataStore(app.getPath("userData"));
   await metadata.init();
   const storedRoot = metadata.getPreference<string>("project.root");
@@ -734,8 +739,10 @@ app.whenReady().then(async () => {
   surfaces = new OmpSurfaceAdapter({ projectRoot, homeDir: os.homedir() });
   makeAdapter();
   registerIpc();
+  // Windows: the Electron binary is its own bridge in the dev-checkout flow. Linux credentials
+  // resolve through secret-tool/age, so this argv mode is dead code there — guard to win32.
   const secretIndex = process.argv.indexOf("--secret-get");
-  if (secretIndex >= 0 && process.argv[secretIndex + 1]) {
+  if (secretIndex >= 0 && process.argv[secretIndex + 1] && process.platform === "win32") {
     await handleSecretGet(process.argv[secretIndex + 1]);
     return;
   }

@@ -123,13 +123,24 @@ Every override is echoed back as an `omp.path-override` info diagnostic so the U
 
 Role selectors (`provider/model:high`, `@default`, `*`) are parsed by `parseRoleSelector`, which resolves the provider prefix against known provider IDs longest-first because model IDs themselves contain slashes (`openrouter/openai/gpt-4.1`).
 
-### Credentials: the secret-bridge contract
+### Credentials: the platform-keyed contract
 
-API keys never enter OMP config. `SecretStoreService` encrypts them with Electron `safeStorage` (user-level DPAPI) into `secrets.v1.json` under `userData`, and the config file receives only a command reference:
+API keys never enter OMP config. Both platforms write only a command reference into the file; the resolver differs:
+
+**Windows** — `SecretStoreService` encrypts with Electron `safeStorage` (user-level DPAPI) into `secrets.v1.json` under `userData`:
 
 ```yaml
 apiKey: '!"...\omp-switch-secret.exe" --secret-get "credential-id" --data-dir "..."'
 ```
+
+**Linux** — `electron/credential-store-linux.ts` stores each credential as a **direct libsecret keyring entry** (service `omp-switch`, attribute `credential=<id>`), resolved by `secret-tool` (no bridge binary; the command grammar is unquoted absolute-path tokens — verified against real OMP 18.x on Linux). Without a Secret Service it falls back to an age X25519 keyfile identity (`<userData>/age/identity` 0600, ciphertexts `<userData>/secrets/<id>.age` 0700, double-quoted paths because `userData` contains a space); that fallback is honestly weaker and only engages when no keyring answers:
+
+```yaml
+apiKey: '!/usr/bin/secret-tool lookup service omp-switch credential <id>'
+apiKey: '!age -d -i "<userData>/age/identity" "<userData>/secrets/<id>.age"'
+```
+
+A non-secret index `credentials.v1.json` (labels + backend, 0600) backs `list()`/orphan detection on Linux. `createCredentialStore(userDataDir)` in `electron/credential-store.ts` is the factory; win32 returns the unchanged `SecretStoreService`, so **the Windows vault JSON shape and `userData` layout remain a cross-language contract** — changing one side requires changing the other.
 
 `native/secret-bridge` (C#) independently re-implements that decryption — AES-GCM with the `v10`/`v11` key unwrapped from Electron's `Local State`, falling back to raw DPAPI — so OMP can resolve keys with the GUI closed. **The vault JSON shape and the `userData` layout are a cross-language contract; changing one side requires changing the other.** The bridge is copied to `userData/secret-bridge/v<app-version>/` at first use so an app upgrade cannot invalidate references already written into config.
 
