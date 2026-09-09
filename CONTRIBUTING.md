@@ -37,3 +37,16 @@ Windows packaging also requires .NET SDK 10.0 and the Visual Studio "Desktop dev
 ## Reporting Bugs
 
 Use the issue templates and include redacted steps, expected behavior, actual behavior, OMP version, and OMP Switch version. For security-sensitive reports, follow [SECURITY.md](SECURITY.md) instead.
+
+## Maintenance workflows
+
+- **OMP schema watch**: `.github/workflows/omp-schema-watch.yml` runs weekly and opens an issue
+  when upstream OMP ships an unsupported major. The manual half (validation + catalog + tests) is
+  documented in [docs/omp-schema-tracking.md](docs/omp-schema-tracking.md).
+- **Package-manager submissions**: `pnpm render:packaging` (node, cross-platform) renders the
+  winget/Chocolatey/Scoop manifests from a built release; `scripts/publish-winget.mjs` and
+  `scripts/publish-choco.mjs` validate and stage the submission commands. The actual pushes stay
+  human-gated (upstream review + API keys).
+- **Windows install regression**: `.github/workflows/windows-install-regression.yml` (nightly,
+  tags, dispatch) installs the previous release, upgrades over it, exercises the installed CLI,
+  and asserts a clean silent uninstall.

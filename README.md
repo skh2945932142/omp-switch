@@ -1,10 +1,12 @@
 # OMP Switch
 
-[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md)
+[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md) · [OMP schema 跟踪](docs/omp-schema-tracking.md)
 
 安全管理 [Oh My Pi](https://github.com/can1357/oh-my-pi)（OMP）模型供应商配置的桌面伴侣应用。
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
+
+**v0.6.0 起 Linux 完整支持**：桌面 GUI（AppImage/deb）+ 终端 TUI + 凭据库（libsecret 主 / age 回退）。Windows 版本行为不变。
 
 > `v0.5.8` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归尚未完成。
 

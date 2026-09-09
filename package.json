@@ -44,7 +44,7 @@
     "build:cli": "vite build --config vite.cli.config.ts",
     "build:tui": "vite build --config vite.tui.config.ts",
     "preview:renderer": "vite dev --config vite.preview.config.ts --port 5199 --strictPort",
-    "render:packaging": "powershell -ExecutionPolicy Bypass -File scripts/render-packaging.ps1"
+    "render:packaging": "node scripts/render-packaging.mjs"
   },
   "workspaces": [
     "apps/*",
