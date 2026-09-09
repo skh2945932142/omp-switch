@@ -11,6 +11,6 @@ export default defineConfig({
     // build for reasons unrelated to the code under test.
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    include: ["electron/**/*.test.ts", "packages/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["electron/**/*.test.ts", "packages/**/*.test.ts", "packages/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 });

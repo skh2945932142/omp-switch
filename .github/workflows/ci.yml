@@ -115,6 +115,31 @@ jobs:
           test -z "${out:-}"
           echo "CLI smoke test passed"
 
+      - name: Build TUI
+        run: pnpm build:tui
+
+      - name: Smoke-test the TUI (non-interactive modes + TTY guard)
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/home/.omp/agent"
+          cat > "$root/home/.omp/agent/models.yml" <<'YML'
+          providers:
+            demo:
+              baseUrl: https://api.example.test/v1
+              api: openai-completions
+              auth: none
+              models:
+                - id: demo-1
+          YML
+          tui="node $PWD/packages/tui/dist/main.js"
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui --help 2>&1 | grep -q "omp-switch-tui"
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui list 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" $tui validate --profile default 2>/dev/null | grep -q '"ok":true'
+          # Piped stdin must not hang waiting for a TTY.
+          if echo | HOME="$root/home" $tui 2>/dev/null; then echo "expected TTY guard to fail"; exit 1; fi
+          echo "TUI smoke test passed"
+
   docker:
     name: Build and smoke-test the Docker image
     runs-on: ubuntu-latest

@@ -18,6 +18,7 @@
 | --- | --- | --- | --- |
 | **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | **暂不支持** | 全部功能 |
 | **headless CLI**（`omp-switch-cli`） | 支持 | 支持 | 配置读写、校验、快照 |
+| **TUI**（`omp-switch-tui`，从源码构建） | 支持 | 支持 | 终端交互式配置编辑（`pnpm build:tui`） |
 
 桌面应用限定 Windows 是**架构原因而非打包缺失**：API key 由 Electron `safeStorage`（Windows 用户级 DPAPI）加密，OMP 需要在 GUI 关闭时通过 `native/secret-bridge`（`net10.0-windows`，调用 `crypt32.dll`）解出密钥。移植到 Linux 意味着**重新设计凭据后端**，细节与阻塞点见 [docs/install.md](docs/install.md#linux-support)。
 
