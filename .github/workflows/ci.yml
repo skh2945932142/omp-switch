@@ -202,6 +202,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Electron needs a handful of shared libraries even with no display (the JSON argv path
+      # returns before any window opens, but Chromium still links NSS/Gtk on startup).
+      - name: Install Electron runtime libraries
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+
       - name: Smoke-test the app binary (headless argv dispatch)
         run: |
           set -euo pipefail
@@ -216,8 +221,10 @@ jobs:
               models:
                 - id: demo-1
           YML
-          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/main.js --json list 2>/dev/null | grep -q '"ok":true'
-          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data"             npx electron out/main/main.js --json validate --profile default 2>/dev/null | grep -q '"ok":true'
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            npx electron out/main/main.js --json list 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" \
+            npx electron out/main/main.js --json validate --profile default 2>electron-smoke.err | grep -q '"ok":true' || { cat electron-smoke.err >&2; exit 1; }
           echo "Linux headless smoke passed"
 
   linux-package:
