@@ -1,6 +1,6 @@
 {
   "name": "omp-switch",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "A focused desktop companion for managing Oh My Pi model providers.",
   "author": "OMP Switch contributors",
@@ -39,7 +39,7 @@
     "test:watch": "vitest",
     "preview": "electron-vite preview",
     "package:win": "pnpm build && electron-builder --win nsis zip --publish never",
-    "package:linux": "pnpm build && electron-builder --linux AppImage deb --publish never",
+    "package:linux": "pnpm build && electron-builder --linux AppImage deb rpm --publish never",
     "verify:package-cli": "powershell -ExecutionPolicy Bypass -File scripts/verify-packaged-cli.ps1",
     "build:cli": "vite build --config vite.cli.config.ts",
     "build:tui": "vite build --config vite.tui.config.ts",
@@ -113,9 +113,10 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb"
+        "deb",
+        "rpm"
       ],
-      "maintainer": "天晴风吹过 <2945932142@qq.com>",
+      "maintainer": "\u5929\u6674\u98ce\u5439\u8fc7 <2945932142@qq.com>",
       "category": "Development",
       "icon": "build/icon.png",
       "artifactName": "OMP-Switch-${version}-linux.${ext}",

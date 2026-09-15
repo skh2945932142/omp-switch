@@ -18,7 +18,7 @@ pnpm test                # vitest run
 pnpm test:watch
 pnpm build               # build:native + build:cli + electron-vite build -> out/
 pnpm package:win         # -> dist/ NSIS installer + portable ZIP
-pnpm package:linux       # -> dist/ AppImage + deb (console shim via scripts/after-pack.mjs)
+pnpm package:linux       # -> dist/ AppImage + deb + rpm (console shim via scripts/after-pack.mjs)
 pnpm verify:package-cli  # runs the packaged JSON CLI in a temp HOME; needs dist/ from package:win
 pnpm build:native        # platform-keyed: secret-bridge + cli-proxy on Windows, no-op elsewhere
 ```
@@ -240,7 +240,7 @@ Documented product limits, not incidental gaps: never read or modify OMP's `agen
 
 ## Releasing
 
-Tag-driven and gated (`docs/releasing.md`). `.github/workflows/release.yml` rejects a `vX.Y.Z` tag that does not match `package.json` or lacks `docs/releases/vX.Y.Z.md`, then publishes a **draft** with three distribution assets (NSIS installer, portable ZIP, `SHA256SUMS.txt`) plus build-provenance attestations and, when the `OMP_UPDATE_ED25519` secret is set, two signed update-manifest assets (`latest.json` + `latest.json.sig`) uploaded to the same release. A maintainer publishes manually.
+Tag-driven and gated (`docs/releasing.md`). `.github/workflows/release.yml` rejects a `vX.Y.Z` tag that does not match `package.json` or lacks `docs/releases/vX.Y.Z.md`, then publishes a **draft** with five distribution assets (NSIS installer, portable ZIP, Linux AppImage + deb + rpm, and `SHA256SUMS.txt` covering them all) plus build-provenance attestations and, when the `OMP_UPDATE_ED25519` secret is set, two signed update-manifest assets (`latest.json` + `latest.json.sig`) uploaded to the same release. A maintainer publishes manually.
 
 Release notes follow `docs/releases/README.md`: headings from Added / Changed / Security / Fixed / Known Limitations, and the feature-flag status of gateway, OAuth integration, session indexing, and update checking must be stated explicitly. The workflow also asserts `dist/` holds exactly one `.exe` and one `.zip` before hashing, so any extra packaging artifact breaks the release.
 

@@ -29,6 +29,9 @@ The workflow produces only these user-facing assets:
 
 - NSIS installer (`OMP-Switch-Setup-X.Y.Z.exe`)
 - Portable ZIP (`OMP-Switch-X.Y.Z-win.zip`)
+- AppImage (`OMP-Switch-X.Y.Z-linux.AppImage`)
+- Debian package (`OMP-Switch-X.Y.Z-linux.deb`)
+- RPM package (`OMP-Switch-X.Y.Z-linux.rpm`)
 - `SHA256SUMS.txt`
 - `latest.json` + `latest.json.sig` (the signed update manifest; present only when the
   `OMP_UPDATE_ED25519` secret is set — see "Update Manifest" below)
