@@ -82,6 +82,24 @@ export interface OmpModel extends Record<string, unknown> {
   /** OMP v17.4.0+: opt into a specific embedded local tokenizer family for proxy models. */
   tokenizer?: string;
   disabledReason?: string;
+  /** OMP v18: model used to compact this model's sessions instead of the model itself. */
+  compactionModel?: string;
+  /** OMP v18: per-model thinking contract — which efforts the upstream accepts. */
+  thinking?: ModelThinking;
+  /** OMP v18: request shape for thinking (openai|openrouter|zai|qwen|qwen-chat-template). */
+  thinkingFormat?: string;
+  /** OMP v18: route the selected effort onto the Qwen 3.8+ chat template kwarg (default: auto). */
+  qwenTemplateReasoningEffort?: boolean;
+}
+
+/** OMP v18 per-model `thinking` mapping. Open-shaped: OMP may carry more keys; the writer's
+ *  deep-diff preserves whatever this app does not edit. */
+export interface ModelThinking {
+  mode?: string;
+  efforts?: string[];
+  defaultLevel?: string;
+  requiresEffort?: boolean;
+  [key: string]: unknown;
 }
 
 export interface OmpProvider extends Record<string, unknown> {
@@ -99,6 +117,9 @@ export interface OmpProvider extends Record<string, unknown> {
   discovery?: {
     type?: string;
     timeoutMs?: number;
+    /** OMP v18: for `openai-models-list`, fetch `{baseUrl}/models` without forcing `/v1` —
+     *  for gateways whose OpenAI-compatible surface is rooted at a versioned path. */
+    injectV1?: boolean;
     [key: string]: unknown;
   };
   modelOverrides?: Record<string, Record<string, unknown>>;
@@ -133,6 +154,25 @@ export interface SettingsDocument extends Record<string, unknown> {
   /** OMP v17.4.2+ image handling. Open-shaped: OMP carries `autoResize`/`blockImages` etc. this app
    *  does not edit but must round-trip (the writer diffs child-by-child), so the extra fields survive. */
   images?: { urls?: { enabled?: boolean }; [key: string]: unknown };
+  /** OMP v18 retry/fallback tuning. This app edits only `fallbackChains`; the scalar knobs this app
+   *  does not write are part of the mapping and survive the child-by-child diff. */
+  retry?: RetrySettings;
+}
+
+/**
+ * OMP v18 `retry` settings. A `fallbackChains` key is a role name (from `modelRoles`), an exact
+ * `provider/model-id` selector, or a `provider/*` wildcard; values are ordered fallback selectors
+ * that accept an optional `:thinkingLevel` suffix. Keys containing `/` win over role keys, and the
+ * `default` chain covers every role without its own.
+ */
+export interface RetrySettings {
+  enabled?: boolean;
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  modelFallback?: boolean;
+  fallbackRevertPolicy?: "cooldown-expiry" | "never";
+  fallbackChains?: Record<string, string[]>;
 }
 
 /** Compaction settings as documented for OMP v17.4.0+. */
@@ -270,7 +310,7 @@ export interface ConfigPatch {
   providers?: Array<ProviderDraft | ProviderPatch>;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
-  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel">>;
+  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel" | "retry">>;
   confirmLegacyMigration?: boolean;
 }
 

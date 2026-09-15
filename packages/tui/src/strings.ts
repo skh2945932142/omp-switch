@@ -24,7 +24,6 @@ const ROLE_GLOSSES: Record<string, string> = {
   slow: "deep thinking",
   vision: "image understanding",
   plan: "planning",
-  designer: "design work",
   commit: "commit messages",
   tiny: "minimal",
   task: "subtasks",

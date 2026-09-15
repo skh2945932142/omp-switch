@@ -6,6 +6,7 @@ import type {
   EffectiveConfig,
   OmpProvider,
   ProfileRef,
+  RetrySettings,
   SettingsThinkingLevel,
   Snapshot,
 } from "@omp-switch/core";
@@ -24,6 +25,7 @@ export interface SettingsDraft {
   disabled: string;
   level: SettingsThinkingLevel;
   compaction: string;
+  retryChains: string;
   extendedContext: boolean;
   externalThinking: boolean;
   personality: string;
@@ -179,6 +181,7 @@ export function useOmpConfig(
   const [externalThinking, setExternalThinking] = useState(false);
   const [imagesUrlsEnabled, setImagesUrlsEnabled] = useState("");
   const [compactionJson, setCompactionJson] = useState("");
+  const [retryChainsJson, setRetryChainsJson] = useState("");
   const [unexpectedStopDetection, setUnexpectedStopDetection] = useState<UnexpectedStopMode>("mechanical");
   const [updateChannel, setUpdateChannel] = useState<UpdateChannel>("stable");
 
@@ -194,6 +197,7 @@ export function useOmpConfig(
     const enabledStr = formatEnabledModelRules(settings.enabledModels);
     const disabledStr = formatEnabledModelRules(settings.disabledProviders);
     const compactionStr = settings.compaction ? JSON.stringify(settings.compaction, null, 2) : "";
+    const retryChainsStr = settings.retry?.fallbackChains ? JSON.stringify(settings.retry.fallbackChains, null, 2) : "";
     const imagesUrls = triStateFromBool(
       typeof settings.images?.urls === "object" ? settings.images.urls?.enabled : undefined,
     );
@@ -209,6 +213,7 @@ export function useOmpConfig(
     setExternalThinking(settings.externalThinking ?? false);
     setImagesUrlsEnabled(imagesUrls);
     setCompactionJson(compactionStr);
+    setRetryChainsJson(retryChainsStr);
     setUnexpectedStopDetection(unexpectedMode);
     setUpdateChannel(channel);
 
@@ -219,6 +224,7 @@ export function useOmpConfig(
         disabled: disabledStr,
         level: settings.defaultThinkingLevel ?? "low",
         compaction: compactionStr,
+        retryChains: retryChainsStr,
         extendedContext: settings.extendedContext ?? true,
         externalThinking: settings.externalThinking ?? false,
         personality: settings.personality ?? "default",
@@ -263,6 +269,7 @@ export function useOmpConfig(
       disabled: disabledProviders,
       level: defaultThinkingLevel,
       compaction: compactionJson,
+      retryChains: retryChainsJson,
       extendedContext,
       externalThinking,
       personality,
@@ -276,6 +283,7 @@ export function useOmpConfig(
       disabledProviders,
       defaultThinkingLevel,
       compactionJson,
+      retryChainsJson,
       extendedContext,
       externalThinking,
       personality,
@@ -349,6 +357,18 @@ export function useOmpConfig(
   const settingsPatch = useCallback(
     (providerOrderOverride?: string[]): NonNullable<ConfigPatch["settings"]> => {
       const compactionParsed = compactionJson.trim() ? parseObjectJson("compaction", compactionJson) : null;
+      // `patch.settings` keys replace the whole settings key in the merged document, so the retry
+      // node must carry the user's scalar knobs (maxRetries, fallbackRevertPolicy, …) from the
+      // loaded config — sending only fallbackChains would delete them from config.yml.
+      const retryChainsParsed = retryChainsJson.trim() ? parseObjectJson("retry.fallbackChains", retryChainsJson) : null;
+      const retryBase = (config?.settings.value.retry ?? {}) as Record<string, unknown>;
+      const retry =
+        retryChainsParsed || "fallbackChains" in retryBase
+          ? {
+              ...retryBase,
+              ...(retryChainsParsed ? { fallbackChains: retryChainsParsed } : { fallbackChains: undefined }),
+            }
+          : undefined;
       const imagesBase = config?.settings.value.images ?? {};
       const urlsEnabled = triStateToBool(imagesUrlsEnabled);
       const images =
@@ -367,6 +387,7 @@ export function useOmpConfig(
         disabledProviders: parseDisabledProviderRules(disabledProviders),
         defaultThinkingLevel,
         ...(compactionParsed ? { compaction: compactionParsed as CompactionSettings } : {}),
+        ...(retry ? { retry: retry as RetrySettings } : {}),
         extendedContext,
         externalThinking,
         personality,
@@ -541,6 +562,8 @@ export function useOmpConfig(
     setImagesUrlsEnabled,
     compactionJson,
     setCompactionJson,
+    retryChainsJson,
+    setRetryChainsJson,
     unexpectedStopDetection,
     setUnexpectedStopDetection,
     updateChannel,

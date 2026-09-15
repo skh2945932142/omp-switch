@@ -91,6 +91,8 @@ export default function App(): ReactElement {
     setImagesUrlsEnabled,
     compactionJson,
     setCompactionJson,
+    retryChainsJson,
+    setRetryChainsJson,
     unexpectedStopDetection,
     setUnexpectedStopDetection,
     updateChannel,
@@ -878,6 +880,8 @@ export default function App(): ReactElement {
                     setImagesUrlsEnabled={setImagesUrlsEnabled}
                     compactionJson={compactionJson}
                     setCompactionJson={setCompactionJson}
+                    retryChainsJson={retryChainsJson}
+                    setRetryChainsJson={setRetryChainsJson}
                     unexpectedStopDetection={unexpectedStopDetection}
                     setUnexpectedStopDetection={setUnexpectedStopDetection}
                     updateChannel={updateChannel}

@@ -555,6 +555,39 @@ describe("OmpFilesystemAdapter", () => {
     expect(updated).toContain("enabled: true");
   });
 
+  it("patches retry child-by-child so hand-tuned knobs survive a fallbackChains edit", async () => {
+    // Same guarantee as compaction/images: `retry` is a mapping, and the renderer sends the whole
+    // node (scalar knobs echoed from the loaded config). The AST diff must rewrite only the
+    // changed fallbackChains children and leave a user comment on maxRetries untouched.
+    const { root, adapter } = await makeAdapter();
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(path.join(agentDir, "models.yml"), "providers:\n  demo:\n    baseUrl: https://demo.example/v1\n    api: openai-completions\n    auth: none\n    models:\n      - id: demo-model\n");
+    await fs.writeFile(
+      path.join(agentDir, "config.yml"),
+      [
+        "retry:",
+        "  # hand-tuned backoff",
+        "  maxRetries: 3",
+        "  fallbackChains:",
+        "    default:",
+        "      - demo/demo-model",
+      ].join("\n") + "\n",
+    );
+    const profile = (await adapter.listProfiles())[0];
+    const current = await adapter.loadProfile(profile);
+    const result = await adapter.commitPatch(current, adapter.planPatch(current, {
+      settings: {
+        // The renderer's settingsPatch spreads the loaded retry node, so maxRetries rides along.
+        retry: { maxRetries: 3, fallbackChains: { default: ["demo/demo-model", "demo/demo-model"] } },
+      },
+    }));
+    const updated = await fs.readFile(result.config.settings.path, "utf8");
+    expect(updated).toContain("maxRetries: 3");
+    expect(updated).toContain("# hand-tuned backoff");
+    expect(updated).toMatch(/fallbackChains:[\s\S]*- demo\/demo-model[\s\S]*- demo\/demo-model/);
+  });
+
   it("clearing compaction/images removes the whole node without leaving an empty mapping", async () => {
     // patchChildMap deletes the key when `after` carries no object — `compaction: {}` left behind
     // would be a valid-but-strange artifact, and the renderer clears the field by omitting it.

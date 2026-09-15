@@ -9,6 +9,13 @@ export const SETTINGS_THINKING_LEVELS: SettingsThinkingLevel[] = ["minimal", "lo
 export const ROLE_THINKING_LEVELS: RoleThinkingLevel[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
 
 /**
+ * OMP's documented built-in model roles (settings catalog, v18). Custom roles may be introduced
+ * via `modelTags`, so an id outside this list is not an error — but chain keys and role editors
+ * use it to tell a typo from a custom role. The shared package's ROLE_CATALOG must stay aligned.
+ */
+export const BUILTIN_ROLE_IDS = ["default", "smol", "slow", "vision", "plan", "commit", "tiny", "task", "advisor"] as const;
+
+/**
  * Every `api` value OMP's schema accepts. Extensions may register further ids at runtime via
  * `pi.registerProvider`, so an unknown value is reported as a warning rather than an error.
  */
@@ -39,6 +46,9 @@ export const KNOWN_TOKENIZER_FAMILIES = new Set([
   "kimi-k2",
   "glm5",
 ]);
+
+/** Request shapes OMP v18 accepts for `thinkingFormat`. Warning-level like the tokenizer set. */
+export const KNOWN_THINKING_FORMATS = new Set(["openai", "openrouter", "zai", "qwen", "qwen-chat-template"]);
 
 /**
  * `personality` enum in config.yml (OMP v17.4.1+). `none` omits the personality block; the others
@@ -214,6 +224,7 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     diagnostics.push({ severity: "error", code: "root.providers", message: "models.yml must contain a providers mapping" });
     return diagnostics;
   }
+  const providerIds = Object.keys(value.providers);
   for (const [providerId, rawProvider] of Object.entries(value.providers)) {
     if (!isRecord(rawProvider)) {
       diagnostics.push({ severity: "error", code: "provider.shape", path: `providers.${providerId}`, message: `Provider ${providerId} must be a mapping` });
@@ -250,6 +261,15 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     }
     if (provider.discovery?.timeoutMs !== undefined && (!Number.isFinite(provider.discovery.timeoutMs) || provider.discovery.timeoutMs <= 0)) {
       diagnostics.push({ severity: "error", code: "provider.discovery-timeout", path: `providers.${providerId}.discovery.timeoutMs`, message: "Discovery timeout must be positive" });
+    }
+    // injectV1 only changes how `openai-models-list` builds the models URL; on any other discovery
+    // type OMP never reads it, which is almost certainly a copy-paste mistake rather than intent.
+    if (provider.discovery?.injectV1 !== undefined) {
+      if (typeof provider.discovery.injectV1 !== "boolean") {
+        diagnostics.push({ severity: "error", code: "provider.discovery-injectV1", path: `providers.${providerId}.discovery.injectV1`, message: "discovery.injectV1 must be a boolean" });
+      } else if (provider.discovery.type !== "openai-models-list") {
+        diagnostics.push({ severity: "warning", code: "provider.discovery-injectV1-unused", path: `providers.${providerId}.discovery.injectV1`, message: `injectV1 only applies to discovery type openai-models-list (found ${provider.discovery.type}); OMP ignores it here` });
+      }
     }
     // OMP's schema is all-or-nothing: an explicitly null object field makes it reject the whole
     // models.yml and silently fall back to the built-in catalog. The `!== undefined` form (not a
@@ -318,6 +338,33 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       if (model.tokenizer !== undefined && typeof model.tokenizer !== "string") {
         diagnostics.push({ severity: "error", code: "model.tokenizer", path: `providers.${providerId}.models.${index}.tokenizer`, message: "tokenizer must be a family string" });
       }
+      if (model.compactionModel !== undefined && !validateRoleSelector(model.compactionModel, providerIds)) {
+        diagnostics.push({ severity: "error", code: "model.compactionModel", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" is not a valid provider/model selector` });
+      }
+      if (model.thinkingFormat !== undefined && !KNOWN_THINKING_FORMATS.has(model.thinkingFormat)) {
+        // Warning, not error — same posture as `api`: a future OMP may add formats, and refusing
+        // a valid file this app knows less about than OMP does is the worse outcome.
+        diagnostics.push({ severity: "warning", code: "model.thinkingFormat-unknown", path: `providers.${providerId}.models.${index}.thinkingFormat`, message: `Unknown thinkingFormat "${model.thinkingFormat}" on model ${model.id}; OMP accepts ${[...KNOWN_THINKING_FORMATS].join(", ")}` });
+      }
+      if (model.qwenTemplateReasoningEffort !== undefined && typeof model.qwenTemplateReasoningEffort !== "boolean") {
+        diagnostics.push({ severity: "error", code: "model.qwenTemplateReasoningEffort", path: `providers.${providerId}.models.${index}.qwenTemplateReasoningEffort`, message: "qwenTemplateReasoningEffort must be a boolean" });
+      }
+      if (model.thinking !== undefined) {
+        if (!isRecord(model.thinking)) {
+          diagnostics.push({ severity: "error", code: "model.thinking", path: `providers.${providerId}.models.${index}.thinking`, message: "thinking must be a mapping" });
+        } else {
+          if (model.thinking.defaultLevel !== undefined && !["off", ...ROLE_THINKING_LEVELS].includes(model.thinking.defaultLevel)) {
+            diagnostics.push({ severity: "error", code: "model.thinking-defaultLevel", path: `providers.${providerId}.models.${index}.thinking.defaultLevel`, message: `Unsupported thinking.defaultLevel: ${model.thinking.defaultLevel}. OMP accepts off, ${ROLE_THINKING_LEVELS.join(", ")}` });
+          }
+          if (model.thinking.requiresEffort !== undefined && typeof model.thinking.requiresEffort !== "boolean") {
+            diagnostics.push({ severity: "error", code: "model.thinking-requiresEffort", path: `providers.${providerId}.models.${index}.thinking.requiresEffort`, message: "thinking.requiresEffort must be a boolean" });
+          }
+          if (model.thinking.efforts !== undefined && (!Array.isArray(model.thinking.efforts) || model.thinking.efforts.some((effort) => typeof effort !== "string" || !effort.trim()))) {
+            diagnostics.push({ severity: "error", code: "model.thinking-efforts", path: `providers.${providerId}.models.${index}.thinking.efforts`, message: "thinking.efforts must be an array of effort names" });
+          }
+        }
+      }
+
     }
   }
   return diagnostics;
@@ -427,6 +474,7 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
     diagnostics.push({ severity: "error", code: "settings.updateChannel", message: `Unsupported updateChannel: ${value.updateChannel}. OMP accepts ${UPDATE_CHANNELS.join(", ")}` });
   }
   validateCompaction(value.compaction, diagnostics);
+  validateRetry(value.retry, value.modelRoles, providerIds, diagnostics);
   if (value.extendedContext !== undefined && typeof value.extendedContext !== "boolean") {
     diagnostics.push({ severity: "error", code: "settings.extendedContext", message: "extendedContext must be a boolean" });
   }
@@ -455,8 +503,70 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
  * by `methodOrder`; validating both shapes lets this app read files an older OMP wrote without
  * flagging the deprecated keys as errors (they are simply ignored by current OMP).
  */
-function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {
+/**
+ * OMP v18 `retry.fallbackChains`. A key is a role name, an exact `provider/model-id`, or a
+ * `provider/*` wildcard (keys with `/` win over roles; `default` covers roles without their own
+ * chain). Values are ordered selectors that accept the role thinking-level suffix. Malformed keys
+ * or selectors are errors — OMP reports them as config warnings at startup, but this app writes
+ * them, so it must not write garbage in the first place. Unknown-but-well-formed role names stay
+ * warnings: `modelTags` can introduce custom roles this app has no view of.
+ */
+function validateRetry(
+  value: SettingsDocument["retry"],
+  modelRoles: Record<string, string> | undefined,
+  providerIds: Iterable<string> | undefined,
+  diagnostics: Diagnostic[],
+): void {
   if (value === undefined) return;
+  if (!isRecord(value)) {
+    diagnostics.push({ severity: "error", code: "settings.retry", message: "retry must be a mapping" });
+    return;
+  }
+  for (const key of ["enabled", "modelFallback"]) {
+    if (value[key] !== undefined && typeof value[key] !== "boolean") {
+      diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a boolean` });
+    }
+  }
+  for (const key of ["maxRetries", "baseDelayMs", "maxDelayMs"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) {
+      diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a non-negative number` });
+    }
+  }
+  if (value.fallbackRevertPolicy !== undefined && value.fallbackRevertPolicy !== "cooldown-expiry" && value.fallbackRevertPolicy !== "never") {
+    diagnostics.push({ severity: "error", code: "settings.retry.fallbackRevertPolicy", message: `Unsupported fallbackRevertPolicy: ${value.fallbackRevertPolicy}. OMP accepts cooldown-expiry, never` });
+  }
+  if (value.fallbackChains !== undefined) {
+    if (!isRecord(value.fallbackChains)) {
+      diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains", message: "retry.fallbackChains must be a mapping of ordered selector arrays" });
+      return;
+    }
+    for (const [chainKey, chain] of Object.entries(value.fallbackChains)) {
+      if (chainKey.includes("/")) {
+        // Model-oriented key: `provider/model-id` or the `provider/*` wildcard.
+        const provider = chainKey.slice(0, chainKey.indexOf("/"));
+        const rest = chainKey.slice(provider.length + 1);
+        if (!/^[A-Za-z0-9._-]+$/.test(provider) || (rest !== "*" && (!rest || /[\r\n\t/]/.test(rest)))) {
+          diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-key", path: `retry.fallbackChains.${chainKey}`, message: `Chain key "${chainKey}" must be a role name, provider/model-id, or provider/* wildcard` });
+          continue;
+        }
+      } else if (chainKey !== "default" && !(BUILTIN_ROLE_IDS as readonly string[]).includes(chainKey) && !(modelRoles && chainKey in modelRoles)) {
+        diagnostics.push({ severity: "warning", code: "settings.retry.fallbackChains-role", path: `retry.fallbackChains.${chainKey}`, message: `"${chainKey}" is not a built-in role nor assigned in modelRoles; OMP may report it as an unused chain unless modelTags introduces it` });
+      }
+      if (!Array.isArray(chain) || chain.length === 0 || chain.some((entry) => typeof entry !== "string" || !validateRoleSelector(entry, providerIds))) {
+        diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-entry", path: `retry.fallbackChains.${chainKey}`, message: `Chain "${chainKey}" must be a non-empty array of provider/model selectors (thinking-level suffix allowed)` });
+      } else {
+        for (const entry of chain) {
+          const misused = findMisusedRoleThinkingSuffix(entry);
+          if (misused) {
+            diagnostics.push({ severity: "warning", code: "settings.retry.fallbackChains-suffix", path: `retry.fallbackChains.${chainKey}`, message: `Entry "${entry}" ends in ":${misused}", which OMP does not accept as a thinking suffix; it is being read as part of the model id` });
+          }
+        }
+      }
+    }
+  }
+}
+
+function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {  if (value === undefined) return;
   if (!isRecord(value)) {
     diagnostics.push({ severity: "error", code: "settings.compaction", message: "compaction must be a mapping" });
     return;

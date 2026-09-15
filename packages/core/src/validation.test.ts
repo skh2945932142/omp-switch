@@ -45,11 +45,86 @@ describe("OMP configuration validation", () => {
     expect(parseRoleSelector("ollama/llama3.1:8b", ["ollama"])).toEqual({ kind: "model", provider: "ollama", model: "llama3.1:8b" });
   });
 
+  it("validates compactionModel selectors and discovery.injectV1 type and relevance", () => {
+    expect(
+      validateModelsDocument({ providers: { demo: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none", models: [{ id: "m", compactionModel: "demo/m2" }] } } }),
+    ).toEqual([]);
+    const badCompaction = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", compactionModel: "not a selector" }] } } });
+    expect(badCompaction.some((item) => item.code === "model.compactionModel")).toBe(true);
+
+    const valid = validateModelsDocument({ providers: { demo: { baseUrl: "https://api.opper.ai/v3/compat", api: "openai-completions", apiKey: "X", discovery: { type: "openai-models-list", injectV1: false } } } });
+    expect(valid).toEqual([]);
+    const wrongType = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", apiKey: "X", discovery: { type: "openai-models-list", injectV1: "no" as never } } } });
+    expect(wrongType.some((item) => item.code === "provider.discovery-injectV1")).toBe(true);
+    // injectV1 on any other discovery type is inert in OMP — warn rather than reject.
+    const unused = validateModelsDocument({ providers: { demo: { baseUrl: "http://127.0.0.1:11434/v1", api: "openai-completions", auth: "none", discovery: { type: "ollama", injectV1: false } } } });
+    expect(unused.find((item) => item.code === "provider.discovery-injectV1-unused")).toMatchObject({ severity: "warning" });
+  });
+
+  it("validates OMP v18 model-level thinking fields", () => {
+    const valid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "openai-completions",
+          auth: "none",
+          models: [{ id: "m", thinkingFormat: "qwen", qwenTemplateReasoningEffort: false, thinking: { mode: "enabled", efforts: ["low", "high"], defaultLevel: "high", requiresEffort: true } }],
+        },
+      },
+    });
+    expect(valid).toEqual([]);
+    // `off` is not a role suffix but IS a thinking.defaultLevel — the three level sets differ.
+    const offLevel = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinking: { defaultLevel: "off" } }] } } });
+    expect(offLevel).toEqual([]);
+    const badLevel = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinking: { defaultLevel: "turbo" } }] } } });
+    expect(badLevel.some((item) => item.code === "model.thinking-defaultLevel")).toBe(true);
+    const unknownFormat = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinkingFormat: "anthropic" }] } } });
+    expect(unknownFormat.find((item) => item.code === "model.thinkingFormat-unknown")).toMatchObject({ severity: "warning" });
+  });
+
+
+
   it("rejects defaultThinkingLevel values OMP does not accept", () => {
     // `off` is a real thinking level for --model but not for this setting.
     const diagnostics = validateSettingsDocument({ defaultThinkingLevel: "off" as never });
     expect(diagnostics.some((item) => item.code === "settings.defaultThinkingLevel")).toBe(true);
     expect(validateSettingsDocument({ defaultThinkingLevel: "auto" })).toEqual([]);
+  });
+
+  it("accepts well-formed retry.fallbackChains and rejects malformed ones", () => {
+    expect(
+      validateSettingsDocument(
+        {
+          retry: {
+            fallbackRevertPolicy: "never",
+            fallbackChains: {
+              default: ["anthropic/claude-sonnet-5", "openai/gpt-5.5:low"],
+              smol: ["openai/gpt-5.5-mini"],
+              "google/gemini-3-pro": ["google-vertex/gemini-3-pro"],
+              "google-antigravity/*": ["google/*", "google-vertex/*"],
+            },
+          },
+        },
+        ["anthropic", "openai", "google", "google-vertex", "google-antigravity"],
+      ),
+    ).toEqual([]);
+    const bad = validateSettingsDocument({ retry: { fallbackChains: { default: [] } } }, []);
+    expect(bad.some((item) => item.code === "settings.retry.fallbackChains-entry")).toBe(true);
+    const badSelector = validateSettingsDocument({ retry: { fallbackChains: { default: ["openai/gpt 5"] } } }, ["openai"]);
+    expect(badSelector.some((item) => item.code === "settings.retry.fallbackChains-entry")).toBe(true);
+    const badKey = validateSettingsDocument({ retry: { fallbackChains: { "openai//x": ["openai/gpt-5"] } } }, ["openai"]);
+    expect(badKey.some((item) => item.code === "settings.retry.fallbackChains-key")).toBe(true);
+    const badPolicy = validateSettingsDocument({ retry: { fallbackRevertPolicy: "sometimes" as never } });
+    expect(badPolicy.some((item) => item.code === "settings.retry.fallbackRevertPolicy")).toBe(true);
+  });
+
+  it("warns on chain keys that are neither roles nor model selectors", () => {
+    const diagnostics = validateSettingsDocument({ retry: { fallbackChains: { typoRole: ["openai/gpt-5"] } } }, ["openai"]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ severity: "warning", code: "settings.retry.fallbackChains-role", path: "retry.fallbackChains.typoRole" }),
+    ]);
+    // A role assigned in modelRoles is a legitimate chain target.
+    expect(validateSettingsDocument({ modelRoles: { custom: "openai/gpt-5" }, retry: { fallbackChains: { custom: ["anthropic/claude-sonnet-5"] } } }, ["openai", "anthropic"])).toEqual([]);
   });
 
   it("warns about a role whose suffix OMP will read as part of the model id", () => {
