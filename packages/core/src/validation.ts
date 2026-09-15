@@ -221,6 +221,7 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     diagnostics.push({ severity: "error", code: "root.providers", message: "models.yml must contain a providers mapping" });
     return diagnostics;
   }
+  const providerIds = Object.keys(value.providers);
   for (const [providerId, rawProvider] of Object.entries(value.providers)) {
     if (!isRecord(rawProvider)) {
       diagnostics.push({ severity: "error", code: "provider.shape", path: `providers.${providerId}`, message: `Provider ${providerId} must be a mapping` });
@@ -257,6 +258,15 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
     }
     if (provider.discovery?.timeoutMs !== undefined && (!Number.isFinite(provider.discovery.timeoutMs) || provider.discovery.timeoutMs <= 0)) {
       diagnostics.push({ severity: "error", code: "provider.discovery-timeout", path: `providers.${providerId}.discovery.timeoutMs`, message: "Discovery timeout must be positive" });
+    }
+    // injectV1 only changes how `openai-models-list` builds the models URL; on any other discovery
+    // type OMP never reads it, which is almost certainly a copy-paste mistake rather than intent.
+    if (provider.discovery?.injectV1 !== undefined) {
+      if (typeof provider.discovery.injectV1 !== "boolean") {
+        diagnostics.push({ severity: "error", code: "provider.discovery-injectV1", path: `providers.${providerId}.discovery.injectV1`, message: "discovery.injectV1 must be a boolean" });
+      } else if (provider.discovery.type !== "openai-models-list") {
+        diagnostics.push({ severity: "warning", code: "provider.discovery-injectV1-unused", path: `providers.${providerId}.discovery.injectV1`, message: `injectV1 only applies to discovery type openai-models-list (found ${provider.discovery.type}); OMP ignores it here` });
+      }
     }
     // OMP's schema is all-or-nothing: an explicitly null object field makes it reject the whole
     // models.yml and silently fall back to the built-in catalog. The `!== undefined` form (not a
@@ -324,6 +334,9 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       }
       if (model.tokenizer !== undefined && typeof model.tokenizer !== "string") {
         diagnostics.push({ severity: "error", code: "model.tokenizer", path: `providers.${providerId}.models.${index}.tokenizer`, message: "tokenizer must be a family string" });
+      }
+      if (model.compactionModel !== undefined && !validateRoleSelector(model.compactionModel, providerIds)) {
+        diagnostics.push({ severity: "error", code: "model.compactionModel", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" is not a valid provider/model selector` });
       }
 
     }

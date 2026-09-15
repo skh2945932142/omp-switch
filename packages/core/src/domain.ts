@@ -82,6 +82,8 @@ export interface OmpModel extends Record<string, unknown> {
   /** OMP v17.4.0+: opt into a specific embedded local tokenizer family for proxy models. */
   tokenizer?: string;
   disabledReason?: string;
+  /** OMP v18: model used to compact this model's sessions instead of the model itself. */
+  compactionModel?: string;
 }
 
 export interface OmpProvider extends Record<string, unknown> {
@@ -99,6 +101,9 @@ export interface OmpProvider extends Record<string, unknown> {
   discovery?: {
     type?: string;
     timeoutMs?: number;
+    /** OMP v18: for `openai-models-list`, fetch `{baseUrl}/models` without forcing `/v1` —
+     *  for gateways whose OpenAI-compatible surface is rooted at a versioned path. */
+    injectV1?: boolean;
     [key: string]: unknown;
   };
   modelOverrides?: Record<string, Record<string, unknown>>;
