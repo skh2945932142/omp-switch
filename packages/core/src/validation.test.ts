@@ -61,6 +61,27 @@ describe("OMP configuration validation", () => {
     expect(unused.find((item) => item.code === "provider.discovery-injectV1-unused")).toMatchObject({ severity: "warning" });
   });
 
+  it("validates OMP v18 model-level thinking fields", () => {
+    const valid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "openai-completions",
+          auth: "none",
+          models: [{ id: "m", thinkingFormat: "qwen", qwenTemplateReasoningEffort: false, thinking: { mode: "enabled", efforts: ["low", "high"], defaultLevel: "high", requiresEffort: true } }],
+        },
+      },
+    });
+    expect(valid).toEqual([]);
+    // `off` is not a role suffix but IS a thinking.defaultLevel — the three level sets differ.
+    const offLevel = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinking: { defaultLevel: "off" } }] } } });
+    expect(offLevel).toEqual([]);
+    const badLevel = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinking: { defaultLevel: "turbo" } }] } } });
+    expect(badLevel.some((item) => item.code === "model.thinking-defaultLevel")).toBe(true);
+    const unknownFormat = validateModelsDocument({ providers: { demo: { baseUrl: "https://x/v1", api: "openai-completions", auth: "none", models: [{ id: "m", thinkingFormat: "anthropic" }] } } });
+    expect(unknownFormat.find((item) => item.code === "model.thinkingFormat-unknown")).toMatchObject({ severity: "warning" });
+  });
+
 
 
   it("rejects defaultThinkingLevel values OMP does not accept", () => {

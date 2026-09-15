@@ -47,6 +47,9 @@ export const KNOWN_TOKENIZER_FAMILIES = new Set([
   "glm5",
 ]);
 
+/** Request shapes OMP v18 accepts for `thinkingFormat`. Warning-level like the tokenizer set. */
+export const KNOWN_THINKING_FORMATS = new Set(["openai", "openrouter", "zai", "qwen", "qwen-chat-template"]);
+
 /**
  * `personality` enum in config.yml (OMP v17.4.1+). `none` omits the personality block; the others
  * select a preset whose text a user-level `<agent dir>/PERSONALITY.md` can replace.
@@ -337,6 +340,29 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       }
       if (model.compactionModel !== undefined && !validateRoleSelector(model.compactionModel, providerIds)) {
         diagnostics.push({ severity: "error", code: "model.compactionModel", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" is not a valid provider/model selector` });
+      }
+      if (model.thinkingFormat !== undefined && !KNOWN_THINKING_FORMATS.has(model.thinkingFormat)) {
+        // Warning, not error — same posture as `api`: a future OMP may add formats, and refusing
+        // a valid file this app knows less about than OMP does is the worse outcome.
+        diagnostics.push({ severity: "warning", code: "model.thinkingFormat-unknown", path: `providers.${providerId}.models.${index}.thinkingFormat`, message: `Unknown thinkingFormat "${model.thinkingFormat}" on model ${model.id}; OMP accepts ${[...KNOWN_THINKING_FORMATS].join(", ")}` });
+      }
+      if (model.qwenTemplateReasoningEffort !== undefined && typeof model.qwenTemplateReasoningEffort !== "boolean") {
+        diagnostics.push({ severity: "error", code: "model.qwenTemplateReasoningEffort", path: `providers.${providerId}.models.${index}.qwenTemplateReasoningEffort`, message: "qwenTemplateReasoningEffort must be a boolean" });
+      }
+      if (model.thinking !== undefined) {
+        if (!isRecord(model.thinking)) {
+          diagnostics.push({ severity: "error", code: "model.thinking", path: `providers.${providerId}.models.${index}.thinking`, message: "thinking must be a mapping" });
+        } else {
+          if (model.thinking.defaultLevel !== undefined && !["off", ...ROLE_THINKING_LEVELS].includes(model.thinking.defaultLevel)) {
+            diagnostics.push({ severity: "error", code: "model.thinking-defaultLevel", path: `providers.${providerId}.models.${index}.thinking.defaultLevel`, message: `Unsupported thinking.defaultLevel: ${model.thinking.defaultLevel}. OMP accepts off, ${ROLE_THINKING_LEVELS.join(", ")}` });
+          }
+          if (model.thinking.requiresEffort !== undefined && typeof model.thinking.requiresEffort !== "boolean") {
+            diagnostics.push({ severity: "error", code: "model.thinking-requiresEffort", path: `providers.${providerId}.models.${index}.thinking.requiresEffort`, message: "thinking.requiresEffort must be a boolean" });
+          }
+          if (model.thinking.efforts !== undefined && (!Array.isArray(model.thinking.efforts) || model.thinking.efforts.some((effort) => typeof effort !== "string" || !effort.trim()))) {
+            diagnostics.push({ severity: "error", code: "model.thinking-efforts", path: `providers.${providerId}.models.${index}.thinking.efforts`, message: "thinking.efforts must be an array of effort names" });
+          }
+        }
       }
 
     }

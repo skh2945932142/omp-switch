@@ -84,6 +84,22 @@ export interface OmpModel extends Record<string, unknown> {
   disabledReason?: string;
   /** OMP v18: model used to compact this model's sessions instead of the model itself. */
   compactionModel?: string;
+  /** OMP v18: per-model thinking contract — which efforts the upstream accepts. */
+  thinking?: ModelThinking;
+  /** OMP v18: request shape for thinking (openai|openrouter|zai|qwen|qwen-chat-template). */
+  thinkingFormat?: string;
+  /** OMP v18: route the selected effort onto the Qwen 3.8+ chat template kwarg (default: auto). */
+  qwenTemplateReasoningEffort?: boolean;
+}
+
+/** OMP v18 per-model `thinking` mapping. Open-shaped: OMP may carry more keys; the writer's
+ *  deep-diff preserves whatever this app does not edit. */
+export interface ModelThinking {
+  mode?: string;
+  efforts?: string[];
+  defaultLevel?: string;
+  requiresEffort?: boolean;
+  [key: string]: unknown;
 }
 
 export interface OmpProvider extends Record<string, unknown> {
