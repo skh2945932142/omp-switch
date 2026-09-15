@@ -10,7 +10,6 @@ export const ROLE_CATALOG: Array<{ id: string; glossKey: string }> = [
   { id: "slow", glossKey: "roles.gloss.slow" },
   { id: "vision", glossKey: "roles.gloss.vision" },
   { id: "plan", glossKey: "roles.gloss.plan" },
-  { id: "designer", glossKey: "roles.gloss.designer" },
   { id: "commit", glossKey: "roles.gloss.commit" },
   { id: "tiny", glossKey: "roles.gloss.tiny" },
   { id: "task", glossKey: "roles.gloss.task" },
