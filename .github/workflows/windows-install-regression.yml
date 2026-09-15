@@ -75,7 +75,10 @@ jobs:
           if (-not (Test-Path $installDir)) { throw "install dir missing: $installDir" }
           $exe = Join-Path $installDir "OMP Switch.exe"
           if (-not (Test-Path $exe)) { throw "installed executable missing" }
-          $installedVersion = (Get-Item $exe).VersionInfo.ProductVersion
+          # Windows PE version resources are four-part (Major.Minor.Build.Revision); the
+          # installer appends a trailing ".0" beyond package.json's three-part semver.
+          # Compare the core major.minor.patch only.
+          $installedVersion = (((Get-Item $exe).VersionInfo.ProductVersion -split '\.')[0..2] -join '.')
           if ($installedVersion -ne $version) { throw "installed version $installedVersion != expected $version" }
           Write-Host "installed $installedVersion as expected"
 
@@ -85,9 +88,11 @@ jobs:
         shell: pwsh
         run: |
           $root = New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP "omp-regression-$([guid]::NewGuid())")
-          $home = Join-Path $root "home"; $data = Join-Path $root "data"
-          New-Item -ItemType Directory -Force -Path "$home/.omp/agent" | Out-Null
-          Set-Content -Path "$home/.omp/agent/models.yml" -Value @(
+          # NB: must not be named $home — PowerShell variables are case-insensitive and
+          # $HOME is a read-only automatic variable; assigning it throws.
+          $testHome = Join-Path $root "home"; $data = Join-Path $root "data"
+          New-Item -ItemType Directory -Force -Path "$testHome/.omp/agent" | Out-Null
+          Set-Content -Path "$testHome/.omp/agent/models.yml" -Value @(
             "providers:",
             "  demo:",
             "    baseUrl: https://api.example.test/v1",
@@ -96,12 +101,25 @@ jobs:
             "    models:",
             "      - id: demo-1"
           )
-          $env:USERPROFILE = $home; $env:HOME = $home; $env:OMP_SWITCH_DATA_DIR = $data
+          $env:USERPROFILE = $testHome; $env:HOME = $testHome; $env:OMP_SWITCH_DATA_DIR = $data
           $cli = Join-Path $env:LOCALAPPDATA "Programs" "OMP Switch" "omp-switch-cli.exe"
           if (-not (Test-Path $cli)) { throw "installed omp-switch-cli.exe missing" }
-          & $cli --json list | Select-Object -First 1 | ForEach-Object { if ($_ -notmatch '"ok":true') { throw "list failed: $_" } }
-          & $cli --json apply --profile default --patch '{\"roleAssignments\":{\"default\":\"demo/demo-1\"}}' | Out-Null
-          if (-not (Test-Path "$home/.omp/agent/config.yml")) { throw "apply did not write config.yml" }
+          # The installer's /S wait can return before NSIS-spawned children fully exit;
+          # a lingering OMP Switch.exe both locks files and breaks the shim's spawn.
+          Wait-Process -Name "OMP Switch" -Timeout 60 -ErrorAction SilentlyContinue
+          $stray = Get-Process | Where-Object { $_.Name -like "*OMP Switch*" }
+          if ($stray) { throw "stray process before CLI exercise: $($stray.Name -join ', ')" }
+          # Capture the native start failure: pwsh wraps it as ResourceUnavailable and
+          # hides the Win32 reason, so re-run via Start-Process to surface stderr.
+          $probe = Start-Process -FilePath $cli -ArgumentList "--json","list" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "$root\list.out" -RedirectStandardError "$root\list.err"
+          Get-Content "$root\list.out", "$root\list.err" | Write-Host
+          if ($probe.ExitCode -ne 0) { throw "list exited with $($probe.ExitCode): $(Get-Content "$root\list.err" -Raw)" }
+          $listJson = Get-Content "$root\list.out" -Raw
+          if ($listJson -notmatch '"ok":true') { throw "list failed: $listJson" }
+          # NB: pwsh single quotes need no cmd-style \" escaping — the CLI parses the
+          # argument as JSON, and a literal backslash breaks it at position 1.
+          & $cli --json apply --profile default --patch '{"roleAssignments":{"default":"demo/demo-1"}}' | Out-Null
+          if (-not (Test-Path "$testHome/.omp/agent/config.yml")) { throw "apply did not write config.yml" }
           if (-not (Test-Path "$data/snapshots/default")) { throw "snapshot directory missing after save" }
           Write-Host "installed CLI exercise passed"
 
