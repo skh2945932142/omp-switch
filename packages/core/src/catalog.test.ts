@@ -11,6 +11,13 @@ describe("provider catalog", () => {
     expect(getProviderPreset("azure-openai")).toMatchObject({ requiresBaseUrl: true, api: "azure-openai-responses" });
   });
 
+  it("tracks OMP 18.2 provider additions and the siliconflow split", () => {
+    expect(getProviderPreset("deepinfra")).toMatchObject({ baseUrl: "https://api.deepinfra.com/v1/openai", auth: "apiKey" });
+    // OMP 18.2 splits SiliconFlow into international (.com) and CN (.cn); the bare id is the international site.
+    expect(getProviderPreset("siliconflow")).toMatchObject({ baseUrl: "https://api.siliconflow.com/v1" });
+    expect(getProviderPreset("siliconflow-cn")).toMatchObject({ baseUrl: "https://api.siliconflow.cn/v1" });
+  });
+
   it("validates and merges versioned catalog imports without allowing duplicate IDs", () => {
     const bundle = validateCatalogBundle({ version: 1, source: "team", entries: [{ id: "team-provider", label: "Team", baseUrl: "https://team.example/v1", api: "openai-completions", source: "team", version: "1.0.0" }] });
     expect(bundle.entries).toHaveLength(1);
