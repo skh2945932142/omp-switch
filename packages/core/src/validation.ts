@@ -9,6 +9,13 @@ export const SETTINGS_THINKING_LEVELS: SettingsThinkingLevel[] = ["minimal", "lo
 export const ROLE_THINKING_LEVELS: RoleThinkingLevel[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
 
 /**
+ * OMP's documented built-in model roles (settings catalog, v18). Custom roles may be introduced
+ * via `modelTags`, so an id outside this list is not an error — but chain keys and role editors
+ * use it to tell a typo from a custom role. The shared package's ROLE_CATALOG must stay aligned.
+ */
+export const BUILTIN_ROLE_IDS = ["default", "smol", "slow", "vision", "plan", "commit", "tiny", "task", "advisor"] as const;
+
+/**
  * Every `api` value OMP's schema accepts. Extensions may register further ids at runtime via
  * `pi.registerProvider`, so an unknown value is reported as a warning rather than an error.
  */
@@ -318,6 +325,7 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
       if (model.tokenizer !== undefined && typeof model.tokenizer !== "string") {
         diagnostics.push({ severity: "error", code: "model.tokenizer", path: `providers.${providerId}.models.${index}.tokenizer`, message: "tokenizer must be a family string" });
       }
+
     }
   }
   return diagnostics;
@@ -427,6 +435,7 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
     diagnostics.push({ severity: "error", code: "settings.updateChannel", message: `Unsupported updateChannel: ${value.updateChannel}. OMP accepts ${UPDATE_CHANNELS.join(", ")}` });
   }
   validateCompaction(value.compaction, diagnostics);
+  validateRetry(value.retry, value.modelRoles, providerIds, diagnostics);
   if (value.extendedContext !== undefined && typeof value.extendedContext !== "boolean") {
     diagnostics.push({ severity: "error", code: "settings.extendedContext", message: "extendedContext must be a boolean" });
   }
@@ -455,8 +464,70 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
  * by `methodOrder`; validating both shapes lets this app read files an older OMP wrote without
  * flagging the deprecated keys as errors (they are simply ignored by current OMP).
  */
-function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {
+/**
+ * OMP v18 `retry.fallbackChains`. A key is a role name, an exact `provider/model-id`, or a
+ * `provider/*` wildcard (keys with `/` win over roles; `default` covers roles without their own
+ * chain). Values are ordered selectors that accept the role thinking-level suffix. Malformed keys
+ * or selectors are errors — OMP reports them as config warnings at startup, but this app writes
+ * them, so it must not write garbage in the first place. Unknown-but-well-formed role names stay
+ * warnings: `modelTags` can introduce custom roles this app has no view of.
+ */
+function validateRetry(
+  value: SettingsDocument["retry"],
+  modelRoles: Record<string, string> | undefined,
+  providerIds: Iterable<string> | undefined,
+  diagnostics: Diagnostic[],
+): void {
   if (value === undefined) return;
+  if (!isRecord(value)) {
+    diagnostics.push({ severity: "error", code: "settings.retry", message: "retry must be a mapping" });
+    return;
+  }
+  for (const key of ["enabled", "modelFallback"]) {
+    if (value[key] !== undefined && typeof value[key] !== "boolean") {
+      diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a boolean` });
+    }
+  }
+  for (const key of ["maxRetries", "baseDelayMs", "maxDelayMs"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) {
+      diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a non-negative number` });
+    }
+  }
+  if (value.fallbackRevertPolicy !== undefined && value.fallbackRevertPolicy !== "cooldown-expiry" && value.fallbackRevertPolicy !== "never") {
+    diagnostics.push({ severity: "error", code: "settings.retry.fallbackRevertPolicy", message: `Unsupported fallbackRevertPolicy: ${value.fallbackRevertPolicy}. OMP accepts cooldown-expiry, never` });
+  }
+  if (value.fallbackChains !== undefined) {
+    if (!isRecord(value.fallbackChains)) {
+      diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains", message: "retry.fallbackChains must be a mapping of ordered selector arrays" });
+      return;
+    }
+    for (const [chainKey, chain] of Object.entries(value.fallbackChains)) {
+      if (chainKey.includes("/")) {
+        // Model-oriented key: `provider/model-id` or the `provider/*` wildcard.
+        const provider = chainKey.slice(0, chainKey.indexOf("/"));
+        const rest = chainKey.slice(provider.length + 1);
+        if (!/^[A-Za-z0-9._-]+$/.test(provider) || (rest !== "*" && (!rest || /[\r\n\t/]/.test(rest)))) {
+          diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-key", path: `retry.fallbackChains.${chainKey}`, message: `Chain key "${chainKey}" must be a role name, provider/model-id, or provider/* wildcard` });
+          continue;
+        }
+      } else if (chainKey !== "default" && !(BUILTIN_ROLE_IDS as readonly string[]).includes(chainKey) && !(modelRoles && chainKey in modelRoles)) {
+        diagnostics.push({ severity: "warning", code: "settings.retry.fallbackChains-role", path: `retry.fallbackChains.${chainKey}`, message: `"${chainKey}" is not a built-in role nor assigned in modelRoles; OMP may report it as an unused chain unless modelTags introduces it` });
+      }
+      if (!Array.isArray(chain) || chain.length === 0 || chain.some((entry) => typeof entry !== "string" || !validateRoleSelector(entry, providerIds))) {
+        diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-entry", path: `retry.fallbackChains.${chainKey}`, message: `Chain "${chainKey}" must be a non-empty array of provider/model selectors (thinking-level suffix allowed)` });
+      } else {
+        for (const entry of chain) {
+          const misused = findMisusedRoleThinkingSuffix(entry);
+          if (misused) {
+            diagnostics.push({ severity: "warning", code: "settings.retry.fallbackChains-suffix", path: `retry.fallbackChains.${chainKey}`, message: `Entry "${entry}" ends in ":${misused}", which OMP does not accept as a thinking suffix; it is being read as part of the model id` });
+          }
+        }
+      }
+    }
+  }
+}
+
+function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {  if (value === undefined) return;
   if (!isRecord(value)) {
     diagnostics.push({ severity: "error", code: "settings.compaction", message: "compaction must be a mapping" });
     return;

@@ -251,6 +251,10 @@ export function patchSettingsYaml(raw: string, before: Record<string, unknown>, 
   // wholesale, which is correct: an ordered list has no per-element identity to preserve.
   patchChildMap(document, root, before, after, "compaction");
   patchChildMap(document, root, before, after, "images");
+  // `retry` nests `fallbackChains` (and OMP's scalar retry knobs this app does not edit), so it is
+  // diffed child-by-child like `compaction` — whole-node replacement would drop a hand-tuned
+  // `maxRetries`/`baseDelayMs` and any comments around them.
+  patchChildMap(document, root, before, after, "retry");
   return documentToYaml(document);
 }
 

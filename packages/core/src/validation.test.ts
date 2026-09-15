@@ -45,11 +45,49 @@ describe("OMP configuration validation", () => {
     expect(parseRoleSelector("ollama/llama3.1:8b", ["ollama"])).toEqual({ kind: "model", provider: "ollama", model: "llama3.1:8b" });
   });
 
+
+
   it("rejects defaultThinkingLevel values OMP does not accept", () => {
     // `off` is a real thinking level for --model but not for this setting.
     const diagnostics = validateSettingsDocument({ defaultThinkingLevel: "off" as never });
     expect(diagnostics.some((item) => item.code === "settings.defaultThinkingLevel")).toBe(true);
     expect(validateSettingsDocument({ defaultThinkingLevel: "auto" })).toEqual([]);
+  });
+
+  it("accepts well-formed retry.fallbackChains and rejects malformed ones", () => {
+    expect(
+      validateSettingsDocument(
+        {
+          retry: {
+            fallbackRevertPolicy: "never",
+            fallbackChains: {
+              default: ["anthropic/claude-sonnet-5", "openai/gpt-5.5:low"],
+              smol: ["openai/gpt-5.5-mini"],
+              "google/gemini-3-pro": ["google-vertex/gemini-3-pro"],
+              "google-antigravity/*": ["google/*", "google-vertex/*"],
+            },
+          },
+        },
+        ["anthropic", "openai", "google", "google-vertex", "google-antigravity"],
+      ),
+    ).toEqual([]);
+    const bad = validateSettingsDocument({ retry: { fallbackChains: { default: [] } } }, []);
+    expect(bad.some((item) => item.code === "settings.retry.fallbackChains-entry")).toBe(true);
+    const badSelector = validateSettingsDocument({ retry: { fallbackChains: { default: ["openai/gpt 5"] } } }, ["openai"]);
+    expect(badSelector.some((item) => item.code === "settings.retry.fallbackChains-entry")).toBe(true);
+    const badKey = validateSettingsDocument({ retry: { fallbackChains: { "openai//x": ["openai/gpt-5"] } } }, ["openai"]);
+    expect(badKey.some((item) => item.code === "settings.retry.fallbackChains-key")).toBe(true);
+    const badPolicy = validateSettingsDocument({ retry: { fallbackRevertPolicy: "sometimes" as never } });
+    expect(badPolicy.some((item) => item.code === "settings.retry.fallbackRevertPolicy")).toBe(true);
+  });
+
+  it("warns on chain keys that are neither roles nor model selectors", () => {
+    const diagnostics = validateSettingsDocument({ retry: { fallbackChains: { typoRole: ["openai/gpt-5"] } } }, ["openai"]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ severity: "warning", code: "settings.retry.fallbackChains-role", path: "retry.fallbackChains.typoRole" }),
+    ]);
+    // A role assigned in modelRoles is a legitimate chain target.
+    expect(validateSettingsDocument({ modelRoles: { custom: "openai/gpt-5" }, retry: { fallbackChains: { custom: ["anthropic/claude-sonnet-5"] } } }, ["openai", "anthropic"])).toEqual([]);
   });
 
   it("warns about a role whose suffix OMP will read as part of the model id", () => {

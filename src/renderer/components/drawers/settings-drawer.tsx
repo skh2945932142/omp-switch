@@ -56,6 +56,8 @@ export interface SettingsDrawerProps {
   setImagesUrlsEnabled: (v: string) => void;
   compactionJson: string;
   setCompactionJson: (v: string) => void;
+  retryChainsJson: string;
+  setRetryChainsJson: (v: string) => void;
   unexpectedStopDetection: UnexpectedStopMode;
   setUnexpectedStopDetection: (v: UnexpectedStopMode) => void;
   updateChannel: UpdateChannel;
@@ -106,6 +108,8 @@ export function SettingsDrawer({
   setImagesUrlsEnabled,
   compactionJson,
   setCompactionJson,
+  retryChainsJson,
+  setRetryChainsJson,
   unexpectedStopDetection,
   setUnexpectedStopDetection,
   updateChannel,
@@ -318,6 +322,20 @@ export function SettingsDrawer({
               />
             </label>
             <span className="muted-line">{t("settings.compactionHint")}</span>
+            <label className="module-field">
+              <span>{t("settings.fallbackChains")}</span>
+              <textarea
+                name="fallbackChains"
+                value={retryChainsJson}
+                onChange={(event) => setRetryChainsJson(event.target.value)}
+                rows={4}
+                placeholder={
+                  '{"default":["anthropic/claude-sonnet-5","openai/gpt-5.5"],"smol":["openai/gpt-5.5-mini"]}\n' +
+                  t("settings.fallbackChainsPlaceholder")
+                }
+              />
+            </label>
+            <span className="muted-line">{t("settings.fallbackChainsHint")}</span>
             <label className="module-field">
               <span>{t("settings.unexpectedStop")}</span>
               <StyledSelect

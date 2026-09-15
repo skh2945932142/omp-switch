@@ -133,6 +133,25 @@ export interface SettingsDocument extends Record<string, unknown> {
   /** OMP v17.4.2+ image handling. Open-shaped: OMP carries `autoResize`/`blockImages` etc. this app
    *  does not edit but must round-trip (the writer diffs child-by-child), so the extra fields survive. */
   images?: { urls?: { enabled?: boolean }; [key: string]: unknown };
+  /** OMP v18 retry/fallback tuning. This app edits only `fallbackChains`; the scalar knobs this app
+   *  does not write are part of the mapping and survive the child-by-child diff. */
+  retry?: RetrySettings;
+}
+
+/**
+ * OMP v18 `retry` settings. A `fallbackChains` key is a role name (from `modelRoles`), an exact
+ * `provider/model-id` selector, or a `provider/*` wildcard; values are ordered fallback selectors
+ * that accept an optional `:thinkingLevel` suffix. Keys containing `/` win over role keys, and the
+ * `default` chain covers every role without its own.
+ */
+export interface RetrySettings {
+  enabled?: boolean;
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  modelFallback?: boolean;
+  fallbackRevertPolicy?: "cooldown-expiry" | "never";
+  fallbackChains?: Record<string, string[]>;
 }
 
 /** Compaction settings as documented for OMP v17.4.0+. */
@@ -270,7 +289,7 @@ export interface ConfigPatch {
   providers?: Array<ProviderDraft | ProviderPatch>;
   removeProviderId?: string;
   roleAssignments?: Record<string, string | null>;
-  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel">>;
+  settings?: Partial<Pick<SettingsDocument, "modelProviderOrder" | "enabledModels" | "disabledProviders" | "defaultThinkingLevel" | "compaction" | "extendedContext" | "externalThinking" | "personality" | "images" | "unexpectedStopDetection" | "updateChannel" | "retry">>;
   confirmLegacyMigration?: boolean;
 }
 
