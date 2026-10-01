@@ -2,9 +2,18 @@ import { describe, expect, it } from "vitest";
 import { getProviderPreset, listProviderPresets, mergeCatalogBundle, validateCatalogBundle } from "./catalog";
 
 describe("provider catalog", () => {
-  it("ships a searchable catalog with more than fifty presets", () => {
-    expect(listProviderPresets().length).toBeGreaterThanOrEqual(50);
+  it("ships a searchable catalog with over seventy-five presets and CC Switch integration", () => {
+    expect(listProviderPresets().length).toBeGreaterThanOrEqual(75);
     expect(listProviderPresets("ollama").map((preset) => preset.id)).toEqual(["ollama"]);
+    expect(getProviderPreset("ppio")).toMatchObject({ baseUrl: "https://api.ppinfra.com/v3/openai", api: "openai-completions" });
+    expect(getProviderPreset("kimi-coding")).toMatchObject({ baseUrl: "https://api.kimi.com/coding", api: "anthropic-messages" });
+    expect(getProviderPreset("apple-foundation-models")).toMatchObject({ baseUrl: "http://127.0.0.1:10000/v1" });
+    
+    // Model thinkingLevelMap verification
+    const openaiPreset = getProviderPreset("openai");
+    const gpt5 = openaiPreset?.models?.find((m) => m.id === "gpt-5");
+    expect(gpt5?.thinkingLevelMap).toBeDefined();
+    expect(gpt5?.reasoning).toBe(true);
   });
 
   it("keeps endpoint-dependent presets explicit", () => {

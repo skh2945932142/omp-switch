@@ -1,14 +1,14 @@
 # OMP Switch
 
-[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md) · [OMP schema 跟踪](docs/omp-schema-tracking.md)
+[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md) · [OMP schema 跟踪](docs/omp-schema-tracking.md) · [原生契约](docs/pi-contract.md) · [思考画像](docs/pi-thinking-profiles.md)
 
 安全管理 [Oh My Pi](https://github.com/can1357/oh-my-pi)（OMP）模型供应商配置的桌面伴侣应用。
 
 它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
 
-**v0.6.0 起 Linux 完整支持**：桌面 GUI（AppImage/deb）+ 终端 TUI + 凭据库（libsecret 主 / age 回退）。Windows 版本行为不变。
+**v0.8.0 深度对齐 Oh My Pi (v18.4+) 与 CC Switch**：吸纳 CC Switch 的 79+ 精选供应商预设与 `thinkingLevelMap` 思考画像映射机制，支持 Linux (AppImage/deb/rpm) 与 Windows 双平台桌面 GUI + 终端 TUI + 安全凭据库。
 
-> `v0.6.0` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)：**Linux 完整支持**（桌面 AppImage/deb、终端 TUI、libsecret 凭据库），Windows 行为不变。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归已由夜间 workflow 覆盖（`.github/workflows/windows-install-regression.yml`）。
+> `v0.8.0` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)：对齐 OMP v18.4+ 最新配置规范与 CC Switch 预设库（79+ 供应商预设、推理思考映射、模型元数据）。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归已由夜间 workflow 覆盖（`.github/workflows/windows-install-regression.yml`）。
 
 ![OMP Switch 模型工作区](docs/images/provider-workspace.png)
 
@@ -18,7 +18,7 @@
 
 | 形态 | Windows | Linux | 内容 |
 | --- | --- | --- | --- |
-| **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | 支持（v0.6.0） | 全部功能 |
+| **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | 支持（AppImage/deb/rpm） | 全部功能 |
 | **headless CLI**（`omp-switch-cli`） | 支持 | 支持 | 配置读写、校验、快照 |
 | **TUI**（`omp-switch-tui`，从源码构建） | 支持 | 支持 | 终端交互式配置编辑（`pnpm build:tui`） |
 
@@ -29,7 +29,7 @@ headless CLI 与 TUI 完全不依赖 Electron（`packages/core` / `packages/shar
 ## 安装
 
 ```powershell
-# winget（0.3.0 新包已上架 microsoft/winget-pkgs；0.6.0 增量更新已提交）
+# winget（0.3.0 新包已上架 microsoft/winget-pkgs；0.8.0 增量更新已提交）
 winget install skh2945932142.OMPSwitch
 
 # Scoop（本仓库自带 bucket，release 后自动同步）
@@ -39,16 +39,17 @@ scoop install omp-switch
 
 ```bash
 # Linux：deb 或 AppImage（Releases 页下载）
-sudo dpkg -i OMP-Switch-0.6.0-linux.deb
-# 或 chmod +x OMP-Switch-0.6.0-linux.AppImage 后直接运行
+sudo dpkg -i OMP-Switch-0.8.0-linux.deb
+# 或 sudo rpm -i OMP-Switch-0.8.0-linux.rpm
+# 或 chmod +x OMP-Switch-0.8.0-linux.AppImage 后直接运行
 ```
 
-或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包 / 便携版（Linux AppImage/deb 同页）。
+或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包 / 便携版（Linux AppImage/deb/rpm 同页）。
 Chocolatey 清单已就绪，feed 提交与审核待办，详见 [docs/install.md](docs/install.md)。
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.6.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
 ```
 
 > 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
@@ -64,7 +65,8 @@ docker run --rm -v "$HOME/.omp:/home/node/.omp" \
 - 默认和命名 Profile、`models.yml` / `config.yml`、旧 `models.json` 迁移保护；遵循 OMP 自己的 `PI_CONFIG_DIR` / `OMP_PROFILE` / `PI_PROFILE` / `PI_CODING_AGENT_DIR` 路径覆盖。
 - Provider / Model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking 设置。
 - YAML AST 局部修改、外部变更保护、原子写入、快照与恢复（恢复同样拒绝覆盖外部改动）。
-- 54 个版本化预设；OpenAI、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM discovery。
+- **79+ 个版本化预设**（吸收 CC Switch 社区最佳实践，含 PPIO、Kimi For Coding、302.AI、AIHubMix 等）；OpenAI、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM 以及 Apple Foundation Models discovery。
+- **思考画像与映射**：支持 `thinkingLevelMap` 思考档位精准映射，兼容 OpenAI、Anthropic、DeepSeek、Gemini、Qwen 等异构思考 API 协议。
 
 **模型角色**
 

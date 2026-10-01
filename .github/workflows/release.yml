@@ -124,8 +124,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Chromium initializes the UI platform layer before app code (see ci.yml verify-linux).
-      - name: Install Electron runtime libraries and xvfb
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+      - name: Install Electron runtime libraries, xvfb and rpm
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2 rpm
       - name: Package Linux artifacts
         run: pnpm package:linux
 

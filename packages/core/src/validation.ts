@@ -1,6 +1,6 @@
 import { Diagnostic, ModelsDocument, OmpProvider, RoleThinkingLevel, SettingsDocument, SettingsThinkingLevel } from "./domain";
 
-export const DISCOVERY_TYPES = new Set(["ollama", "llama.cpp", "lm-studio", "openai-models-list", "proxy", "litellm"]);
+export const DISCOVERY_TYPES = new Set(["ollama", "llama.cpp", "lm-studio", "openai-models-list", "proxy", "litellm", "apple-foundation-models"]);
 
 /** Values OMP accepts for `defaultThinkingLevel`. `off` is deliberately absent. */
 export const SETTINGS_THINKING_LEVELS: SettingsThinkingLevel[] = ["minimal", "low", "medium", "high", "xhigh", "max", "auto"];
@@ -29,6 +29,8 @@ export const KNOWN_PROVIDER_APIS = new Set([
   "google-generative-ai",
   "google-gemini-cli",
   "google-vertex",
+  "openrouter-decisions",
+  "typesafe",
 ]);
 
 /**
@@ -364,7 +366,43 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
           }
         }
       }
-
+      if (model.maxContextWindow !== undefined) {
+        if (!Number.isFinite(model.maxContextWindow) || model.maxContextWindow <= 0) {
+          diagnostics.push({ severity: "error", code: "model.maxContextWindow", path: `providers.${providerId}.models.${index}.maxContextWindow`, message: "maxContextWindow must be positive" });
+        } else if (model.contextWindow !== undefined && model.maxContextWindow < model.contextWindow) {
+          diagnostics.push({ severity: "error", code: "model.maxContextWindow-less-than-contextWindow", path: `providers.${providerId}.models.${index}.maxContextWindow`, message: "maxContextWindow must be no smaller than contextWindow" });
+        }
+      }
+      if (model.supportsTools !== undefined && typeof model.supportsTools !== "boolean") {
+        diagnostics.push({ severity: "error", code: "model.supportsTools", path: `providers.${providerId}.models.${index}.supportsTools`, message: "supportsTools must be boolean" });
+      }
+      if (model.promptCache !== undefined) {
+        if (!isRecord(model.promptCache)) {
+          diagnostics.push({ severity: "error", code: "model.promptCache", path: `providers.${providerId}.models.${index}.promptCache`, message: "promptCache must be a mapping" });
+        } else {
+          if (model.promptCache.short !== undefined && (!Number.isFinite(model.promptCache.short) || model.promptCache.short < 0)) {
+            diagnostics.push({ severity: "error", code: "model.promptCache-short", path: `providers.${providerId}.models.${index}.promptCache.short`, message: "promptCache.short must be non-negative number" });
+          }
+          if (model.promptCache.long !== undefined && (!Number.isFinite(model.promptCache.long) || model.promptCache.long < 0)) {
+            diagnostics.push({ severity: "error", code: "model.promptCache-long", path: `providers.${providerId}.models.${index}.promptCache.long`, message: "promptCache.long must be non-negative number" });
+          }
+        }
+      }
+      if (model.thinkingLevelMap !== undefined) {
+        if (!isRecord(model.thinkingLevelMap)) {
+          diagnostics.push({ severity: "error", code: "model.thinkingLevelMap", path: `providers.${providerId}.models.${index}.thinkingLevelMap`, message: "thinkingLevelMap must be a mapping" });
+        } else {
+          const validLevels = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+          for (const [lvlKey, lvlVal] of Object.entries(model.thinkingLevelMap)) {
+            if (!validLevels.has(lvlKey)) {
+              diagnostics.push({ severity: "error", code: "model.thinkingLevelMap-key", path: `providers.${providerId}.models.${index}.thinkingLevelMap.${lvlKey}`, message: `Invalid thinking level "${lvlKey}". Valid levels are: ${[...validLevels].join(", ")}` });
+            }
+            if (lvlVal !== null && typeof lvlVal !== "string") {
+              diagnostics.push({ severity: "error", code: "model.thinkingLevelMap-value", path: `providers.${providerId}.models.${index}.thinkingLevelMap.${lvlKey}`, message: `thinkingLevelMap value for "${lvlKey}" must be string or null` });
+            }
+          }
+        }
+      }
     }
   }
   return diagnostics;
@@ -493,6 +531,20 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
       } else if (value.images.urls.enabled !== undefined && typeof value.images.urls.enabled !== "boolean") {
         diagnostics.push({ severity: "error", code: "settings.images.urls.enabled", message: "images.urls.enabled must be a boolean" });
       }
+    }
+  }
+  if (value.gc !== undefined) {
+    if (!isRecord(value.gc)) {
+      diagnostics.push({ severity: "error", code: "settings.gc", message: "gc must be a mapping" });
+    } else if (value.gc.stale !== undefined && typeof value.gc.stale !== "boolean") {
+      diagnostics.push({ severity: "error", code: "settings.gc.stale", message: "gc.stale must be a boolean" });
+    }
+  }
+  if (value.tools !== undefined) {
+    if (!isRecord(value.tools)) {
+      diagnostics.push({ severity: "error", code: "settings.tools", message: "tools must be a mapping" });
+    } else if (value.tools.artifactMaxBytes !== undefined && (typeof value.tools.artifactMaxBytes !== "number" || !Number.isFinite(value.tools.artifactMaxBytes) || value.tools.artifactMaxBytes < 0)) {
+      diagnostics.push({ severity: "error", code: "settings.tools.artifactMaxBytes", message: "tools.artifactMaxBytes must be a non-negative number" });
     }
   }
   return diagnostics;

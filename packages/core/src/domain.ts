@@ -90,7 +90,17 @@ export interface OmpModel extends Record<string, unknown> {
   thinkingFormat?: string;
   /** OMP v18: route the selected effort onto the Qwen 3.8+ chat template kwarg (default: auto). */
   qwenTemplateReasoningEffort?: boolean;
+  /** OMP v18.4+: upper context window bound when dynamic context expansion is allowed. */
+  maxContextWindow?: number;
+  /** OMP v18.4+: whether tool/function calling is supported for this model. */
+  supportsTools?: boolean;
+  /** OMP v18.4+: token thresholds for prompt caching. */
+  promptCache?: { short?: number; long?: number };
+  /** CC Switch & OMP: explicit thinking level mapping (off, minimal, low, medium, high, xhigh, max). */
+  thinkingLevelMap?: Record<string, string | null>;
 }
+
+export type PiThinkingLevelMap = Partial<Record<ThinkingLevel, string | null>>;
 
 /** OMP v18 per-model `thinking` mapping. Open-shaped: OMP may carry more keys; the writer's
  *  deep-diff preserves whatever this app does not edit. */
@@ -157,6 +167,10 @@ export interface SettingsDocument extends Record<string, unknown> {
   /** OMP v18 retry/fallback tuning. This app edits only `fallbackChains`; the scalar knobs this app
    *  does not write are part of the mapping and survive the child-by-child diff. */
   retry?: RetrySettings;
+  /** OMP v18.4.0+: garbage collection settings (e.g. stale session cleanup). */
+  gc?: { stale?: boolean; [key: string]: unknown };
+  /** OMP v18.4.0+: tools execution settings (e.g. artifactMaxBytes). */
+  tools?: { artifactMaxBytes?: number; [key: string]: unknown };
 }
 
 /**
@@ -357,6 +371,10 @@ export interface ProviderPreset {
   auth?: string;
   discovery?: OmpProvider["discovery"];
   models?: CatalogModel[];
+  headers?: Record<string, string>;
+  compat?: Record<string, unknown>;
+  websiteUrl?: string;
+  apiKeyUrl?: string;
   source: string;
   version: string;
   category?: string;

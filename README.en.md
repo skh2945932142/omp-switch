@@ -1,6 +1,6 @@
 # OMP Switch
 
-[中文文档](README.md) · [Install and downloads](docs/install.md) · [Architecture](CLAUDE.md) · [OMP schema tracking](docs/omp-schema-tracking.md)
+[中文文档](README.md) · [Install and downloads](docs/install.md) · [Architecture](CLAUDE.md) · [OMP schema tracking](docs/omp-schema-tracking.md) · [Native Contract](docs/pi-contract.md) · [Thinking Profiles](docs/pi-thinking-profiles.md)
 
 A desktop companion for safely managing [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP)
 model-provider configuration.
@@ -9,10 +9,11 @@ It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `confi
 about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
 fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
 
-> **v0.6.0: full Linux support** — desktop GUI (AppImage/deb), a terminal UI, and the credential
-> vault (libsecret primary / age fallback). Windows behavior is unchanged. The binaries are
-> **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the build-provenance
-> attestations. A clean-Windows install/upgrade/uninstall regression now runs nightly.
+> **v0.8.0: Aligned with Oh My Pi v18.4+ and CC Switch** — absorbs CC Switch's curated catalog of 79+
+> provider presets, rich model capabilities, and `thinkingLevelMap` mapping specifications.
+> Full dual-platform support for Linux (AppImage/deb/rpm) and Windows (NSIS installer/portable zip).
+> The binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the build-provenance
+> attestations.
 
 ![OMP Switch provider workspace](docs/images/provider-workspace.png)
 
@@ -22,7 +23,7 @@ fields, a snapshot before every commit, and read-only mode for unknown OMP schem
 
 | Artifact | Windows | Linux | Contains |
 | --- | --- | --- | --- |
-| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | Supported (v0.6.0) | Everything |
+| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | Supported (AppImage/deb/rpm) | Everything |
 | **Headless CLI** (`omp-switch-cli`) | Supported | Supported | Config read/write, validation, snapshots |
 | **TUI** (`omp-switch-tui`, built from source) | Supported | Supported | Interactive terminal config editing (`pnpm build:tui`) |
 
@@ -43,18 +44,19 @@ scoop install omp-switch
 ```
 
 ```bash
-# Linux (deb / AppImage from the Releases page)
-sudo dpkg -i OMP-Switch-0.6.0-linux.deb
-# or chmod +x OMP-Switch-0.6.0-linux.AppImage and run it
+# Linux (deb, rpm, or AppImage from the Releases page)
+sudo dpkg -i OMP-Switch-0.8.0-linux.deb
+# or sudo rpm -i OMP-Switch-0.8.0-linux.rpm
+# or chmod +x OMP-Switch-0.8.0-linux.AppImage and run it
 ```
 
-winget carries the package since 0.3.0 (`winget install skh2945932142.OMPSwitch`, the 0.6.0
-update is submitted); the Chocolatey package is prepared with its feed submission still pending —
+winget carries the package since 0.3.0 (`winget install skh2945932142.OMPSwitch`, the 0.8.0
+update is staged); the Chocolatey package is prepared with its feed submission still pending —
 see [docs/install.md](docs/install.md).
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.6.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
 ```
 
 > The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
@@ -73,8 +75,9 @@ Every method, including checksum and provenance verification, is in
   OMP's own path overrides (`PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, `PI_CODING_AGENT_DIR`).
 - Provider / model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking
   settings.
-- YAML AST patching, external-edit protection, atomic writes, snapshots and guarded restore.
-- 54 versioned presets; OpenAI, Ollama, llama.cpp, LM Studio, proxy and LiteLLM discovery.
+- YAML AST granular edits, external write collision protection, atomic commits, snapshots and restores.
+- **79+ versioned presets** (absorbing CC Switch community best practices, including PPIO, Kimi For Coding, 302.AI, AIHubMix, etc.); OpenAI, Ollama, llama.cpp, LM Studio, Proxy, LiteLLM, and Apple Foundation Models discovery.
+- **Thinking Profiles & Mapping**: supports `thinkingLevelMap` per model, accurately mapping reasoning efforts to OpenAI, Anthropic, DeepSeek, Gemini, Qwen, and GLM.
 
 **Model roles**
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0 - 2026-10-02
+
+### Added
+- **Full Alignment with Oh My Pi v18.4+**:
+  - Validation and support for new upstream provider APIs: `openrouter-decisions` and `typesafe`.
+  - New discovery source: `apple-foundation-models`.
+  - Model fields: `maxContextWindow` (with strict assertion `maxContextWindow >= contextWindow`), `supportsTools`, `promptCache` token thresholds (`short`/`long`), and `thinkingLevelMap`.
+  - Settings fields: `gc.stale` (stale session cleanup) and `tools.artifactMaxBytes`.
+- **CC Switch Integration & Extended Catalog (79+ Presets)**:
+  - Ingested CC Switch's curated provider presets: PPIO AI, Kimi For Coding (national and global), 302.AI, AIHubMix, ShengsuanYun, AICoding, SubRouter, Sub2API, DeepBricks, CherryIN, Apple Foundation Models, etc.
+  - Complete model definitions with community-verified `contextWindow`, `maxTokens`, `reasoning` flags, and `thinkingLevelMap`.
+  - Curated Thinking Profiles module (`packages/core/src/thinking-profiles.ts`) featuring `xhighAndMax`, `deepseekV4`, `kimi3`, `openCodeGoGlm52`, `openaiResponsesGpt5`, `geminiLowHigh`, etc.
+  - New technical documentation: `docs/pi-contract.md` (contract and boundaries) and `docs/pi-thinking-profiles.md` (thinking level mapping specifications).
+
+### Changed
+- Bumped version to `0.8.0` across package.json, scoop bucket, and winget templates.
+- Enhanced validation diagnostics for thinking level mapping keys, prompt caching thresholds, and garbage collection settings.
+
 ## 0.5.8 - 2026-08-26
 
 ### Security & Credential Management

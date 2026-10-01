@@ -50,3 +50,14 @@ When the watch fires (or proactively after browsing upstream's
 Note on rate limits: the GitHub API is anonymous-rate-limited per IP (60/h) and shared proxies
 burn it fast; `git ls-remote` and `raw.githubusercontent.com` are the reliable fallbacks — the
 checker and this doc both prefer them when the API refuses.
+
+## OMP v18.4+ and CC Switch Alignment (v0.8.0)
+
+With OMP Switch v0.8.0, the schema and catalog have been synchronized against OMP v18.4.9 and CC Switch:
+- **New APIs recognized**: `openrouter-decisions`, `typesafe`.
+- **New Discovery Type**: `apple-foundation-models`.
+- **Model Fields**: `maxContextWindow`, `supportsTools`, `promptCache`, and `thinkingLevelMap`.
+- **Settings Fields**: `gc.stale`, `tools.artifactMaxBytes`.
+- **Thinking Profiles**: Integrated CC Switch's curated thinking level mappings (`packages/core/src/thinking-profiles.ts`).
+- **Contract & Spec Docs**: See [docs/pi-contract.md](pi-contract.md) and [docs/pi-thinking-profiles.md](pi-thinking-profiles.md).
+

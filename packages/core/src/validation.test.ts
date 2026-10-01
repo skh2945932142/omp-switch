@@ -350,4 +350,79 @@ describe("OMP configuration validation", () => {
     });
     expect(valid).toHaveLength(0);
   });
+
+  it("validates OMP v18.4+ and CC Switch model fields: maxContextWindow, supportsTools, promptCache, and thinkingLevelMap", () => {
+    const valid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "openrouter-decisions",
+          auth: "none",
+          models: [
+            {
+              id: "m-advanced",
+              contextWindow: 128000,
+              maxContextWindow: 200000,
+              supportsTools: true,
+              promptCache: { short: 1024, long: 8192 },
+              thinkingLevelMap: { high: "high", max: "max", off: null },
+            },
+          ],
+        },
+      },
+    });
+    expect(valid).toEqual([]);
+
+    const invalid = validateModelsDocument({
+      providers: {
+        demo: {
+          baseUrl: "https://api.example/v1",
+          api: "typesafe",
+          auth: "none",
+          models: [
+            {
+              id: "m-bad",
+              contextWindow: 128000,
+              maxContextWindow: 64000, // less than contextWindow
+              supportsTools: "yes" as any,
+              promptCache: "bad" as any,
+              thinkingLevelMap: { invalidLvl: "high", off: 123 as any },
+            },
+          ],
+        },
+      },
+    });
+    expect(invalid.some((d) => d.code === "model.maxContextWindow-less-than-contextWindow")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.supportsTools")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.promptCache")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.thinkingLevelMap-key")).toBe(true);
+    expect(invalid.some((d) => d.code === "model.thinkingLevelMap-value")).toBe(true);
+  });
+
+  it("validates OMP v18.4+ gc.stale, tools.artifactMaxBytes and discovery apple-foundation-models", () => {
+    const validSettings = validateSettingsDocument({
+      gc: { stale: true },
+      tools: { artifactMaxBytes: 16777216 },
+    });
+    expect(validSettings).toEqual([]);
+
+    const invalidSettings = validateSettingsDocument({
+      gc: { stale: "true" as any },
+      tools: { artifactMaxBytes: -1 },
+    });
+    expect(invalidSettings.some((d) => d.code === "settings.gc.stale")).toBe(true);
+    expect(invalidSettings.some((d) => d.code === "settings.tools.artifactMaxBytes")).toBe(true);
+
+    const validDiscovery = validateModelsDocument({
+      providers: {
+        local: {
+          baseUrl: "http://127.0.0.1:10000/v1",
+          api: "openai-completions",
+          auth: "none",
+          discovery: { type: "apple-foundation-models" },
+        },
+      },
+    });
+    expect(validDiscovery).toEqual([]);
+  });
 });
