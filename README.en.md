@@ -1,150 +1,116 @@
 # OMP Switch
 
-[中文文档](README.md) · [Install and downloads](docs/install.md) · [Architecture](CLAUDE.md) · [OMP schema tracking](docs/omp-schema-tracking.md) · [Native Contract](docs/pi-contract.md) · [Thinking Profiles](docs/pi-thinking-profiles.md)
+[中文](README.md) · [Install and downloads](docs/install.md) · [Features](docs/features.en.md) · [Security](docs/security.md) · [Architecture](CLAUDE.md)
 
-A desktop companion for safely managing [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP)
-model-provider configuration.
+OMP Switch is a desktop app for managing model providers, model roles, and related settings in [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP). It runs on Windows and Linux, and also comes as a command-line tool (CLI) and a terminal UI (TUI).
 
-It edits **files you own and it does not**: `~/.omp/agent/models.yml` and `config.yml`. Everything
-about the architecture follows from that — hash-guarded writes, preserved YAML comments and unknown
-fields, a snapshot before every commit, and read-only mode for unknown OMP schema versions.
+It edits files that belong to you, not to it: `~/.omp/agent/models.yml` and `config.yml`. That's why it writes carefully:
 
-> **v0.8.0: Aligned with Oh My Pi v18.4+ and CC Switch** — absorbs CC Switch's curated catalog of 79+
-> provider presets, rich model capabilities, and `thinkingLevelMap` mapping specifications.
-> Full dual-platform support for Linux (AppImage/deb/rpm) and Windows (NSIS installer/portable zip).
-> The binaries are **not code-signed**, so SmartScreen will warn; verify `SHA256SUMS.txt` and the build-provenance
-> attestations.
+- Before writing, it checks whether another tool changed the file. If so, it stops and asks you to reload.
+- It changes only what you touched. YAML comments and fields it doesn't recognize stay as they were.
+- It takes a snapshot before every write, so you can always go back.
+- If it meets an OMP major version it hasn't verified, it opens the files read-only.
 
 ![OMP Switch provider workspace](docs/images/provider-workspace.png)
 
 ![Roles page, dark theme](docs/images/roles-dark.png)
 
-## Three artifacts
+## What's new in v0.8.0
 
-| Artifact | Windows | Linux | Contains |
+v0.8.0 follows OMP v18.4's config format and adds provider presets informed by [CC Switch](https://github.com/farion1231/cc-switch):
+
+- The built-in catalog grows to 81 presets, including PPIO, Kimi For Coding, 302.AI, and AIHubMix.
+- Some preset models now carry context length, output limit, a reasoning flag, and a `thinkingLevelMap` (which maps OMP's thinking levels to the parameters each provider's API expects).
+- The validator understands OMP 18.4's new `openrouter-decisions` and `typesafe` API types, the `apple-foundation-models` discovery source, and the `maxContextWindow`, `supportsTools`, `promptCache`, `gc.stale`, and `tools.artifactMaxBytes` fields.
+- We also checked OMP v18.5.0: the `models.yml` format is unchanged, so reading and writing still work.
+
+See the [release notes](docs/releases/v0.8.0.md) and the [CHANGELOG](CHANGELOG.md) for the full list.
+
+> The installers are not code-signed, so Windows SmartScreen will warn you. Check what you downloaded against `SHA256SUMS.txt` and the build provenance on the release page; [docs/install.md](docs/install.md) shows how.
+
+## Which one to get
+
+| Form | Windows | Linux | What it does |
 | --- | --- | --- | --- |
-| **Desktop app** (GUI, credential vault, gateway, prompts/skills/sessions) | Supported | Supported (AppImage/deb/rpm) | Everything |
-| **Headless CLI** (`omp-switch-cli`) | Supported | Supported | Config read/write, validation, snapshots |
-| **TUI** (`omp-switch-tui`, built from source) | Supported | Supported | Interactive terminal config editing (`pnpm build:tui`) |
+| Desktop app | Yes | Yes (AppImage / deb / rpm) | Everything: GUI, credential vault, local gateway, Prompts / Skills / Sessions |
+| CLI, `omp-switch-cli` | Yes | Yes | Read and write config, validate, snapshot; stable JSON output for scripts |
+| TUI, `omp-switch-tui` | Build from source | Build from source | Edit config interactively in a terminal (`pnpm build:tui`) |
 
-Credentials are platform-keyed: on Windows, API keys are sealed with Electron `safeStorage` (the
-user's DPAPI key) and resolved by the C# secret bridge; on Linux, each key is a **direct libsecret
-keyring entry** resolved by `secret-tool` (no bridge binary), with an age keyfile fallback when no
-Secret Service is available — see [docs/security.md](docs/security.md).
+The CLI and TUI don't use Electron; Node.js 24 is enough. They can't open the credential vault. An API key can only be unsealed on the machine that sealed it, so the CLI manages configuration, not secrets.
 
-The headless CLI and the TUI have no Electron dependency (`packages/core` / `packages/shared` are
-pure Node), so they run anywhere Node 24 does. The CLI cannot open the credential vault — only the
-machine that sealed a key can.
+Where API keys live depends on the system:
+
+- **Windows:** encrypted with Electron `safeStorage` (tied to your user's DPAPI key). OMP gets them back through a small C# helper.
+- **Linux:** each key is its own entry in the system's libsecret keyring, and OMP gets it back through `secret-tool`. Without a Secret Service, keys fall back to an age-encrypted file. That is a real downgrade; [docs/security.md](docs/security.md) explains it.
+
+On either system the key never goes into `models.yml`. The config holds only the command that fetches it.
 
 ## Install
 
+Windows:
+
 ```powershell
+# winget (listed; currently up to 0.7.0, 0.8.0 not yet submitted)
+winget install skh2945932142.OMPSwitch
+
+# Scoop (this repo hosts the bucket and syncs it after every release)
 scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
 scoop install omp-switch
 ```
 
+Linux:
+
 ```bash
-# Linux (deb, rpm, or AppImage from the Releases page)
+# Download from the Releases page, then pick one
 sudo dpkg -i OMP-Switch-0.8.0-linux.deb
-# or sudo rpm -i OMP-Switch-0.8.0-linux.rpm
-# or chmod +x OMP-Switch-0.8.0-linux.AppImage and run it
+sudo rpm -i OMP-Switch-0.8.0-linux.rpm
+chmod +x OMP-Switch-0.8.0-linux.AppImage && ./OMP-Switch-0.8.0-linux.AppImage
 ```
 
-winget carries the package since 0.3.0 (`winget install skh2945932142.OMPSwitch`, the 0.8.0
-update is staged); the Chocolatey package is prepared with its feed submission still pending —
-see [docs/install.md](docs/install.md).
+You can also download the Windows installer or portable build from [Releases](https://github.com/skh2945932142/omp-switch/releases/latest). The Chocolatey package is ready but hasn't been submitted to the official feed yet.
+
+If you only want the CLI, use Docker:
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
   ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
 ```
 
-> The image is pushed to GHCR, but GitHub creates container packages as private and visibility is a
-> repository setting. If the pull reports `unauthorized`, see
-> [docs/install.md](docs/install.md#docker) — a local `docker build` always works.
+The image is on GHCR, but GitHub makes new container packages private by default, and only the repository owner can change that in settings. If the pull says `unauthorized`, see [docs/install.md](docs/install.md#docker); a local `docker build` always works.
 
-Every method, including checksum and provenance verification, is in
-**[docs/install.md](docs/install.md)**.
+Checksums, provenance checks, and the other install methods are in **[docs/install.md](docs/install.md)**.
 
-## Implemented
+## What it does
 
-**Configuration editing**
+- **Providers and models:** add, edit, and remove providers and models; set `modelProviderOrder`, `enabledModels`, `disabledProviders`, and thinking levels. Apply any of the 81 presets in one click. Model discovery works with OpenAI, Ollama, llama.cpp, LM Studio, Proxy, LiteLLM, and Apple Foundation Models.
+- **Model roles:** the Roles page shows one row per role and the model it actually resolves to. `@role` cycles, bad selectors, and misuse of `:off` / `:auto` are flagged in place.
+- **Preview before write:** every save first shows a line-by-line diff of `models.yml` / `config.yml`, and nothing is written until you confirm. Snapshots can be browsed and restored.
+- **Also:** Prompts / Skills / Sessions browsing, usage stats, a local gateway, a Ctrl+K command palette, light and dark themes, and a Chinese / English interface.
 
-- OMP `16.x` / `17.x` / `18.x` writable; unknown future majors read-only.
-- Default and named profiles, `models.yml` / `config.yml`, legacy `models.json` migration guard, and
-  OMP's own path overrides (`PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, `PI_CODING_AGENT_DIR`).
-- Provider / model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking
-  settings.
-- YAML AST granular edits, external write collision protection, atomic commits, snapshots and restores.
-- **79+ versioned presets** (absorbing CC Switch community best practices, including PPIO, Kimi For Coding, 302.AI, AIHubMix, etc.); OpenAI, Ollama, llama.cpp, LM Studio, Proxy, LiteLLM, and Apple Foundation Models discovery.
-- **Thinking Profiles & Mapping**: supports `thinkingLevelMap` per model, accurately mapping reasoning efforts to OpenAI, Anthropic, DeepSeek, Gemini, Qwen, and GLM.
+Each page is described in [docs/features.en.md](docs/features.en.md).
 
-**Model roles**
+## What it won't do
 
-- A dedicated Roles page: each role shows a one-line gloss, its resolved selector chain
-  (`@default → provider/model`), capability chips, and in-place warnings for `@role` cycles,
-  unparseable selectors, and `:off`/`:auto` misuse. Custom roles from `config.yml` are listed and
-  editable instead of invisible.
-- A searchable model picker: provider-grouped results with instant filtering, pinned
-  `@default`/`*`/clear values, a segmented thinking-level control (only the six levels OMP accepts
-  as a role suffix), full keyboard navigation — shared with gateway upstream rows.
-- Quick-assign from any model row: one click assigns a provider/model to a role, preserving that
-  role's thinking suffix.
-
-**Other modules**
-
-- Prompts, skills, and session indexing with on-demand raw reads; a usage dashboard (spend,
-  requests, tokens, per-day trend, per-model/per-provider breakdowns, cost labelled by provenance).
-- Loopback gateway: `/healthz`, `/v1/models`, chat, responses, pre-stream failover, mandatory bearer
-  token, `Host` validation and cross-origin refusal.
-- Windows DPAPI secret bridge, OMP OAuth status/login entry points, stable JSON CLI.
-
-**Interface**
-
-- A "Quiet Instrument" visual language: untinted zinc neutrals, teal reserved as a signal color for
-  selection and focus, ink/paper inversion for primary actions, status as a dot plus quiet text;
-  selected rows use a soft fill rather than a 3px rail, and eyebrows are sentence case.
-- A manual light / dark / system theme switch (persisted, mirrored by the native title-bar
-  buttons), plus a 中文 / English / System language switch (persisted; first paint already
-  matches the stored locale, no Chinese flash); plus a Mica window material on Windows 11
-  22H2+ (everything else falls back to solid surfaces automatically).
-- A custom title bar: the web topbar is the drag region with native overlay window buttons (Snap
-  Layouts kept), and Mica reaches the top edge.
-- Provider cards: clicking the header only expands/collapses the model list (animated); an edit
-  pencil appears on hover. The detail/editor drawer springs in as a floating sheet instead of
-  squeezing the workspace.
-- Context-scoped saves (roles and settings commit independently) with pending-change dots and
-  `Ctrl+S`; switching profiles confirms before discarding unsaved edits.
-- **Preview-before-write**: every commit shows a line-level diff of what `models.yml` /
-  `config.yml` will receive before anything touches disk; a snapshot timeline browses and restores
-  history; external-edit conflicts surface as a dialog with one-click reload.
-- **Command palette** (`Ctrl+K`) over sections, profiles, providers, and actions; `Ctrl+1…7`
-  section switching; `?` for the shortcut reference.
-- Provider cards and the role picker flag `enabledModels` coverage, warning when a picked model
-  would be filtered out of OMP's catalog.
-
-## Security boundaries
-
-- Never reads or modifies OMP's `agent.db`, OAuth refresh tokens, or account-rotation state.
-- Never writes project-local `.omp` overrides automatically (read-only overlays).
-- Never uploads keys, snapshots, diagnostics, or exports anywhere.
+- It never reads or changes OMP's `agent.db`, OAuth refresh tokens, or account-rotation state.
+- It never writes project-local `.omp` overrides on its own; it only reads them for reference.
+- It never uploads API keys, snapshots, diagnostics, or exports.
 - No cloud sync, no automatic account rotation, no downloading unknown binaries.
-- API keys never enter OMP configuration; only a command reference does. That rule is enforced in
-  `packages/core`, so the CLI path is bound by it too.
+- API keys never go into OMP configuration. `packages/core` enforces this in the validator, so the CLI is held to it too.
 
 See [SECURITY.md](SECURITY.md) and [docs/security.md](docs/security.md).
 
-## Running from source
+## Run from source
 
-Requires Windows 10/11, Node.js 24+, pnpm 11+, .NET SDK 10.0, and the Visual Studio "Desktop
-development with C++" workload (the secret bridge publishes as Native AOT and links with MSVC).
+You need Node.js 24+ and pnpm 11+.
 
-```powershell
+On Windows you also need the .NET SDK 10.0 and Visual Studio's "Desktop development with C++" workload, because the credential helper is published with Native AOT and needs the MSVC linker. Linux needs neither .NET nor MSVC.
+
+```bash
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Building only the cross-platform CLI needs neither .NET nor MSVC:
+If you only want the CLI, neither system needs .NET or MSVC:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -152,15 +118,16 @@ pnpm build:cli
 node packages/cli/dist/main.js --help
 ```
 
-## Verifying and packaging
+## Checking and packaging
 
-```powershell
+```bash
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm package:win        # -> dist/ NSIS installer + portable ZIP
-pnpm verify:package-cli # runs the packaged JSON CLI in a temp HOME
-pnpm render:packaging   # renders winget / Scoop / Chocolatey manifests from real release hashes
+pnpm package:win         # NSIS installer and portable ZIP (on Windows)
+pnpm package:linux       # AppImage / deb / rpm (on Linux; install rpm first for rpmbuild)
+pnpm verify:package-cli  # run the packaged JSON CLI in a temp HOME
+pnpm render:packaging    # render winget / Scoop / Chocolatey manifests from real release hashes
 ```
 
 Build output is local and never committed.
@@ -170,17 +137,22 @@ Build output is local and never committed.
 - Default profile: `~/.omp/agent/`
 - Named profiles: `~/.omp/profiles/<name>/agent/`
 
-A local snapshot is created before every write. If another tool or a manual edit changed a file after
-it was loaded, the app stops and asks for a reload instead of overwriting it.
+OMP Switch honors OMP's own `PI_CONFIG_DIR`, `OMP_PROFILE`, `PI_PROFILE`, and `PI_CODING_AGENT_DIR`, so it edits the same files OMP actually reads.
 
-## Developer documentation
+A local snapshot is taken before every write. If another tool or a manual edit changed a file after it was loaded, the app stops and asks you to reload instead of overwriting it.
 
-- [CLAUDE.md](CLAUDE.md) — architecture, write-path contract, per-module invariants
-- [docs/install.md](docs/install.md) — every install method and the platform limits
-- [docs/security.md](docs/security.md) — threat model and credential handling
-- [docs/releasing.md](docs/releasing.md) — release process
-- [CHANGELOG.md](CHANGELOG.md) — version history
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
+## Documentation
+
+- [Features](docs/features.en.md): what each page does
+- [docs/install.md](docs/install.md): every install method and the platform differences
+- [docs/security.md](docs/security.md): threat model and credential handling
+- [docs/pi-contract.md](docs/pi-contract.md): the agreement between OMP Switch and OMP's config files
+- [docs/pi-thinking-profiles.md](docs/pi-thinking-profiles.md): thinking levels and `thinkingLevelMap`
+- [docs/omp-schema-tracking.md](docs/omp-schema-tracking.md): keeping up with OMP format changes
+- [docs/releasing.md](docs/releasing.md): the release process
+- [CLAUDE.md](CLAUDE.md): architecture, write path, per-module invariants
+- [CHANGELOG.md](CHANGELOG.md): version history
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute
 
 ## License
 

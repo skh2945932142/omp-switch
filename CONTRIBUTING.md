@@ -10,12 +10,14 @@ Thanks for helping improve OMP Switch.
 
 ## Development Setup
 
-```powershell
+```bash
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+You need Node.js 24+ and pnpm 11+, on Windows or Linux. Building the Linux packages (`pnpm package:linux`) also needs `rpmbuild` (`sudo apt-get install rpm` on Debian/Ubuntu).
 
 Windows packaging also requires .NET SDK 10.0 and the Visual Studio "Desktop development with C++" workload, because the secret bridge is published as a Native AOT console executable. Cold start matters there: OMP resolves an `!command` API key reference with a hard 10-second timeout and silently omits the key when the command is slower, so do not trade bridge startup time away.
 

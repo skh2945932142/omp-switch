@@ -1,118 +1,116 @@
 # OMP Switch
 
-[English documentation](README.en.md) · [安装与下载](docs/install.md) · [架构说明](CLAUDE.md) · [OMP schema 跟踪](docs/omp-schema-tracking.md) · [原生契约](docs/pi-contract.md) · [思考画像](docs/pi-thinking-profiles.md)
+[English](README.en.md) · [安装与下载](docs/install.md) · [功能一览](docs/features.md) · [安全说明](docs/security.md) · [架构说明](CLAUDE.md)
 
-安全管理 [Oh My Pi](https://github.com/can1357/oh-my-pi)（OMP）模型供应商配置的桌面伴侣应用。
+OMP Switch 是 [Oh My Pi](https://github.com/can1357/oh-my-pi)（下称 OMP）的桌面配置工具，用来管理模型供应商、模型角色和相关设置。支持 Windows 和 Linux，另有命令行（CLI）和终端界面（TUI）两种用法。
 
-它编辑的是**你自己拥有、而它并不拥有的文件**：`~/.omp/agent/models.yml` 和 `config.yml`。整个架构都由这一点推导而来——写入前哈希校验、保留 YAML 注释与未知字段、每次提交前快照、遇到未知 OMP schema 版本转为只读。
+它改的是你自己的文件：`~/.omp/agent/models.yml` 和 `config.yml`。这些文件不归 OMP Switch 所有，所以它写得很小心：
 
-**v0.8.0 深度对齐 Oh My Pi (v18.4+) 与 CC Switch**：吸纳 CC Switch 的 79+ 精选供应商预设与 `thinkingLevelMap` 思考画像映射机制，支持 Linux (AppImage/deb/rpm) 与 Windows 双平台桌面 GUI + 终端 TUI + 安全凭据库。
-
-> `v0.8.0` 已发布，见 [Releases](https://github.com/skh2945932142/omp-switch/releases)：对齐 OMP v18.4+ 最新配置规范与 CC Switch 预设库（79+ 供应商预设、推理思考映射、模型元数据）。二进制**未做代码签名**，SmartScreen 会告警；请用 `SHA256SUMS.txt` 与 build-provenance 校验。干净 Windows 的安装/升级/卸载回归已由夜间 workflow 覆盖（`.github/workflows/windows-install-regression.yml`）。
+- 写入前先检查文件有没有被别的工具改过，改过就停下，让你重新载入；
+- 只改你动过的那几处，YAML 里的注释和它不认识的字段原样保留；
+- 每次写入前自动留一份快照，随时可以恢复；
+- 遇到它没验证过的 OMP 大版本，只读不写。
 
 ![OMP Switch 模型工作区](docs/images/provider-workspace.png)
 
 ![角色页（暗色主题）](docs/images/roles-dark.png)
 
-## 三种交付形态
+## 最近更新（v0.8.0）
 
-| 形态 | Windows | Linux | 内容 |
+v0.8.0 跟进了 OMP v18.4 的配置格式，并参考 [CC Switch](https://github.com/farion1231/cc-switch) 的供应商预设做了一轮补充：
+
+- 内置预设增加到 81 个，新增 PPIO、Kimi For Coding、302.AI、AIHubMix 等。
+- 预设里的部分模型带上了上下文长度、输出上限、是否支持推理，以及 `thinkingLevelMap`（把 OMP 的思考档位对应到各家接口的实际参数）。
+- 校验器认识 OMP 18.4 新增的 `openrouter-decisions`、`typesafe` 接口类型，`apple-foundation-models` 模型发现，以及 `maxContextWindow`、`supportsTools`、`promptCache`、`gc.stale`、`tools.artifactMaxBytes` 这些字段。
+- 同期核对过 OMP v18.5.0：`models.yml` 的格式没有变化，仍可正常读写。
+
+完整说明见 [发布说明](docs/releases/v0.8.0.md) 和 [CHANGELOG](CHANGELOG.md)。
+
+> 安装包没有做代码签名，Windows 的 SmartScreen 会弹警告。请用发布页上的 `SHA256SUMS.txt` 和 build provenance 核对下载的文件，方法见 [安装文档](docs/install.md)。
+
+## 下载哪一种
+
+| 形态 | Windows | Linux | 能做什么 |
 | --- | --- | --- | --- |
-| **桌面应用**（GUI、凭据库、网关、Prompts/Skills/Sessions） | 支持 | 支持（AppImage/deb/rpm） | 全部功能 |
-| **headless CLI**（`omp-switch-cli`） | 支持 | 支持 | 配置读写、校验、快照 |
-| **TUI**（`omp-switch-tui`，从源码构建） | 支持 | 支持 | 终端交互式配置编辑（`pnpm build:tui`） |
+| 桌面应用 | 有 | 有（AppImage / deb / rpm） | 全部功能：图形界面、凭据库、本地网关、Prompts / Skills / Sessions |
+| 命令行 `omp-switch-cli` | 有 | 有 | 读写配置、校验、快照，输出稳定的 JSON，适合写脚本 |
+| 终端界面 `omp-switch-tui` | 从源码构建 | 从源码构建 | 在终端里交互式编辑配置（`pnpm build:tui`） |
 
-凭据后端按平台分流：Windows 用 Electron `safeStorage`（用户级 DPAPI）+ C# secret bridge；Linux 把每把 API key **直存 libsecret keyring 条目**，由 `secret-tool` 解析（无需桥二进制、毫秒级冷启动），无 Secret Service 时回退 age 加密文件（诚实的降级说明见 [docs/security.md](docs/security.md)）。命令语法已对照真实 OMP 18.x 在 Linux 上实测冻结。
+CLI 和 TUI 不依赖 Electron，有 Node.js 24 就能跑。它们打不开凭据库：API key 只有封存它的那台机器能解开，所以 CLI 管的是配置，不是密钥。
 
-headless CLI 与 TUI 完全不依赖 Electron（`packages/core` / `packages/shared` 是纯 Node），任何有 Node 24 的平台都能跑；CLI **无法**打开凭据库——只有封装该密钥的那台机器可以。
+API key 的存放方式按系统区分：
+
+- **Windows**：用 Electron `safeStorage` 加密（绑定当前用户的 DPAPI），OMP 通过一个很小的 C# 程序取回。
+- **Linux**：每个 key 单独存进系统的 libsecret 钥匙串，OMP 通过 `secret-tool` 取回。没有 Secret Service 的环境会退回到 age 加密文件，这是个明确的降级，细节见 [docs/security.md](docs/security.md)。
+
+不管哪个系统，key 都不会写进 `models.yml`，配置里只留一条取 key 的命令。
 
 ## 安装
 
+Windows：
+
 ```powershell
-# winget（0.3.0 新包已上架 microsoft/winget-pkgs；0.8.0 增量更新已提交）
+# winget（已上架，当前收录到 0.7.0，0.8.0 待提交）
 winget install skh2945932142.OMPSwitch
 
-# Scoop（本仓库自带 bucket，release 后自动同步）
+# Scoop（仓库自带 bucket，每次发布后自动同步）
 scoop bucket add omp-switch https://github.com/skh2945932142/omp-switch
 scoop install omp-switch
 ```
 
+Linux：
+
 ```bash
-# Linux：deb 或 AppImage（Releases 页下载）
+# 从 Releases 页下载后任选其一
 sudo dpkg -i OMP-Switch-0.8.0-linux.deb
-# 或 sudo rpm -i OMP-Switch-0.8.0-linux.rpm
-# 或 chmod +x OMP-Switch-0.8.0-linux.AppImage 后直接运行
+sudo rpm -i OMP-Switch-0.8.0-linux.rpm
+chmod +x OMP-Switch-0.8.0-linux.AppImage && ./OMP-Switch-0.8.0-linux.AppImage
 ```
 
-或直接从 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包 / 便携版（Linux AppImage/deb/rpm 同页）。
-Chocolatey 清单已就绪，feed 提交与审核待办，详见 [docs/install.md](docs/install.md)。
+你也可以直接去 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包或便携版。Chocolatey 的包已经准备好，还没提交到官方源。
+
+只想用 CLI 的话可以用 Docker：
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
   ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
 ```
 
-> 镜像已推送到 GHCR，但 GitHub 默认将容器包设为私有，且可见性只能在仓库设置里切换。
-> 若拉取报 `unauthorized`，见 [docs/install.md](docs/install.md#docker)（本地 `docker build` 始终可用）。
+镜像已推到 GHCR，但 GitHub 默认把新容器包设为私有，可见性只能由仓库所有者在设置里改。如果拉取时提示 `unauthorized`，看 [docs/install.md](docs/install.md#docker)；本地 `docker build` 不受影响。
 
-完整方式（含校验和与 provenance 验证）见 **[docs/install.md](docs/install.md)**。
+校验和、provenance 验证等其余安装方式见 **[docs/install.md](docs/install.md)**。
 
-## 已实现
+## 功能概览
 
-**配置编辑**
+- **供应商与模型**：增删改供应商和模型，设置 `modelProviderOrder`、`enabledModels`、`disabledProviders` 和思考档位。81 个预设可一键套用，也支持 OpenAI、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM 和 Apple Foundation Models 的模型发现。
+- **模型角色**：「角色」页每行一个角色，显示实际指向的模型；`@引用` 成环、选择器写错、误用 `:off` / `:auto` 这类问题会就地提示。
+- **保存即预览**：每次写入前先展示 `models.yml` / `config.yml` 的逐行 diff，确认后才写盘；快照可浏览、可恢复。
+- **其他**：Prompts / Skills / Sessions 浏览、用量统计、本地网关、Ctrl+K 命令面板、浅色 / 深色主题、中文 / English 界面。
 
-- OMP `16.x` / `17.x` / `18.x` 可写，未知未来主版本只读。
-- 默认和命名 Profile、`models.yml` / `config.yml`、旧 `models.json` 迁移保护；遵循 OMP 自己的 `PI_CONFIG_DIR` / `OMP_PROFILE` / `PI_PROFILE` / `PI_CODING_AGENT_DIR` 路径覆盖。
-- Provider / Model / `modelProviderOrder` / `enabledModels` / `disabledProviders` / thinking 设置。
-- YAML AST 局部修改、外部变更保护、原子写入、快照与恢复（恢复同样拒绝覆盖外部改动）。
-- **79+ 个版本化预设**（吸收 CC Switch 社区最佳实践，含 PPIO、Kimi For Coding、302.AI、AIHubMix 等）；OpenAI、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM 以及 Apple Foundation Models discovery。
-- **思考画像与映射**：支持 `thinkingLevelMap` 思考档位精准映射，兼容 OpenAI、Anthropic、DeepSeek、Gemini、Qwen 等异构思考 API 协议。
+逐项说明在 [docs/features.md](docs/features.md)。
 
-**模型角色**
+## 它不会做的事
 
-- 独立「角色」页：每个角色一行——中文说明、解析链（`@default → provider/model = 实际模型`）、能力标签，`@引用` 循环、非法选择器、`:off`/`:auto` 误用就地警示；config.yml 里的自定义角色同样可见可编辑。
-- 可搜索模型选择器：按供应商分组、即时过滤、置顶 `@default`/`*`/清除、思考等级分段控件（仅含 OMP 接受的六级）、完整键盘导航；网关上游同样使用。
-- 模型行悬停即可一键分配到任意角色（保留原思考后缀）。
+- 不读取、不修改 OMP 的 `agent.db`、OAuth refresh token 和账号轮换状态。
+- 不自动写入项目目录里的 `.omp` 覆盖配置，只读取它们作参考。
+- 不上传 API key、快照、诊断日志或导出文件。
+- 不做云同步，不自动轮换账号，不下载来路不明的二进制。
+- 不把 API key 放进 OMP 配置。这一条由 `packages/core` 的校验器强制执行，所以 CLI 同样受限。
 
-**其余模块**
-
-- Prompts、Skills、Sessions 索引与按需原文读取；用量仪表盘（花费/请求/tokens/趋势/按模型与供应商分组，成本带来源标注）。
-- Loopback Gateway：`/healthz`、`/v1/models`、Chat、Responses 与流式前故障转移；强制 Bearer token、校验 Host、拒绝跨源请求。
-- Windows DPAPI 密钥桥、OMP OAuth 状态/登录入口、稳定 JSON CLI。
-- **Linux 凭据库（v0.6.0）**：libsecret keyring 直存 + `secret-tool` 解析，age 加密文件回退（无 Secret Service 时），孤儿/引用追踪双平台一致。
-- **Linux TUI（v0.6.0）**：`omp-switch-tui`——providers/角色/快照/诊断四屏 + 两步保存（diff 预览→确认），无头子命令 `list`/`validate` 可脚本化。
-
-**界面**
-
-- 「Quiet Instrument」视觉语言：无彩中性色、teal 仅作选中/焦点信号色、主按钮墨底白字反转、状态以圆点 + 弱文字呈现；选中行用软底而非 3px 色条，eyebrow 为句式大小写。
-- 浅色 / 深色 / 跟随系统三态主题切换（持久化，原生标题栏按钮同步跟随）；中文 / English / 跟随系统三态语言切换（持久化，首屏即按存储语言绘制，无中文闪屏）；Windows 11 22H2+ 上启用 Mica 窗口材质（其余环境自动回退实色）。
-- 自定义标题栏：顶栏即拖拽区，窗口按钮为原生 overlay（保留 Snap Layouts），Mica 直达顶缘。
-- 供应商卡片点击头部仅展开/收起模型列表（带高度动画），悬停浮现编辑按钮；详情/编辑抽屉以悬浮 Sheet 弹簧滑入，不再挤压工作区。
-- 保存语义按上下文拆分（角色 / 设置独立提交），未保存改动有导航圆点与 `Ctrl+S`；切换 Profile 前确认丢弃。
-- **保存即预览**：每次写入前展示 `models.yml` / `config.yml` 的行级 diff，确认后才落盘；快照时间线可浏览与恢复历史；外部修改冲突以对话框呈现并一键重载。
-- **Ctrl+K 命令面板**（页面 / Profile / 供应商 / 动作），`Ctrl+1..7` 切页，`?` 查看快捷键。
-- 供应商卡片与角色选择器标注 `enabledModels` 覆盖状态，指向将被 OMP 过滤的模型会被就地提醒。
-
-## 安全边界
-
-- 不读取或修改 OMP 的 `agent.db`、OAuth refresh token 或账号轮换状态。
-- 不自动写入项目目录中的 `.omp` 覆盖配置（只读叠加层）。
-- 不把 API key、快照、诊断日志或默认导出上传到云端。
-- 不做云同步、自动账号轮换或未知二进制下载。
-- API key 永不进入 OMP 配置；配置里只有一条命令引用。这条规则由 `packages/core` 的校验器强制，因此 CLI 路径同样受约束。
-
-详见 [SECURITY.md](SECURITY.md) 与 [docs/security.md](docs/security.md)。
+详见 [SECURITY.md](SECURITY.md) 和 [docs/security.md](docs/security.md)。
 
 ## 从源码运行
 
-前提：Windows 10/11、Node.js 24+、pnpm 11+、.NET SDK 10.0，以及 Visual Studio「使用 C++ 的桌面开发」工作负载（secret bridge 以 Native AOT 发布，需要 MSVC 链接器）。
+需要 Node.js 24+ 和 pnpm 11+。
 
-```powershell
+在 Windows 上还需要 .NET SDK 10.0，以及 Visual Studio 的「使用 C++ 的桌面开发」工作负载。凭据桥以 Native AOT 发布，要用 MSVC 链接器。Linux 不需要 .NET 和 MSVC。
+
+```bash
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-仅构建跨平台 CLI 时不需要 .NET 或 MSVC：
+只构建 CLI 的话，两个系统都不需要 .NET 或 MSVC：
 
 ```bash
 pnpm install --frozen-lockfile
@@ -120,15 +118,16 @@ pnpm build:cli
 node packages/cli/dist/main.js --help
 ```
 
-## 验证与打包
+## 检查与打包
 
-```powershell
+```bash
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm package:win        # -> dist/ NSIS 安装包 + portable ZIP
-pnpm verify:package-cli # 在临时 HOME 中运行打包后的 JSON CLI
-pnpm render:packaging   # 用真实 release 哈希渲染 winget / Scoop / Chocolatey 清单
+pnpm package:win         # 生成 NSIS 安装包和便携 ZIP（在 Windows 上）
+pnpm package:linux       # 生成 AppImage / deb / rpm（在 Linux 上，需要先装 rpm 提供 rpmbuild）
+pnpm verify:package-cli  # 在临时 HOME 里运行打包后的 JSON CLI
+pnpm render:packaging    # 用真实发布哈希生成 winget / Scoop / Chocolatey 清单
 ```
 
 打包产物是本地构建结果，不提交到 Git。
@@ -138,17 +137,22 @@ pnpm render:packaging   # 用真实 release 哈希渲染 winget / Scoop / Chocol
 - 默认 Profile：`~/.omp/agent/`
 - 命名 Profile：`~/.omp/profiles/<name>/agent/`
 
-每次写入前都会创建本机快照。若检测到其他工具或手工编辑在读取后修改了文件，应用会停止写入并要求重新载入，而不是静默覆盖。
+OMP Switch 遵循 OMP 自己的 `PI_CONFIG_DIR`、`OMP_PROFILE`、`PI_PROFILE`、`PI_CODING_AGENT_DIR`，编辑的就是 OMP 实际读取的那份文件。
 
-## 开发文档
+每次写入前都会在本机留一份快照。如果文件在载入之后被其他工具或手工改过，应用会停下来请你重新载入，不会悄悄覆盖。
 
-- [CLAUDE.md](CLAUDE.md) — 架构、写入路径契约、各处不变量
-- [docs/install.md](docs/install.md) — 所有安装方式与平台限制
-- [docs/security.md](docs/security.md) — 威胁模型与凭据处理
-- [docs/releasing.md](docs/releasing.md) — 发布流程
-- [docs/antigravity-goal-loop.md](docs/antigravity-goal-loop.md) — Antigravity Goal Mode 持续迭代提示词
-- [CHANGELOG.md](CHANGELOG.md) — 版本变更记录
-- [CONTRIBUTING.md](CONTRIBUTING.md) — 贡献流程
+## 文档
+
+- [功能一览](docs/features.md)：每个页面能做什么
+- [docs/install.md](docs/install.md)：所有安装方式和平台差异
+- [docs/security.md](docs/security.md)：威胁模型和凭据处理
+- [docs/pi-contract.md](docs/pi-contract.md)：OMP Switch 与 OMP 配置文件之间的约定
+- [docs/pi-thinking-profiles.md](docs/pi-thinking-profiles.md)：思考档位与 `thinkingLevelMap`
+- [docs/omp-schema-tracking.md](docs/omp-schema-tracking.md)：怎么跟进 OMP 上游格式变化
+- [docs/releasing.md](docs/releasing.md)：发布流程
+- [CLAUDE.md](CLAUDE.md)：架构、写入路径和各处不变量
+- [CHANGELOG.md](CHANGELOG.md)：版本记录
+- [CONTRIBUTING.md](CONTRIBUTING.md)：参与贡献
 
 ## 许可证
 

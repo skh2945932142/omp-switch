@@ -1,56 +1,39 @@
-# Oh My Pi (OMP) 原生契约与实现边界
+# OMP Switch 与 OMP 配置文件之间的约定
 
-> 状态：与 Oh My Pi v18.4+ 及 CC Switch 原生契约规范深度对齐  
-> 原则：以用户拥有的配置文件为中心，保障无损写入与零信任安全。
+这份文档写清楚 OMP Switch 读写 Oh My Pi（OMP）配置时遵守的规则：碰哪些文件、改哪些字段、不碰什么。它对照的是 OMP v18.4 的配置格式，并在 v18.5.0 发布后核对过 `models.yml` 的格式没有变化。
 
-本文档详细定义 **OMP Switch** 在管理 Oh My Pi 模型供应商配置时的技术契约、同步规则与安全实现边界。
+## 1. 基本原则
 
----
+OMP Switch 编辑的是用户自己的文件，不是它自己的。所以：
 
-## 1. 核心设计原则
+- 目标文件是 `~/.omp/agent/models.yml` 和 `~/.omp/agent/config.yml`，路径会跟随 `PI_CONFIG_DIR`、`OMP_PROFILE`、`PI_PROFILE`、`PI_CODING_AGENT_DIR`。
+- 只对 YAML 的相关节点做局部修改，注释和不认识的字段原样保留。写入前会展示逐行 diff。
+- 写入前核对文件哈希，写入前留快照。发现文件被外部改动，就拒绝写入，请你重新载入。
+- 遇到没验证过的 OMP 大版本（目前验证过的是 16、17、18），只读不写。
 
-OMP Switch 遵循一条根本原则：**它编辑的是用户自己拥有、而软件并不拥有的文件**。
+## 2. 各个文件和字段怎么处理
 
-- 核心目标文件：`~/.omp/agent/models.yml` 与 `~/.omp/agent/config.yml`（或遵循 `PI_CONFIG_DIR`、`OMP_PROFILE` 等环境变量解析路径）。
-- 绝不损坏未知字段与注释：使用局部 YAML AST 操作，写入前必须展示行级 Diff。
-- 零破坏保障：写入前校验文件内容 Hash，提交前自动生成还原快照；一旦检测到外部改动即刻拒绝盲写。
-- 未知版本保守只读：遇到未在已验证列表（当前为 OMP 16/17/18）中的未来主版本，自动切换为只读保护模式。
+| 位置 | OMP Switch 的做法 |
+| --- | --- |
+| `models.yml` 的 `providers` | 可编辑：供应商、模型列表、接口类型、上下文参数、`thinkingLevelMap`。不认识的字段保留。 |
+| `config.yml` 的 `modelRoles` | 可编辑：内置角色（`default`、`smol`、`slow`、`vision`、`plan`、`commit`、`tiny`、`task`、`advisor`）和自定义角色指向哪个模型，支持 `:level` 思考后缀。 |
+| `config.yml` 的 `retry.fallbackChains` | 可编辑：按角色或 `provider/model` 设置备选链。`retry` 里的其他参数不动。 |
+| `config.yml` 的思考、压缩等设置 | 部分可编辑，在界面的设置抽屉里。 |
+| `config.yml` 的 `gc.stale`、`tools.artifactMaxBytes` | 会校验取值，但界面里还不能编辑；已有的值会原样保留。 |
+| `agent.db`、OAuth 凭据 | 不读、不写、不改。 |
+| API key | 不进入 `models.yml`。配置里只写一条取回 key 的命令。 |
 
----
+## 3. 预设和模型发现
 
-## 2. 配置消费契约与数据映射
+- **覆盖内置供应商**：如果 `models.yml` 里写了 `openai`、`anthropic`、`deepseek` 这类内置供应商的名字，OMP Switch 把它当成你的显式覆盖，允许你改 `baseUrl`、请求头和模型列表。
+- **预设带什么**：除了 `baseUrl` 和 `api`，部分预设模型还带 `contextWindow`、`maxTokens`、`reasoning` 和 `thinkingLevelMap`。这些数据参考了 CC Switch 的预设整理，可能落后于供应商的实际变化，写入前请看一眼 diff。
+- **模型发现**：支持 `openai-models-list`、`ollama`、`lm-studio`、`llama.cpp`、`litellm`、`proxy`，以及 OMP 18.4 新增的 `apple-foundation-models`。`openai-models-list` 可以设 `injectV1: false`，避免多拼一个 `/v1`。
+- **OMP 18.4 的新字段**：`openrouter-decisions`、`typesafe` 两种接口类型，模型上的 `maxContextWindow`（必须不小于 `contextWindow`）、`supportsTools`、`promptCache`，校验器都认识。
 
-| 资源 / 字段 | OMP Switch 行为 | 说明 / 来源 |
-| --- | --- | --- |
-| `models.yml` (`providers`) | 核心可写区域：管理供应商节点定义、模型列表、API 格式、上下文参数与思考映射 | 保留 YAML 树状结构与未知字段 |
-| `config.yml` (`modelRoles`) | 管理内置角色（`default`, `smol`, `slow`, `vision`, `plan`, `commit`, `tiny`, `task`, `advisor`）与自定义角色的模型指向 | 支持 `:thinkingLevel` 思考后缀 |
-| `config.yml` (`retry.fallbackChains`) | 管理按角色或供应商/模型的故障转移备选链 | 校验选择器有效性，提供智能备选回退 |
-| `config.yml` (`settings`) | 支持编辑思考等级、压缩（compaction）、垃圾回收（`gc.stale`）、工具配置（`tools.artifactMaxBytes`）等 | OMP v18.4+ 规范 |
-| `agent.db` / `auth.json` | **绝不读取、不写入、不修改** | 保持与 OMP 内部运行时状态完全解耦 |
-| 凭据密钥 (`apiKey`) | 密钥绝不以明文保存在 `models.yml`；配置中仅保存系统凭据库的引用命令 | Windows: safeStorage/DPAPI；Linux: libsecret/age |
+## 4. 凭据和信任边界
 
----
-
-## 3. 显式供应商同步与合并规范
-
-参考 CC Switch 针对 Pi/OMP 生态沉淀的显式供应商管理规范，OMP Switch 实施以下同步机制：
-
-1. **同名内置覆盖**：
-   - 当用户在 `models.yml` 中声明 `openai`、`anthropic` 或 `deepseek` 时，这些条目作为显式覆盖节点处理，用户可以自由配置专属 BaseUrl、自定义请求头与专用模型列表。
-2. **完整元数据丰富**：
-   - 供应商预设不仅提供 `baseUrl` 与 `api`，还携带经过社区验证的模型元数据（`contextWindow`、`maxTokens`、`reasoning`、`thinkingLevelMap`）。
-3. **发现（Discovery）集成**：
-   - 支持 `openai-models-list`、`ollama`、`lm-studio`、`llama.cpp`、`litellm`、`proxy` 以及 OMP v18.4+ 新增的 `apple-foundation-models` 动态模型探测，并支持 `injectV1: false` 规避子路径拼接。
-
----
-
-## 4. 安全信任边界
-
-1. **凭据安全隔离**：
-   - Windows：采用 Electron `safeStorage`（基于 DPAPI 用户级密钥），由独立 C# 进程桥接解析。
-   - Linux：采用系统的 `libsecret` Keyring 条目，冷启动毫秒级无桥接运行；若缺少桌面 Keyring 服务，自动安全降级为本地 age 强加密文件。
-2. **无云端遥测与回传**：
-   - 所有的模型调用、历史快照、诊断日志与配置均留在本地，绝不向任何第三方服务器上传 API 密钥或配置文件。
-3. **只读保护与防冲突**：
-   - 项目目录叠加层（`.omp/`）默认作为只读参考；
-   - 外部编辑器修改配置文件时，触发并发冲突告警对话框，提供快速重载与合并提示。
+- **Windows**：key 用 Electron `safeStorage` 加密（绑定当前用户的 DPAPI），OMP 通过一个独立的 C# 程序取回。
+- **Linux**：每个 key 是系统 libsecret 钥匙串里的一个条目，OMP 通过 `secret-tool` 取回。没有 Secret Service 时退回 age 加密文件，这是降级，不如钥匙串，见 [security.md](security.md)。
+- **不联网回传**：模型调用记录、快照、诊断日志和配置都留在本机，OMP Switch 不会把它们上传到任何地方。
+- **项目里的 `.omp/`**：只当作只读的参考。
+- **外部改动**：别的编辑器改了文件，OMP Switch 会弹出冲突提示，让你重新载入，不会合并也不会覆盖。

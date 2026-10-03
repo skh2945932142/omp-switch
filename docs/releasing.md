@@ -7,7 +7,8 @@ This document describes the release process for a supported version, beginning w
 - `main` is green in CI.
 - The release version is final in `package.json` and matches the planned Git tag.
 - `CHANGELOG.md` and `docs/releases/vX.Y.Z.md` contain reviewed release notes.
-- A clean Windows environment has validated installation, portable launch, OMP config loading, snapshots, secret bridge behavior, CLI JSON output, and upgrade/uninstall behavior.
+- A clean Windows environment has validated installation, portable launch, OMP config loading, snapshots, secret bridge behavior, CLI JSON output, and upgrade/uninstall behavior. The nightly `windows-install-regression.yml` covers the install/upgrade/uninstall part.
+- The Linux packages have been smoke-tested: the AppImage starts, and the `.deb` / `.rpm` install cleanly. Building them needs `rpmbuild` (`sudo apt-get install rpm` on Debian/Ubuntu); both CI and the release workflow install it.
 - The release signer has reviewed the intended GitHub Release assets.
 
 ## Prepare the Tag
@@ -36,12 +37,23 @@ The workflow produces only these user-facing assets:
 - `latest.json` + `latest.json.sig` (the signed update manifest; present only when the
   `OMP_UPDATE_ED25519` secret is set — see "Update Manifest" below)
 
-It also creates GitHub build-provenance attestations for both install assets. Review the artifact
+It also creates GitHub build-provenance attestations for the install assets. Review the artifact
 names, checksums, release notes, installation behavior, and provenance before publishing the draft.
 When the manifest is present, confirm `latest.json` carries the correct release version and that
 `latest.json.sig` was uploaded alongside it.
 
 Do not attach `.blockmap` files unless a future updater implementation explicitly consumes them.
+
+## Publish the Draft
+
+When the review is done, publish from the Releases page, or from the command line:
+
+```bash
+gh release view vX.Y.Z          # check the assets one last time
+gh release edit vX.Y.Z --draft=false
+```
+
+Publishing triggers `sync-scoop-bucket.yml` (see below). Pull `main` afterwards to pick up its commit.
 
 ## Refresh the package-manager manifests
 
@@ -72,6 +84,12 @@ If the sync ever needs re-running, `workflow_dispatch` takes a tag:
 ```powershell
 gh workflow run sync-scoop-bucket.yml -f tag=vX.Y.Z
 ```
+
+**winget is submitted by hand.** After the release is published, update the version, installer URL
+and `InstallerSha256` in `packaging/winget/` (the hash comes from `SHA256SUMS.txt`), commit that, and
+open a pull request against `microsoft/winget-pkgs`, for example with `wingetcreate update`. Until
+that pull request is merged, `winget install` still serves the previous version, so the README says
+which version winget currently has.
 
 ## Update Manifest
 

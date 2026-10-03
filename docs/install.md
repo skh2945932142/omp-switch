@@ -31,14 +31,15 @@ planned:
 
 | Channel | Status |
 | --- | --- |
-| Direct download (GitHub Releases) | **Works** — Windows exe/zip + Linux AppImage/deb |
+| Direct download (GitHub Releases) | **Works** — Windows exe/zip, Linux AppImage/deb/rpm |
 | Scoop (bucket hosted in this repository) | **Works** — auto-syncs on every release |
-| winget | **Live since 0.3.0** (`skh2945932142.OMPSwitch`); 0.6.0 update submitted |
+| winget | **Listed** (`skh2945932142.OMPSwitch`); the latest merged version is 0.7.0, and 0.8.0 is not submitted yet |
 | Chocolatey | Package prepared; feed submission and moderation **pending** |
 
 The winget and Chocolatey manifests live in `packaging/` and are rendered with real release hashes by
-`pnpm render:packaging`. Until those submissions are accepted, `winget install` and `choco install`
-will not find the package — use Scoop or the direct download.
+`pnpm render:packaging`. `choco install` will not find the package until the Chocolatey submission is
+accepted; use Scoop or the direct download. `winget install` works, but installs the latest version
+winget has merged, which can trail the GitHub release.
 
 ### Scoop
 
@@ -51,6 +52,27 @@ This installs the portable build and puts `omp-switch-cli.exe` on PATH.
 
 ### Direct download
 
+Download the installer (`OMP-Switch-Setup-<version>.exe`) or the portable build
+(`OMP-Switch-<version>-win.zip`) from the [latest release](https://github.com/skh2945932142/omp-switch/releases/latest).
+The installer is per-user and does not need administrator rights. The binaries are not code-signed,
+so SmartScreen will warn; check them before running.
+
+Compare the file's SHA-256 with the line for it in `SHA256SUMS.txt` on the same release page:
+
+```powershell
+(Get-FileHash -Algorithm SHA256 ".\OMP-Switch-Setup-<version>.exe").Hash.ToLower()
+```
+
+```bash
+sha256sum OMP-Switch-<version>-linux.AppImage
+```
+
+Releases also carry GitHub build-provenance attestations. With the GitHub CLI installed:
+
+```bash
+gh attestation verify OMP-Switch-Setup-<version>.exe --repo skh2945932142/omp-switch
+```
+
 ---
 
 ## Any platform: headless CLI
@@ -58,8 +80,8 @@ This installs the portable build and puts `omp-switch-cli.exe` on PATH.
 ### Docker
 
 ```bash
-docker pull ghcr.io/skh2945932142/omp-switch-cli:0.5.4
-docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.5.4 validate --profile default
+docker pull ghcr.io/skh2945932142/omp-switch-cli:0.8.0
+docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
 ```
 
 `:latest` also tracks the newest release.
@@ -122,18 +144,19 @@ the files Oh My Pi actually reads.
 
 ## Linux support
 
-What works on Linux today: the **desktop app** (AppImage + deb), `packages/core` (all domain
+What works on Linux today: the **desktop app** (AppImage, deb, and rpm), `packages/core` (all domain
 logic), the headless CLI, and the test suite.
 
 ```bash
-# From a release (AppImage or deb)
+# From a release (AppImage, deb, or rpm)
 sudo dpkg -i OMP-Switch-<version>-linux.deb
+sudo rpm -i OMP-Switch-<version>-linux.rpm
 # or chmod +x OMP-Switch-<version>-linux.AppImage and run it
 
 # From source — no .NET/MSVC needed on Linux (build:native is a no-op off Windows)
 pnpm install --frozen-lockfile
 pnpm dev
-pnpm package:linux
+pnpm package:linux   # needs rpmbuild for the .rpm: sudo apt-get install rpm
 ```
 
 `omp-switch-cli` on Linux is a shell shim (`bin/omp-switch-cli`) that forwards `--json` argv to the

@@ -6,7 +6,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 OMP Switch is a cross-platform (Windows + Linux) Electron desktop app that manages [Oh My Pi](https://github.com/can1357/oh-my-pi) (OMP) model-provider configuration. It edits **user-owned files it does not own**: `~/.omp/agent/models.yml` and `config.yml`. Everything about the architecture follows from that: hash-guarded writes, YAML comment preservation, snapshots before every commit, and read-only mode for unknown OMP schema versions.
 
-As of v0.8.0, OMP Switch is deeply aligned with OMP v18.4+ (schema majors 16/17/18, new APIs, `apple-foundation-models` discovery, `gc.stale`, `tools.artifactMaxBytes`) and CC Switch (79+ curated presets, rich model capabilities, and `thinkingLevelMap` mapping specifications). See `docs/pi-contract.md` and `docs/pi-thinking-profiles.md`.
+As of v0.8.0, the validator and catalog follow OMP v18.4 (writable schema majors 16/17/18; the `openrouter-decisions` and `typesafe` API types, `apple-foundation-models` discovery, `maxContextWindow`, `supportsTools`, `promptCache`, `gc.stale`, `tools.artifactMaxBytes`), and they were rechecked against v18.5.0. The catalog has 81 presets, partly informed by CC Switch, and some models carry a `thinkingLevelMap`. The UI does not use `thinkingLevelMap` yet, and `gc.stale` / `tools.artifactMaxBytes` are validated but not editable. See `docs/pi-contract.md` and `docs/pi-thinking-profiles.md`.
 
 ## Commands
 

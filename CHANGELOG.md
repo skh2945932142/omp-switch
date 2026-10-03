@@ -3,20 +3,53 @@
 ## 0.8.0 - 2026-10-02
 
 ### Added
-- **Full Alignment with Oh My Pi v18.4+**:
-  - Validation and support for new upstream provider APIs: `openrouter-decisions` and `typesafe`.
-  - New discovery source: `apple-foundation-models`.
-  - Model fields: `maxContextWindow` (with strict assertion `maxContextWindow >= contextWindow`), `supportsTools`, `promptCache` token thresholds (`short`/`long`), and `thinkingLevelMap`.
-  - Settings fields: `gc.stale` (stale session cleanup) and `tools.artifactMaxBytes`.
-- **CC Switch Integration & Extended Catalog (79+ Presets)**:
-  - Ingested CC Switch's curated provider presets: PPIO AI, Kimi For Coding (national and global), 302.AI, AIHubMix, ShengsuanYun, AICoding, SubRouter, Sub2API, DeepBricks, CherryIN, Apple Foundation Models, etc.
-  - Complete model definitions with community-verified `contextWindow`, `maxTokens`, `reasoning` flags, and `thinkingLevelMap`.
-  - Curated Thinking Profiles module (`packages/core/src/thinking-profiles.ts`) featuring `xhighAndMax`, `deepseekV4`, `kimi3`, `openCodeGoGlm52`, `openaiResponsesGpt5`, `geminiLowHigh`, etc.
-  - New technical documentation: `docs/pi-contract.md` (contract and boundaries) and `docs/pi-thinking-profiles.md` (thinking level mapping specifications).
+- **Support for OMP v18.4's config format:**
+  - New API types `openrouter-decisions` and `typesafe`, and the `apple-foundation-models` discovery source.
+  - Model fields `maxContextWindow` (must be at least `contextWindow`), `supportsTools`, `promptCache` (`short` / `long`), and `thinkingLevelMap`.
+  - Settings fields `gc.stale` and `tools.artifactMaxBytes`. They are validated and preserved on write; the UI does not edit them yet.
+- **Provider catalog grows to 81 presets**, partly informed by CC Switch's catalog: PPIO AI, Kimi For Coding (CN and global), 302.AI, AIHubMix, ShengsuanYun, AICoding, SubRouter, Sub2API, DeepBricks, CherryIN, Apple Foundation Models, and others.
+- **`thinkingLevelMap` on preset models.** 17 preset models carry one, built from the profiles in `packages/core/src/thinking-profiles.ts` (`xhighAndMax`, `deepseekV4`, `kimi3`, `openCodeGoGlm52`, the OpenAI Responses family, `geminiLowHigh`, and more). The UI does not yet use the map to disable unsupported levels.
+- Docs: `docs/pi-contract.md` (what OMP Switch reads, writes, and leaves alone) and `docs/pi-thinking-profiles.md` (thinking levels and `thinkingLevelMap`).
 
 ### Changed
-- Bumped version to `0.8.0` across package.json, scoop bucket, and winget templates.
-- Enhanced validation diagnostics for thinking level mapping keys, prompt caching thresholds, and garbage collection settings.
+- Version bumped to `0.8.0` in `package.json`, the Scoop bucket, and the winget templates.
+- The CI and release workflows install `rpm` on Linux runners, since electron-builder needs `rpmbuild` for the `.rpm`.
+- More validation diagnostics: bad `thinkingLevelMap` keys or values, negative `promptCache` thresholds, and malformed `gc` / `tools` settings.
+
+### Docs (follow-up, 2026-10-03)
+- Rewrote the READMEs in plainer language and moved the long feature list to `docs/features.md` / `docs/features.en.md`.
+- Corrected statements that went further than the code: the UI does not use `thinkingLevelMap` yet, and `gc.stale` / `tools.artifactMaxBytes` are not editable.
+- `docs/install.md`: current Docker tag, rpm, and checksum / provenance steps; winget's real status (0.7.0 merged, 0.8.0 pending).
+- `docs/releasing.md`: publishing the draft, the Linux `rpm` build dependency, and the manual winget submission.
+- Checked OMP v18.5.0: `models.yml` format unchanged, no code changes needed (see `docs/omp-schema-tracking.md`).
+
+## 0.7.0 - 2026-09-15
+
+### Added
+- Fallback-chain editor for OMP v18 `retry.fallbackChains`, in the settings drawer, with selector validation. Edits touch only the chains, so a hand-tuned `maxRetries` and its comments survive.
+- RPM package (`OMP-Switch-X.Y.Z-linux.rpm`) next to the AppImage and deb.
+- DeepInfra preset; SiliconFlow split into international (`.com`) and CN (`.cn`) to match OMP 18.2. The bare `siliconflow` id now means the international site.
+- Modeling and validation for `discovery.injectV1`, per-model `compactionModel`, and per-model `thinking` / `thinkingFormat` / `qwenTemplateReasoningEffort`.
+
+### Changed
+- Removed the `designer` role: OMP v18 has nine built-in roles and `designer` isn't one of them.
+- The preset catalog has 56 entries.
+
+### Fixed
+- The nightly Windows install regression, broken since 0.6.0, now passes.
+
+Full notes: `docs/releases/v0.7.0.md`.
+
+## 0.6.0 - 2026-09-09
+
+### Added
+- **Linux support:** the desktop app (AppImage, deb) now runs on Linux, with a platform-keyed build (no .NET or MSVC needed) and a console shim for `omp-switch-cli`.
+- **Linux credential vault:** each API key is its own libsecret keyring entry, resolved by `secret-tool`; without a Secret Service it falls back to an age-encrypted keyfile (weaker, and documented as such).
+- **Terminal UI** (`omp-switch-tui`): providers, roles, snapshots, and diagnostics screens, with a two-step save (diff, then confirm), plus `list` / `validate` subcommands for scripts.
+- Weekly OMP schema watch, a cross-platform `render:packaging`, staged winget / Chocolatey submission scripts, and a nightly Windows install regression.
+
+Full notes: `docs/releases/v0.6.0.md`.
+
 
 ## 0.5.8 - 2026-08-26
 

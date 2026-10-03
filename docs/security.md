@@ -5,7 +5,7 @@ trust boundaries are. For reporting a vulnerability see [SECURITY.md](../SECURIT
 
 ## Threat model
 
-OMP Switch runs as an unprivileged desktop app on a single-user Windows machine and edits
+OMP Switch runs as an unprivileged desktop app on a single-user Windows or Linux machine and edits
 configuration owned by the user. The assets worth protecting, in order:
 
 1. **API keys.** Paid credentials that a local process, a malicious web page, or a synced file could
@@ -14,8 +14,8 @@ configuration owned by the user. The assets worth protecting, in order:
    silently overwrite.
 3. **Session content.** Transcripts that may contain source code and secrets.
 
-Out of scope: a compromised Windows account (DPAPI is scoped to it by design), physical access, and
-malicious Oh My Pi builds.
+Out of scope: a compromised user account (DPAPI on Windows and the login keyring on Linux are scoped
+to it by design), physical access, and malicious Oh My Pi builds.
 
 ## Credentials
 
@@ -52,12 +52,13 @@ backend for testing. A non-secret index (`<userData>/credentials.v1.json`, label
 
 Consequences worth stating plainly:
 
-- A key is readable only by the **same Windows account on the same machine**. Copying `userData` to
-  another machine or account yields ciphertext nobody can open. This is intended, and it is why the
-  installers are per-user.
-- `native/secret-bridge` re-implements the decryption independently so Oh My Pi can resolve keys with
-  the GUI closed. It writes the secret to stdout and nothing else, errors to stderr, and never logs
-  the value.
+- On Windows, a key is readable only by the **same Windows account on the same machine**. Copying
+  `userData` to another machine or account yields ciphertext nobody can open. This is intended, and
+  it is why the installers are per-user. On Linux the same holds for the keyring-backed path (the key
+  lives in that user's keyring); the age fallback is weaker, as described above.
+- `native/secret-bridge` (Windows only) re-implements the decryption independently so Oh My Pi can
+  resolve keys with the GUI closed. It writes the secret to stdout and nothing else, errors to stderr,
+  and never logs the value.
 - Oh My Pi runs that command with a **hard 10 second timeout and silently omits the key on failure**.
   The bridge is published as Native AOT for that reason (measured 29 ms median cold start).
 - **The rule is enforced in `packages/core`, not in the UI.** `ConfigPatch.provider.apiKey` is a free

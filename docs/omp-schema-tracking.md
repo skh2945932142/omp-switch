@@ -51,13 +51,31 @@ Note on rate limits: the GitHub API is anonymous-rate-limited per IP (60/h) and 
 burn it fast; `git ls-remote` and `raw.githubusercontent.com` are the reliable fallbacks — the
 checker and this doc both prefer them when the API refuses.
 
-## OMP v18.4+ and CC Switch Alignment (v0.8.0)
+## Where we are now
 
-With OMP Switch v0.8.0, the schema and catalog have been synchronized against OMP v18.4.9 and CC Switch:
-- **New APIs recognized**: `openrouter-decisions`, `typesafe`.
-- **New Discovery Type**: `apple-foundation-models`.
-- **Model Fields**: `maxContextWindow`, `supportsTools`, `promptCache`, and `thinkingLevelMap`.
-- **Settings Fields**: `gc.stale`, `tools.artifactMaxBytes`.
-- **Thinking Profiles**: Integrated CC Switch's curated thinking level mappings (`packages/core/src/thinking-profiles.ts`).
-- **Contract & Spec Docs**: See [docs/pi-contract.md](pi-contract.md) and [docs/pi-thinking-profiles.md](pi-thinking-profiles.md).
+### OMP Switch v0.8.0 ↔ OMP v18.4
+
+v0.8.0 was checked against OMP v18.4.9, with CC Switch's Pi presets as a reference for the catalog. It added:
+
+- **API types:** `openrouter-decisions`, `typesafe`.
+- **Discovery type:** `apple-foundation-models`.
+- **Model fields:** `maxContextWindow`, `supportsTools`, `promptCache`, `thinkingLevelMap`.
+- **Settings fields:** `gc.stale`, `tools.artifactMaxBytes`. These are validated and preserved, but the UI does not edit them yet.
+- **Thinking profiles:** reviewed `thinkingLevelMap` presets in `packages/core/src/thinking-profiles.ts`.
+
+See [pi-contract.md](pi-contract.md) and [pi-thinking-profiles.md](pi-thinking-profiles.md).
+
+### Checked against OMP v18.5.0 (2026-10-03)
+
+Between v18.4.9 and v18.5.0, upstream did not touch `models-config-schema-bundle.ts` or
+`settings-schema.ts`, so no validator or catalog change was needed, and
+`node scripts/check-omp-version.mjs` reports major 18 as writable.
+
+Upstream did change some docs and behavior in that range. None of it affects what OMP Switch reads or writes today, but it's worth knowing about:
+
+- New `config.yml` settings for the advisor: `advisor.reviewMode`, `advisor.reviewInterval`, and a `strict` value for `advisor.syncBacklog`. OMP Switch leaves them untouched, and unknown settings are preserved on write.
+- `task.completionProbeMs` was replaced by the on/off setting `task.completionProbe` (OMP migrates old values itself). OMP Switch doesn't reference either key.
+- `openai-models-list` discovery now reads `limits.max_input_tokens` / `limits.max_output_tokens` as a fallback for context size. Discovery here only lists models, so nothing changes on our side.
+
+If one of these becomes something users want to edit in OMP Switch, add the field to `domain.ts` and `validation.ts` first, then the UI.
 
