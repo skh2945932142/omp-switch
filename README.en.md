@@ -50,7 +50,7 @@ On either system the key never goes into `models.yml`. The config holds only the
 Windows:
 
 ```powershell
-# winget (listed; currently up to 0.7.0, 0.8.0 not yet submitted)
+# winget (listed; currently up to 0.7.0, 0.8.0 PR submitted for review)
 winget install skh2945932142.OMPSwitch
 
 # Scoop (this repo hosts the bucket and syncs it after every release)

@@ -50,7 +50,7 @@ API key 的存放方式按系统区分：
 Windows：
 
 ```powershell
-# winget（已上架，当前收录到 0.7.0，0.8.0 待提交）
+# winget（已上架，当前收录到 0.7.0，0.8.0 PR 已提交审核）
 winget install skh2945932142.OMPSwitch
 
 # Scoop（仓库自带 bucket，每次发布后自动同步）

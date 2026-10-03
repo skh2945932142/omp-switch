@@ -33,7 +33,7 @@ planned:
 | --- | --- |
 | Direct download (GitHub Releases) | **Works** — Windows exe/zip, Linux AppImage/deb/rpm |
 | Scoop (bucket hosted in this repository) | **Works** — auto-syncs on every release |
-| winget | **Listed** (`skh2945932142.OMPSwitch`); the latest merged version is 0.7.0, and 0.8.0 is not submitted yet |
+| winget | **Listed** (`skh2945932142.OMPSwitch`); latest merged is 0.7.0, 0.8.0 PR is submitted ([#446159](https://github.com/microsoft/winget-pkgs/pull/446159)) |
 | Chocolatey | Package prepared; feed submission and moderation **pending** |
 
 The winget and Chocolatey manifests live in `packaging/` and are rendered with real release hashes by
