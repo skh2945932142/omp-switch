@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.0 - 2026-10-05
+
+### Added
+- **Local prompt library:** explicitly add dedicated Markdown folders and browse them without changing the original files. The bounded scanner supports nested paths, Chinese filenames, same-named files from different sources, filename/body search, favorites, tags, recent use, copy, and visible coverage limits.
+- **Guarded prompt adoption:** preview a library entry and copy it once into a writable OMP Profile. Existing targets require explicit overwrite confirmation; source and target hashes are checked again at confirmation.
+- **Prompt recovery snapshots:** adoption keeps a bounded local snapshot of the previous target, and restore refuses to overwrite an external edit. Snapshot history is available from the library view.
+- **Bilingual Prompts workspace UI:** the local library and the existing Profile prompt editor remain sibling views under the same Prompts navigation entry.
+
+### Changed
+- Added IPC, browser-preview mock APIs, SQLite/JSON metadata persistence for source references, favorites, tags, and recent-use metadata.
+- Updated feature, security, installation, and release documentation to distinguish transient search text from adoption snapshots and session FTS content.
+
+### Security
+- Library reads are source-bound, bounded, UTF-8 checked, and refuse symbolic links and paths outside explicitly chosen roots.
+- External library files remain read-only. Adoption writes only to the active Profile through guarded target paths and never writes project-local `.omp` overlays.
+- No new network request or runtime dependency was added for the library.
+
+### Known Limitations
+- The desktop Electron window was not interactively exercised in this Linux development shell; renderer behavior was checked through the browser preview and component tests. CI still provides the xvfb-based Linux smoke test.
+- Full-text search is bounded by per-source resource limits and is not a persistent body index.
+- Adoption snapshots intentionally contain the previous target prompt text and should be treated as sensitive local data.
+- Gateway, OAuth integration, session indexing, and update checking retain their existing status: gateway and OAuth are user-triggered integrations, session indexing is local-only, and signed update manifests depend on `OMP_UPDATE_ED25519`.
+
 ## 0.8.0 - 2026-10-02
 
 ### Added

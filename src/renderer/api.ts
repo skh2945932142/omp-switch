@@ -1,3 +1,4 @@
+import { createPromptLibraryMock } from "./prompt-library-mock";
 import type {
   ConfigPatch,
   DiscoveryResult,
@@ -5,7 +6,7 @@ import type {
   PatchPreview,
   Snapshot,
 } from "@omp-switch/core";
-import { applyConfigPatch } from "@omp-switch/core";
+import { applyConfigPatch } from "@omp-switch/core/adapter";
 import i18n from "./i18n";
 
 export function createMockApi(): NonNullable<Window["ompSwitch"]> {
@@ -205,16 +206,7 @@ export function createMockApi(): NonNullable<Window["ompSwitch"]> {
     exportCatalog: async () => ({ version: 1 as const, source: "demo", entries: [] }),
     projectOverlay: async () => ({ root: "D:/demo-project", explicit: false, overlay: null, precedence: [] }),
     chooseProjectRoot: async (_profileId?: string, _title?: string) => ({ root: "D:/demo-project", explicit: true, overlay: null, precedence: [] }),
-    listSurface: async () => [],
-    readSurface: async () => "",
-    writeSurface: async (_profileId, _kind, name) => ({
-      id: name,
-      name,
-      path: name,
-      source: "profile" as const,
-      enabled: true,
-    }),
-    deleteSurface: async () => undefined,
+    ...createPromptLibraryMock(),
     exportSurfaces: async (profileId) => ({ version: 1 as const, profile: profileId, items: [] }),
     importSurfaces: async () => [],
     refreshSessions: async () => ({

@@ -41,3 +41,37 @@ describe("mock save equivalence with the real adapter", () => {
     expect(viaApply.settings.modelProviderOrder).toEqual(["anthropic", "openrouter"]);
   });
 });
+
+describe("prompt library preview API", () => {
+  it("supports search, classification and source removal", async () => {
+    const mock = createMockApi();
+    expect((await mock.promptLibraryList()).sources).toEqual([]);
+    const view = await mock.choosePromptLibrarySource();
+    expect(view.sources).toHaveLength(1);
+    expect((await mock.promptLibraryList("edge cases")).entries).toHaveLength(1);
+    const id = view.entries[0].id;
+    await mock.updatePromptLibraryMetadata(id, { favorite: true, tags: ["review"] });
+    expect((await mock.promptLibraryList()).metadata[id].favorite).toBe(true);
+    await mock.removePromptLibrarySource(view.sources[0].id);
+    expect((await mock.promptLibraryList()).metadata).toEqual({});
+  });
+  it("adopts and restores an independent profile copy", async () => {
+    const mock = createMockApi(); const view = await mock.choosePromptLibrarySource();
+    const preview = await mock.previewPromptAdoption("default", view.entries[0].id, "review");
+    const snapshot = await mock.commitPromptAdoption(preview.id, false);
+    expect((await mock.listSurface("default", "prompt"))[0].name).toBe("review");
+    expect(await mock.readSurface("default", "prompt", "review")).toBe(preview.content);
+    await mock.restorePromptAdoption("default", snapshot.id);
+    expect(await mock.listSurface("default", "prompt")).toEqual([]);
+  });
+  it("refuses stale target previews and undo over external edits", async () => {
+    const mock = createMockApi(); const view = await mock.choosePromptLibrarySource();
+    const preview = await mock.previewPromptAdoption("default", view.entries[0].id, "review");
+    await mock.writeSurface("default", "prompt", "review", "editor change");
+    await expect(mock.commitPromptAdoption(preview.id, true)).rejects.toThrow();
+    const next = await mock.previewPromptAdoption("default", view.entries[0].id, "review");
+    const snapshot = await mock.commitPromptAdoption(next.id, true);
+    await mock.writeSurface("default", "prompt", "review", "later change");
+    await expect(mock.restorePromptAdoption("default", snapshot.id)).rejects.toThrow();
+  });
+});

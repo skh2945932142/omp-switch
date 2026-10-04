@@ -15,16 +15,16 @@ It edits files that belong to you, not to it: `~/.omp/agent/models.yml` and `con
 
 ![Roles page, dark theme](docs/images/roles-dark.png)
 
-## What's new in v0.8.0
+## What's new in v0.9.0
 
-v0.8.0 follows OMP v18.4's config format and adds provider presets informed by [CC Switch](https://github.com/farion1231/cc-switch):
+v0.9.0 adds a read-only-first local prompt library on top of the v0.8.0 OMP v18.4 foundation:
 
-- The built-in catalog grows to 81 presets, including PPIO, Kimi For Coding, 302.AI, and AIHubMix.
-- Some preset models now carry context length, output limit, a reasoning flag, and a `thinkingLevelMap` (which maps OMP's thinking levels to the parameters each provider's API expects).
-- The validator understands OMP 18.4's new `openrouter-decisions` and `typesafe` API types, the `apple-foundation-models` discovery source, and the `maxContextWindow`, `supportsTools`, `promptCache`, `gc.stale`, and `tools.artifactMaxBytes` fields.
-- We also checked OMP v18.5.0: the `models.yml` format is unchanged, so reading and writing still work.
+- Add dedicated Markdown folders explicitly, then search file names or text, including Chinese names, nested paths, and same-named files from different sources.
+- Favorite, tag, copy, and track recent use locally; external sources remain read-only and coverage limits are visible.
+- Preview a material before adopting it as a one-time Profile prompt copy. Existing targets require confirmation, and hash-guarded snapshots support guarded recovery.
+- The existing Profile Prompts editor remains available as a sibling view.
 
-See the [release notes](docs/releases/v0.8.0.md) and the [CHANGELOG](CHANGELOG.md) for the full list.
+v0.9.0 also includes the v0.8.0 OMP v18.4 support, 81 provider presets, and `thinkingLevelMap` data. See the [v0.9.0 release notes](docs/releases/v0.9.0.md), [v0.8.0 release notes](docs/releases/v0.8.0.md), and the [CHANGELOG](CHANGELOG.md).
 
 > The installers are not code-signed, so Windows SmartScreen will warn you. Check what you downloaded against `SHA256SUMS.txt` and the build provenance on the release page; [docs/install.md](docs/install.md) shows how.
 
@@ -50,7 +50,7 @@ On either system the key never goes into `models.yml`. The config holds only the
 Windows:
 
 ```powershell
-# winget (listed; currently up to 0.7.0, 0.8.0 PR submitted for review)
+# winget (listed; currently up to 0.8.0, with a 0.9.0 PR to follow the published assets)
 winget install skh2945932142.OMPSwitch
 
 # Scoop (this repo hosts the bucket and syncs it after every release)
@@ -62,9 +62,9 @@ Linux:
 
 ```bash
 # Download from the Releases page, then pick one
-sudo dpkg -i OMP-Switch-0.8.0-linux.deb
-sudo rpm -i OMP-Switch-0.8.0-linux.rpm
-chmod +x OMP-Switch-0.8.0-linux.AppImage && ./OMP-Switch-0.8.0-linux.AppImage
+sudo dpkg -i OMP-Switch-0.9.0-linux.deb
+sudo rpm -i OMP-Switch-0.9.0-linux.rpm
+chmod +x OMP-Switch-0.9.0-linux.AppImage && ./OMP-Switch-0.9.0-linux.AppImage
 ```
 
 You can also download the Windows installer or portable build from [Releases](https://github.com/skh2945932142/omp-switch/releases/latest). The Chocolatey package is ready but hasn't been submitted to the official feed yet.
@@ -73,7 +73,7 @@ If you only want the CLI, use Docker:
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.8.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:0.9.0 validate --profile default
 ```
 
 The image is on GHCR, but GitHub makes new container packages private by default, and only the repository owner can change that in settings. If the pull says `unauthorized`, see [docs/install.md](docs/install.md#docker); a local `docker build` always works.
@@ -85,7 +85,8 @@ Checksums, provenance checks, and the other install methods are in **[docs/insta
 - **Providers and models:** add, edit, and remove providers and models; set `modelProviderOrder`, `enabledModels`, `disabledProviders`, and thinking levels. Apply any of the 81 presets in one click. Model discovery works with OpenAI, Ollama, llama.cpp, LM Studio, Proxy, LiteLLM, and Apple Foundation Models.
 - **Model roles:** the Roles page shows one row per role and the model it actually resolves to. `@role` cycles, bad selectors, and misuse of `:off` / `:auto` are flagged in place.
 - **Preview before write:** every save first shows a line-by-line diff of `models.yml` / `config.yml`, and nothing is written until you confirm. Snapshots can be browsed and restored.
-- **Also:** Prompts / Skills / Sessions browsing, usage stats, a local gateway, a Ctrl+K command palette, light and dark themes, and a Chinese / English interface.
+- **Prompts / Skills / Sessions:** browse and manage OMP resources; Prompts also has a local prompt library for searching, favorites, tags, copying, and safe adoption into a Profile copy.
+- **Also:** usage stats, a local gateway, a Ctrl+K command palette, light and dark themes, and a Chinese / English interface.
 
 Each page is described in [docs/features.en.md](docs/features.en.md).
 

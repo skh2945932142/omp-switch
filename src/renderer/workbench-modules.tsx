@@ -1,3 +1,4 @@
+export { PromptLibraryModule } from "./modules/surfaces/prompt-library-module";
 export { SurfaceModule } from "./modules/surfaces/surface-module";
 export { SessionsModule } from "./modules/sessions/sessions-module";
 export { GatewayModule } from "./modules/gateway/gateway-module";

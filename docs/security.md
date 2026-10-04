@@ -124,11 +124,27 @@ It mirrors Oh My Pi's own auth-gateway posture:
 - Secret vault creation (`secret:put`) validates input types and enforces string length limits.
 - The JSON CLI (`--json get`) masks plaintext API keys by default to prevent accidental disclosure.
 
-## Sessions and exports
+## Local prompt library and sessions
 
-Session JSONL files are only **indexed** (`filePath` + `offset` + `length`). Raw content is read on
-demand and never copied into the metadata store or into a default export, so a shared export does not
-carry transcripts.
+The local prompt library only reads Markdown files from directories the user explicitly chooses. It
+recursively scans a bounded tree without following symbolic links, validates the canonical source on
+every read, and keeps source paths and file identities separate so same-named files cannot silently
+shadow each other. Search text is held in memory only and is discarded when the app exits. Durable
+metadata contains source references, favorites, tags, and recent-use timestamps, but not the source
+body. Removing a source removes its library metadata without deleting the user's files.
+
+Adopting a material is a separate, explicit copy into a writable Profile. The source and destination
+are hash-checked again at confirmation; an existing target requires explicit overwrite confirmation.
+An adoption snapshot may contain the previous target text, is stored in the app's private data
+folder, is bounded by the prompt snapshot retention limit, and is restored only while the target
+still matches the hash written by that adoption. An external edit therefore causes restore to refuse
+rather than overwrite it. These recovery snapshots are intentionally different from the transient
+search cache and should be treated as sensitive local data.
+
+Session JSONL files are indexed by the app's session metadata and FTS paths. Session message text
+may be persisted for local search, and the current export actions can include the loaded message
+previews; do not describe sessions or exports as guaranteed transcript-free. Do not share exports
+without checking their contents.
 
 ## Supply chain
 

@@ -1,3 +1,4 @@
+import type { PromptLibraryView, PromptLibraryMetadata, PromptLibraryText, PromptAdoptionPreview, PromptWriteSnapshot } from "@omp-switch/core";
 import type { ConfigPatch, DiscoveryResult, EffectiveConfig, GatewayPool, GatewayUpstreamHealth, GatewayUpstreamStat, ManagedSurfaceEntry, ModelPrice, PatchPreview, PricingTable, ProfileRef, ProjectContext, ProviderPreset, SessionListPage, SessionMessagePage, SessionRefreshStats, SessionSearchResult, Snapshot, SurfaceBundle, UpdateStatus, UsageReport } from "@omp-switch/core";
 
 export interface OmpSwitchApi {
@@ -17,6 +18,18 @@ export interface OmpSwitchApi {
   exportCatalog(): Promise<{ version: 1; source: string; entries: ProviderPreset[] }>;
   projectOverlay(profileId?: string): Promise<ProjectContext>;
   chooseProjectRoot(profileId?: string, title?: string): Promise<ProjectContext>;
+
+  promptLibraryList(query?: string): Promise<PromptLibraryView>;
+  refreshPromptLibrary(): Promise<PromptLibraryView>;
+  choosePromptLibrarySource(title?: string): Promise<PromptLibraryView>;
+  removePromptLibrarySource(id: string): Promise<PromptLibraryView>;
+  updatePromptLibraryMetadata(id: string, patch: { favorite?: boolean; tags?: string[] }): Promise<PromptLibraryMetadata>;
+  readPromptLibraryEntry(id: string): Promise<PromptLibraryText>;
+  notePromptLibraryUse(id: string, action: "copy"): Promise<void>;
+  previewPromptAdoption(profileId: string, entryId: string, name: string): Promise<PromptAdoptionPreview>;
+  commitPromptAdoption(previewId: string, overwrite: boolean): Promise<PromptWriteSnapshot>;
+  listPromptAdoptions(profileId: string): Promise<PromptWriteSnapshot[]>;
+  restorePromptAdoption(profileId: string, snapshotId: string): Promise<void>;
 
   listSurface(profileId: string, kind: "prompt" | "skill"): Promise<ManagedSurfaceEntry[]>;
   readSurface(profileId: string, kind: "prompt" | "skill", name: string): Promise<string>;

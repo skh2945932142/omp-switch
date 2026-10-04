@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { FileSearch } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { AnimatePresence, MotionConfig } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -26,7 +27,7 @@ import {
 } from "@omp-switch/shared";
 import { ModelsModule } from "./models-module";
 import { RolesModule } from "./roles-module";
-import { GatewayModule, SessionsModule, SurfaceModule } from "./workbench-modules";
+import { GatewayModule, PromptLibraryModule, SessionsModule, SurfaceModule } from "./workbench-modules";
 import { UsageModule } from "./usage-module";
 import { TopBar } from "./components/navigation/topbar";
 import { LeftRail, type SectionKey } from "./components/navigation/left-rail";
@@ -141,6 +142,7 @@ export default function App(): ReactElement {
   const [applyingProviderId, setApplyingProviderId] = useState<string | null>(null);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [section, setSection] = useState<SectionKey>("models");
+  const [promptView, setPromptView] = useState<"library" | "profile">("library");
   const [query, setQuery] = useState("");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -742,6 +744,7 @@ export default function App(): ReactElement {
             section={section}
             onSectionChange={(next) => {
               setSection(next);
+              if (next !== "prompts") setPromptView("library");
               closeForm();
               setDrawerOpen(false);
             }}
@@ -815,7 +818,14 @@ export default function App(): ReactElement {
                   isEnabled={enabledFilter}
                 />
               ) : section === "prompts" ? (
-                <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={notify} />
+                promptView === "library" ? (
+                  <PromptLibraryModule api={api} profileId={profileId} readOnly={readOnly} onNotice={notify} onOpenProfilePrompts={() => setPromptView("profile")} />
+                ) : (
+                  <>
+                    <div className="module-heading workspace-heading"><button className="secondary-button" onClick={() => setPromptView("library")}><FileSearch size={15} />{t("surfaces.localLibrary")}</button></div>
+                    <SurfaceModule api={api} profileId={profileId} kind="prompt" readOnly={readOnly} onNotice={notify} />
+                  </>
+                )
               ) : section === "skills" ? (
                 <SurfaceModule api={api} profileId={profileId} kind="skill" readOnly={readOnly} onNotice={notify} />
               ) : section === "sessions" ? (

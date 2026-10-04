@@ -41,6 +41,7 @@ import {
   type GatewayUpstream,
 } from "@omp-switch/core";
 import { MetadataStore } from "./metadata-store";
+import { PromptLibraryService } from "./prompt-library-service";
 import { blockRendererNavigation, denyRendererWindowOpen, getContentSecurityPolicy, mayUseDevRenderer } from "./renderer-security";
 import { createSecretCommand, provisionSecretBridge } from "./secret-bridge";
 import { createCredentialStore, type CredentialStore } from "./credential-store";
@@ -54,6 +55,7 @@ let adapter: OmpFilesystemAdapter;
 let secrets: CredentialStore;
 let metadata: MetadataStore;
 let surfaces: OmpSurfaceAdapter;
+let promptLibrary: PromptLibraryService;
 let gateway: GatewayServer | null = null;
 let gatewayProfileId = "default";
 let projectRoot = process.cwd();
@@ -344,6 +346,22 @@ function registerIpc(): void {
     await setProjectRoot(result.filePaths[0]);
     return resolveProjectContext(profileId);
   });
+
+  ipcMain.handle("prompt-library:list", (_event, query?: string) => promptLibrary.list(query));
+  ipcMain.handle("prompt-library:refresh", () => promptLibrary.refresh());
+  ipcMain.handle("prompt-library:choose-source", async (_event, title?: string) => {
+    const result = await dialog.showOpenDialog({ title: typeof title === "string" ? title.slice(0, 256) : undefined, properties: ["openDirectory", "dontAddToRecent"] });
+    if (result.canceled || !result.filePaths[0]) return promptLibrary.list();
+    return promptLibrary.addSource(result.filePaths[0]);
+  });
+  ipcMain.handle("prompt-library:remove-source", (_event, id: string) => promptLibrary.removeSource(id));
+  ipcMain.handle("prompt-library:metadata", (_event, id: string, patch: { favorite?: boolean; tags?: string[] }) => promptLibrary.updateMetadata(id, patch));
+  ipcMain.handle("prompt-library:read", (_event, id: string) => promptLibrary.read(id));
+  ipcMain.handle("prompt-library:use", (_event, id: string, action: "copy") => promptLibrary.noteUse(id, action));
+  ipcMain.handle("prompt-library:preview", (_event, profileId: string, entryId: string, name: string) => promptLibrary.previewAdoption(profileId, entryId, name));
+  ipcMain.handle("prompt-library:commit", (_event, id: string, overwrite: boolean) => promptLibrary.commitAdoption(id, overwrite));
+  ipcMain.handle("prompt-library:history", (_event, profileId: string) => promptLibrary.listSnapshots(profileId));
+  ipcMain.handle("prompt-library:restore", (_event, profileId: string, id: string) => promptLibrary.restoreSnapshot(profileId, id));
 
   ipcMain.handle("surface:list", (_event, profileId: string, kind: "prompt" | "skill") => surfaces.list(adapterProfile(profileId), kind));
   ipcMain.handle("surface:read", async (_event, profileId: string, kind: "prompt" | "skill", name: string) => {
@@ -738,6 +756,11 @@ app.whenReady().then(async () => {
   }
   surfaces = new OmpSurfaceAdapter({ projectRoot, homeDir: os.homedir() });
   makeAdapter();
+  promptLibrary = new PromptLibraryService(metadata, {
+    snapshotDir: path.join(app.getPath("userData"), "prompt-snapshots"),
+    profileFor: adapterProfile,
+    isWritable: () => adapter.installation.supported,
+  });
   registerIpc();
   // Windows: the Electron binary is its own bridge in the dev-checkout flow. Linux credentials
   // resolve through secret-tool/age, so this argv mode is dead code there — guard to win32.

@@ -23,7 +23,7 @@ What `thinkingLevelMap` means in a preset is explained in [pi-thinking-profiles.
 
 ## Other pages
 
-- **Prompts / Skills / Sessions:** browse the index and read the raw content on demand.
+- **Prompts / Skills / Sessions:** browse the index and read the raw content on demand. The Prompts page also has a local prompt library: add dedicated Markdown folders explicitly, search file names or text, favorite/tag/copy entries, and keep external sources read-only. A selected material can be previewed and adopted as a one-time copy into the current Profile; the source is never edited or synced, and adoption keeps a guarded recovery snapshot.
 - **Usage:** spend, requests, tokens, and a per-day trend, grouped by model or provider. Costs say where the numbers came from.
 - **Local gateway:** listens on loopback only and serves `/healthz`, `/v1/models`, chat, and responses, with failover before streaming starts. A Bearer token is required, the `Host` header is checked, and cross-origin requests are refused.
 - **Credentials and login:** the Windows DPAPI helper, the Linux libsecret / age vault (since v0.6.0), and OMP OAuth status and login entry points. Orphaned credentials and reference tracking behave the same on both systems.

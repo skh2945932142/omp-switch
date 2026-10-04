@@ -23,7 +23,7 @@
 
 ## 其他页面
 
-- **Prompts / Skills / Sessions**：浏览索引，需要时再读原文。
+- **Prompts / Skills / Sessions**：浏览索引，需要时再读原文。Prompts 页另有本地提示词资料架：可手动添加专用 Markdown 目录，按文件名或正文搜索、收藏、标签、复制；外部目录保持只读。选中的材料可以预览后一次性采用为当前 Profile 的提示词副本，采用前显示目标并保留可恢复快照，不会修改或同步原文件。
 - **用量**：花费、请求数、tokens、每日趋势，可按模型和供应商分组；成本会标明数据来源。
 - **本地网关**：监听本机回环地址，提供 `/healthz`、`/v1/models`、Chat、Responses，支持流式响应开始前的故障转移。必须带 Bearer token，会校验 Host，拒绝跨源请求。
 - **凭据与登录**：Windows 的 DPAPI 凭据桥、Linux 的 libsecret / age 凭据库（v0.6.0 起），以及 OMP OAuth 的状态查看和登录入口。孤儿凭据和引用追踪在两个系统上行为一致。

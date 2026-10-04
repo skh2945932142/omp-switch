@@ -14,3 +14,5 @@ export * from "./update";
 export * from "./usage";
 export * from "./validation";
 export * from "./yaml-config";
+
+export * from "./prompt-library";
