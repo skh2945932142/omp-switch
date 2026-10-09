@@ -7,9 +7,33 @@ if (-not $testRoot.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnor
   throw "Refusing to create test data outside the workspace"
 }
 
+function ConvertTo-WindowsCommandLineArgument([string]$value) {
+  # Windows command-line parsing requires backslashes before embedded quotes to be doubled.
+  $builder = [System.Text.StringBuilder]::new()
+  $slash = [char]92
+  $quote = [char]34
+  [void]$builder.Append($quote)
+  $backslashes = 0
+  foreach ($character in $value.ToCharArray()) {
+    if ($character -eq $slash) { $backslashes++; continue }
+    if ($character -eq $quote) {
+      for ($i = 0; $i -lt (2 * $backslashes + 1); $i++) { [void]$builder.Append($slash) }
+      [void]$builder.Append($quote)
+      $backslashes = 0
+      continue
+    }
+    for ($i = 0; $i -lt $backslashes; $i++) { [void]$builder.Append($slash) }
+    $backslashes = 0
+    [void]$builder.Append($character)
+  }
+  for ($i = 0; $i -lt (2 * $backslashes); $i++) { [void]$builder.Append($slash) }
+  [void]$builder.Append($quote)
+  return $builder.ToString()
+}
+
 function Invoke-NativeCli([string]$cliPath, [string[]]$arguments, [string]$stdoutPath, [string]$stderrPath) {
-  # ProcessStartInfo.ArgumentList passes the JSON patch as one exact argv item. PowerShell's
-  # native-command quoting can otherwise strip its embedded quotes before the console proxy sees it.
+  # The package script runs under Windows PowerShell 5.1/.NET Framework, where
+  # ProcessStartInfo.ArgumentList is unavailable; serialize argv with Windows quoting rules.
   $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
   $startInfo.FileName = $cliPath
   $startInfo.WorkingDirectory = Split-Path -Parent $cliPath
@@ -17,7 +41,7 @@ function Invoke-NativeCli([string]$cliPath, [string[]]$arguments, [string]$stdou
   $startInfo.CreateNoWindow = $true
   $startInfo.RedirectStandardOutput = $true
   $startInfo.RedirectStandardError = $true
-  foreach ($argument in $arguments) { [void]$startInfo.ArgumentList.Add($argument) }
+  $startInfo.Arguments = (($arguments | ForEach-Object { ConvertTo-WindowsCommandLineArgument $_ }) -join " ")
 
   $process = [System.Diagnostics.Process]::Start($startInfo)
   if (-not $process) { throw "Failed to start packaged CLI: $cliPath" }
