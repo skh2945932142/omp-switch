@@ -304,6 +304,37 @@ describe("OMP configuration validation", () => {
     expect(validateSettingsDocument({ images: { urls: { enabled: "yes" as never } } }).some((item) => item.code === "settings.images.urls.enabled")).toBe(true);
   });
 
+  it("validates OMP v18.8 model compaction thresholds and usage-aware retry settings", () => {
+    expect(validateSettingsDocument({
+      compaction: {
+        modelThresholds: {
+          "deepseek/deepseek-v4": 90000,
+          "openrouter/anthropic/*": "80%",
+          "local/model": null,
+        },
+        modelThresholdsEnabled: true,
+      },
+      retry: {
+        waitForUsageReset: true,
+        usageAwareFallback: true,
+        usageReservePct: 15,
+        usageReservePolicy: "fail-closed",
+      },
+    })).toEqual([]);
+
+    const invalid = validateSettingsDocument({
+      compaction: { modelThresholds: { "bad selector": "101%", "provider/model": 0 } },
+      retry: { waitForUsageReset: "yes" as never, usageReservePct: 101, usageReservePolicy: "ignore" as never },
+    });
+    expect(invalid.map((item) => item.code)).toEqual(expect.arrayContaining([
+      "settings.compaction.modelThresholds-key",
+      "settings.compaction.modelThresholds-value",
+      "settings.retry",
+      "settings.retry.usageReservePct",
+      "settings.retry.usageReservePolicy",
+    ]));
+  });
+
   it("validates unexpectedStopDetection modes and updateChannel", () => {
     const valid = validateSettingsDocument({
       unexpectedStopDetection: "smart",

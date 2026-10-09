@@ -5,11 +5,13 @@
 // proxies); git ls-remote is the fallback for tags when the API is unavailable.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const UPSTREAM = "can1357/oh-my-pi";
+const BASELINE_PATH = path.join(rootDir, "scripts", "omp-schema-baseline.json");
 
 async function latestUpstreamRelease() {
   const headers = process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
@@ -34,6 +36,19 @@ async function latestUpstreamRelease() {
   return versions[versions.length - 1];
 }
 
+async function checkSchemaDrift(latestTag) {
+  const baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8"));
+  const changed = [];
+  for (const [source, expectedHash] of Object.entries(baseline.sources)) {
+    const url = `https://raw.githubusercontent.com/${UPSTREAM}/${latestTag}/${source}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Could not fetch pinned OMP schema source ${source}: HTTP ${response.status}`);
+    const digest = crypto.createHash("sha256").update(Buffer.from(await response.arrayBuffer())).digest("hex");
+    if (digest !== expectedHash) changed.push(source);
+  }
+  return { baseline, changed };
+}
+
 function writableMajors() {
   const source = fs.readFileSync(path.join(rootDir, "packages", "core", "src", "schema.ts"), "utf8");
   const match = source.match(/WRITABLE_OMP_SCHEMA_MAJORS\s*=\s*new Set\(\[([^\]]*)\]/);
@@ -52,7 +67,9 @@ async function main() {
   const major = Number(latest.split(".")[0]);
   const supported = writableMajors();
 
-  console.log(`OMP upstream latest: v${latest}`);
+  const latestTag = `v${latest}`;
+  const { baseline, changed } = await checkSchemaDrift(latestTag);
+  console.log(`OMP upstream latest: ${latestTag} (schema baseline ${baseline.tag} at ${baseline.commit})`);
   console.log(`Writable schema majors: ${[...supported].sort((a, b) => a - b).join(", ")}`);
 
   if (!Number.isInteger(major) || major <= 0) {
@@ -60,17 +77,26 @@ async function main() {
     process.exit(1);
   }
 
+  if (changed.length > 0) {
+    console.error(`ACTION REQUIRED: OMP schema sources changed since ${baseline.tag}; review before claiming compatibility:`);
+    for (const source of changed) console.error(`- ${source}`);
+    console.error("Update scripts/omp-schema-baseline.json only after documenting the review and adding any required tests.");
+    process.exitCode = 1;
+  } else {
+    console.log(`OK: tracked schema sources are unchanged since ${baseline.tag}`);
+  }
+
   if (supported.has(major)) {
-    console.log(`OK: major ${major} is writable`);
-    process.exit(0);
+    if (changed.length === 0) console.log(`OK: major ${major} is writable`);
+    return;
   }
 
   console.error(`ACTION REQUIRED: OMP ${major}.x is released but not in WRITABLE_OMP_SCHEMA_MAJORS.`);
   console.error(`Users on ${major}.x get a read-only app until this lands. Maintainer checklist:`);
   console.error(`1. packages/core/src/schema.ts: add ${major} to WRITABLE_OMP_SCHEMA_MAJORS`);
-  console.error(`2. Diff upstream packages/coding-agent/src/config/models-config-schema-bundle.ts and`);
-  console.error(`   settings-schema.ts against packages/core/src/validation.ts (root keys, provider`);
-  console.error(`   fields, thinking levels, tokenizer families, codeMode values)`);
+  console.error(`2. Diff pinned upstream schema/settings sources (models-config-schema-bundle.ts,`);
+  console.error(`   all-settings.ts, session/settings.ts, compaction-threshold.ts) against`);
+  console.error(`   packages/core/src/domain.ts and validation.ts`);
   console.error(`3. Update packages/core/src/catalog.ts presets for any new/changed providers`);
   console.error(`4. Extend fixtures + tests; update docs/releases note`);
   process.exit(1);

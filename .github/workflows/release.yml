@@ -63,6 +63,23 @@ jobs:
         shell: pwsh
         run: pnpm verify:package-cli
 
+      - name: Render and pack Chocolatey package
+        shell: pwsh
+        run: |
+          pnpm render:packaging
+          if (-not (Get-Command choco -ErrorAction SilentlyContinue)) { throw "Chocolatey CLI is required on the Windows release runner" }
+          New-Item -ItemType Directory -Force -Path "dist/chocolatey" | Out-Null
+          choco pack "packaging/out/chocolatey/omp-switch.nuspec" --out "dist/chocolatey"
+          $packages = @(Get-ChildItem -Path "dist/chocolatey" -Filter "*.nupkg" -File)
+          if ($packages.Count -ne 1) { throw "Expected exactly one Chocolatey nupkg" }
+
+      - name: Upload Chocolatey submission package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: chocolatey-package
+          if-no-files-found: error
+          path: dist/chocolatey/*.nupkg
+
       - name: Generate checksums
         shell: pwsh
         run: |

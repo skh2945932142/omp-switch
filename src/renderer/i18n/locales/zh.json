@@ -191,7 +191,8 @@
       "commit": "提交",
       "tiny": "极小",
       "task": "任务",
-      "advisor": "顾问"
+      "advisor": "顾问",
+      "judge": "评审"
     }
   },
   "quickAssign": {

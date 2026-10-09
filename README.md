@@ -15,16 +15,16 @@ OMP Switch 是 [Oh My Pi](https://github.com/can1357/oh-my-pi)（下称 OMP）�
 
 ![角色页（暗色主题）](docs/images/roles-dark.png)
 
-## 最近更新（v0.9.0）
+## 最近更新（v1.0.0）
 
-v0.9.0 在 v0.8.0 的 OMP v18.4 配置支持基础上，增加了一个只读优先的本地提示词资料架：
+v1.0.0 把兼容性基线推进到 OMP v18.8，并补齐 CLI 快照恢复与字段级 schema 漂移监测：
 
-- 手动添加专用 Markdown 目录，按文件名或正文搜索，支持中文文件名、嵌套目录和同名不同来源。
-- 收藏、标签、最近使用、复制和资源覆盖提示都留在本机；外部资料默认只读，不修改原文件。
-- 选中的资料可以预览后一次性采用为当前 Profile 的提示词副本；覆盖确认、hash 冲突检查、快照和恢复都独立于原资料。
-- 保留原有 Profile Prompts 编辑器，资料架只是一个并列的整理入口。
+- CLI/TUI 可按快照 ID 恢复配置；默认拒绝覆盖快照之后的外部编辑，只有显式 `--force` 才覆盖。
+- 类型和校验覆盖 OMP v18.8 的模型级压缩阈值、usage-aware retry 字段，并同步 `judge` 角色。
+- 周度同步检查除了 OMP 主版本，也检查固定上游 schema 源的 hash；源码变化需要人工审查，不会自动放开兼容。
+- Linux 与 Windows packaged CLI 的 CI 回归覆盖冲突拒绝和显式强制恢复。
 
-v0.9.0 仍包含 v0.8.0 的 OMP v18.4 配置支持、81 个供应商预设和 `thinkingLevelMap` 数据。完整说明见 [发布说明](docs/releases/v0.9.0.md)、[v0.8.0 发布说明](docs/releases/v0.8.0.md) 和 [CHANGELOG](CHANGELOG.md)。
+完整说明见 [v1.0.0 发布说明](docs/releases/v1.0.0.md)、[功能一览](docs/features.md) 和 [CHANGELOG](CHANGELOG.md)。
 
 > 安装包没有做代码签名，Windows 的 SmartScreen 会弹警告。请用发布页上的 `SHA256SUMS.txt` 和 build provenance 核对下载的文件，方法见 [安装文档](docs/install.md)。
 
@@ -50,7 +50,7 @@ API key 的存放方式按系统区分：
 Windows：
 
 ```powershell
-# winget（已上架，当前收录到 0.8.0，0.9.0 PR 已提交审核（[#446675](https://github.com/microsoft/winget-pkgs/pull/446675)））
+# winget（已上架，当前收录到 0.9.0（[#446675](https://github.com/microsoft/winget-pkgs/pull/446675)）；1.0.0 待提交）
 winget install skh2945932142.OMPSwitch
 
 # Scoop（仓库自带 bucket，每次发布后自动同步）
@@ -62,9 +62,9 @@ Linux：
 
 ```bash
 # 从 Releases 页下载后任选其一
-sudo dpkg -i OMP-Switch-0.9.0-linux.deb
-sudo rpm -i OMP-Switch-0.9.0-linux.rpm
-chmod +x OMP-Switch-0.9.0-linux.AppImage && ./OMP-Switch-0.9.0-linux.AppImage
+sudo dpkg -i OMP-Switch-1.0.0-linux.deb
+sudo rpm -i OMP-Switch-1.0.0-linux.rpm
+chmod +x OMP-Switch-1.0.0-linux.AppImage && ./OMP-Switch-1.0.0-linux.AppImage
 ```
 
 你也可以直接去 [Releases](https://github.com/skh2945932142/omp-switch/releases/latest) 下载 Windows 安装包或便携版。Chocolatey 的包已经准备好，还没提交到官方源。
@@ -73,7 +73,7 @@ chmod +x OMP-Switch-0.9.0-linux.AppImage && ./OMP-Switch-0.9.0-linux.AppImage
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.9.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:1.0.0 validate --profile default
 ```
 
 镜像已推到 GHCR，但 GitHub 默认把新容器包设为私有，可见性只能由仓库所有者在设置里改。如果拉取时提示 `unauthorized`，看 [docs/install.md](docs/install.md#docker)；本地 `docker build` 不受影响。

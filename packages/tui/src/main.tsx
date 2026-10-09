@@ -39,6 +39,7 @@ if (args[0] === "--help" || args[0] === "-h") {
     "  omp-switch-tui                 interactive app",
     "  omp-switch-tui list            list profiles (non-interactive)",
     "  omp-switch-tui validate [--profile <p>]  validate a profile (non-interactive)",
+    "  omp-switch-tui restore --profile <p> --snapshot <id>  restore a snapshot",
     "  omp-switch-tui --help          this help",
     "",
     "Environment: PI_CONFIG_DIR / OMP_PROFILE / PI_PROFILE / PI_CODING_AGENT_DIR /",
@@ -48,7 +49,7 @@ if (args[0] === "--help" || args[0] === "-h") {
   process.exit(0);
 }
 
-if (args[0] === "list" || args[0] === "validate") {
+if (args[0] === "list" || args[0] === "validate" || args[0] === "restore") {
   // The headless JSON CLI already implements these; reuse it for identical output semantics.
   try {
     const command = parseJsonCliArguments(args);

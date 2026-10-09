@@ -6,12 +6,12 @@
 
 - **OMP 版本**：`16.x`、`17.x`、`18.x` 可读可写。没验证过的更高主版本只读，不会动文件。
 - **Profile**：支持默认 Profile 和命名 Profile，也认 OMP 自己的 `PI_CONFIG_DIR`、`OMP_PROFILE`、`PI_PROFILE`、`PI_CODING_AGENT_DIR`。碰到旧的 `models.json` 会先保护起来，不直接迁移。
-- **可编辑的内容**：供应商、模型、`modelProviderOrder`、`enabledModels`、`disabledProviders` 和思考档位设置。
+- **可编辑的内容**：供应商、模型、`modelProviderOrder`、`enabledModels`、`disabledProviders`、思考档位和 fallback chains。OMP v18.8 的模型级 compaction threshold 与 usage-aware retry 字段已类型化/校验并保留，但尚未全部提供 UI 编辑。
 - **写入方式**：只对 YAML 的相关节点做局部修改，注释和不认识的字段原样保留；写入前核对文件哈希，原子写入；每次写入前留一份快照，恢复时同样会拒绝覆盖外部改动。
 - **预设**：内置 81 个供应商预设，部分模型带有上下文长度、输出上限和 `thinkingLevelMap`。预设的整理参考了 CC Switch。
 - **模型发现**：支持 OpenAI 兼容接口、Ollama、llama.cpp、LM Studio、Proxy、LiteLLM 和 Apple Foundation Models。
 
-关于预设里 `thinkingLevelMap` 的含义，见 [pi-thinking-profiles.md](pi-thinking-profiles.md)。
+关于预设里 `thinkingLevelMap` 的含义，见 [pi-thinking-profiles.md](pi-thinking-profiles.md)。当前 OMP 同步基线为 v18.8.7；schema 源更新由周度 watch 检测并要求人工审查。
 
 ## 模型角色
 
@@ -27,7 +27,7 @@
 - **用量**：花费、请求数、tokens、每日趋势，可按模型和供应商分组；成本会标明数据来源。
 - **本地网关**：监听本机回环地址，提供 `/healthz`、`/v1/models`、Chat、Responses，支持流式响应开始前的故障转移。必须带 Bearer token，会校验 Host，拒绝跨源请求。
 - **凭据与登录**：Windows 的 DPAPI 凭据桥、Linux 的 libsecret / age 凭据库（v0.6.0 起），以及 OMP OAuth 的状态查看和登录入口。孤儿凭据和引用追踪在两个系统上行为一致。
-- **命令行**：稳定的 JSON 输出，命令有 `list`、`get`、`validate`、`snapshot`、`apply`。
+- **命令行**：稳定的 JSON 输出，命令有 `list`、`get`、`validate`、`plan`、`apply`、`snapshot`、`snapshots`、`restore`；恢复默认检查快照哈希，只有显式 `--force` 才覆盖外部修改。`get --reveal-secrets` 会输出明文凭据，仅在可信本机终端谨慎使用。
 - **终端界面（TUI）**：`omp-switch-tui` 有 providers、角色、快照、诊断四个页面，保存分两步（先看 diff，再确认）；`list`、`validate` 子命令可以直接写进脚本。需要从源码构建，见 [install.md](install.md)。
 
 ## 界面细节

@@ -14,6 +14,7 @@ export const ROLE_CATALOG: Array<{ id: string; glossKey: string }> = [
   { id: "tiny", glossKey: "roles.gloss.tiny" },
   { id: "task", glossKey: "roles.gloss.task" },
   { id: "advisor", glossKey: "roles.gloss.advisor" },
+  { id: "judge", glossKey: "roles.gloss.judge" },
 ];
 
 /** Just the documented role ids, in catalog order, for consumers that only need the id set. */

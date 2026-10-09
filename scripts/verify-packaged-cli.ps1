@@ -21,8 +21,35 @@ function Invoke-PackagedCli([string]$cliPath, [string]$label) {
     $env:OMP_SWITCH_DATA_DIR = $testData
     $env:USERPROFILE = $testHome
     $env:HOME = $testHome
+    $agentDir = Join-Path $testHome ".omp\agent"
+    New-Item -ItemType Directory -Force -Path $agentDir | Out-Null
+    @("providers:", "  demo:", "    baseUrl: https://api.example.test/v1", "    api: openai-completions", "    auth: none", "    models:", "      - id: demo-1") | Set-Content -LiteralPath (Join-Path $agentDir "models.yml") -Encoding utf8
+    "default: demo/demo-1" | Set-Content -LiteralPath (Join-Path $agentDir "config.yml") -Encoding utf8
+
     & $cliPath list 1> $stdoutPath 2> $stderrPath
     $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "$label list failed: $(Get-Content -Raw $stderrPath)" }
+    $applyPatch = '{"roleAssignments":{"default":"demo/demo-1"}}'
+    & $cliPath apply --profile default --patch $applyPatch 1> $stdoutPath 2> $stderrPath
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "$label apply failed: $(Get-Content -Raw $stderrPath)" }
+    $applyResponse = (Get-Content -Raw $stdoutPath) | ConvertFrom-Json
+    if (-not $applyResponse.ok -or -not $applyResponse.data.snapshot.id) { throw "$label apply returned no snapshot ID" }
+    $snapshotId = [string]$applyResponse.data.snapshot.id
+    $settingsPath = Join-Path $agentDir "config.yml"
+    Add-Content -LiteralPath $settingsPath -Value "# external edit"
+
+    & $cliPath restore --profile default --snapshot $snapshotId 1> $stdoutPath 2> $stderrPath
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { throw "$label restore unexpectedly overwrote an external edit" }
+    if (-not (Select-String -LiteralPath $settingsPath -Pattern "external edit" -Quiet)) { throw "$label restore modified the externally edited file" }
+
+    & $cliPath restore --profile default --snapshot $snapshotId --force 1> $stdoutPath 2> $stderrPath
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "$label forced restore failed: $(Get-Content -Raw $stderrPath)" }
+    $restoreResponse = (Get-Content -Raw $stdoutPath) | ConvertFrom-Json
+    if (-not $restoreResponse.ok) { throw "$label restore returned an invalid response" }
+    if (Select-String -LiteralPath $settingsPath -Pattern "external edit" -Quiet) { throw "$label forced restore did not restore the snapshot" }
   } finally {
     $env:OMP_SWITCH_DATA_DIR = $previousData
     $env:USERPROFILE = $previousUserProfile

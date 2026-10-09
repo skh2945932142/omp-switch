@@ -1,0 +1,14 @@
+{
+  "repository": "can1357/oh-my-pi",
+  "tag": "v18.8.7",
+  "commit": "f261ed9faf16b61880b544f599876bface4ded0d",
+  "checkedAt": "2026-10-10",
+  "sources": {
+    "packages/coding-agent/src/config/models-config-schema-bundle.ts": "bd1ed77a96f857e6fd0c8f3b28f600532a301dcc37d67d84fda6ab6d020ec969",
+    "packages/coding-agent/src/config/all-settings.ts": "13c2ad21e5d1c72043107c2d80450897808f76f7751859e71bc2f424bf1f21e5",
+    "packages/coding-agent/src/config/compaction-threshold.ts": "42c60c06a9c54e1becdce5e76953249bba7cf5f96ee80e21adf6816169d017bc",
+    "packages/coding-agent/src/config/model-settings.ts": "d0cef41cc2053d55f78d459c11d7efd3a85311cd9332730a846cde2664340f91",
+    "packages/coding-agent/src/config/config-file.ts": "9930d720cdc75bff5aed1969909c25e7b3e8a60e5d07a5333bd18bac8df35798",
+    "packages/coding-agent/src/session/settings.ts": "1ea21f1690695fe7cd5d502ca87b03d9f8fffe57fd5253c0b9ad09600e406d30"
+  }
+}

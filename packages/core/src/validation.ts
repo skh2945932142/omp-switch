@@ -13,7 +13,7 @@ export const ROLE_THINKING_LEVELS: RoleThinkingLevel[] = ["minimal", "low", "med
  * via `modelTags`, so an id outside this list is not an error — but chain keys and role editors
  * use it to tell a typo from a custom role. The shared package's ROLE_CATALOG must stay aligned.
  */
-export const BUILTIN_ROLE_IDS = ["default", "smol", "slow", "vision", "plan", "commit", "tiny", "task", "advisor"] as const;
+export const BUILTIN_ROLE_IDS = ["default", "smol", "slow", "vision", "plan", "commit", "tiny", "task", "advisor", "judge"] as const;
 
 /**
  * Every `api` value OMP's schema accepts. Extensions may register further ids at runtime via
@@ -574,7 +574,7 @@ function validateRetry(
     diagnostics.push({ severity: "error", code: "settings.retry", message: "retry must be a mapping" });
     return;
   }
-  for (const key of ["enabled", "modelFallback"]) {
+  for (const key of ["enabled", "modelFallback", "waitForUsageReset", "usageAwareFallback"]) {
     if (value[key] !== undefined && typeof value[key] !== "boolean") {
       diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a boolean` });
     }
@@ -583,6 +583,12 @@ function validateRetry(
     if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) {
       diagnostics.push({ severity: "error", code: "settings.retry", path: `retry.${key}`, message: `retry.${key} must be a non-negative number` });
     }
+  }
+  if (value.usageReservePct !== undefined && (typeof value.usageReservePct !== "number" || !Number.isFinite(value.usageReservePct) || value.usageReservePct < 0 || value.usageReservePct > 100)) {
+    diagnostics.push({ severity: "error", code: "settings.retry.usageReservePct", message: "retry.usageReservePct must be between 0 and 100" });
+  }
+  if (value.usageReservePolicy !== undefined && !(value.usageReservePolicy === "confirm" || value.usageReservePolicy === "auto" || value.usageReservePolicy === "fail-closed")) {
+    diagnostics.push({ severity: "error", code: "settings.retry.usageReservePolicy", message: "retry.usageReservePolicy must be confirm, auto, or fail-closed" });
   }
   if (value.fallbackRevertPolicy !== undefined && value.fallbackRevertPolicy !== "cooldown-expiry" && value.fallbackRevertPolicy !== "never") {
     diagnostics.push({ severity: "error", code: "settings.retry.fallbackRevertPolicy", message: `Unsupported fallbackRevertPolicy: ${value.fallbackRevertPolicy}. OMP accepts cooldown-expiry, never` });
@@ -618,12 +624,13 @@ function validateRetry(
   }
 }
 
-function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {  if (value === undefined) return;
+function validateCompaction(value: SettingsDocument["compaction"], diagnostics: Diagnostic[]): void {
+  if (value === undefined) return;
   if (!isRecord(value)) {
     diagnostics.push({ severity: "error", code: "settings.compaction", message: "compaction must be a mapping" });
     return;
   }
-  for (const key of ["enabled", "midTurnEnabled", "asyncEnabled", "autoContinue"]) {
+  for (const key of ["enabled", "midTurnEnabled", "asyncEnabled", "autoContinue", "modelThresholdsEnabled"]) {
     if (value[key] !== undefined && typeof value[key] !== "boolean") {
       diagnostics.push({ severity: "error", code: "settings.compaction", path: `compaction.${key}`, message: `compaction.${key} must be a boolean` });
     }
@@ -631,6 +638,25 @@ function validateCompaction(value: SettingsDocument["compaction"], diagnostics: 
   for (const key of ["thresholdPercent", "thresholdTokens", "reserveTokens", "keepRecentTokens"]) {
     if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]))) {
       diagnostics.push({ severity: "error", code: "settings.compaction", path: `compaction.${key}`, message: `compaction.${key} must be a number` });
+    }
+  }
+  if (value.modelThresholds !== undefined) {
+    if (!isRecord(value.modelThresholds)) {
+      diagnostics.push({ severity: "error", code: "settings.compaction.modelThresholds", message: "compaction.modelThresholds must be a mapping" });
+    } else {
+      for (const [selector, threshold] of Object.entries(value.modelThresholds)) {
+        const slash = selector.indexOf("/");
+        const modelSelector = slash > 0 && slash < selector.length - 1;
+        const star = selector.indexOf("*");
+        const validWildcard = star === -1 || star === selector.length - 1;
+        if (!modelSelector || !validWildcard || /[\s\r\n\t]/.test(selector)) {
+          diagnostics.push({ severity: "error", code: "settings.compaction.modelThresholds-key", path: `compaction.modelThresholds.${selector}`, message: `Invalid model threshold selector "${selector}"; expected provider/model-id or a model selector prefix ending in *` });
+          continue;
+        }
+        if (threshold !== null && !(typeof threshold === "number" && Number.isSafeInteger(threshold) && threshold > 0) && !(typeof threshold === "string" && /^(?:\d+(?:\.\d+)?)%$/.test(threshold.trim()) && Number(threshold.trim().slice(0, -1)) > 0 && Number(threshold.trim().slice(0, -1)) <= 100)) {
+          diagnostics.push({ severity: "error", code: "settings.compaction.modelThresholds-value", path: `compaction.modelThresholds.${selector}`, message: `Invalid threshold for "${selector}"; use a positive integer token count or a percentage in (0, 100]` });
+        }
+      }
     }
   }
   if (value.methodOrder !== undefined && (!Array.isArray(value.methodOrder) || value.methodOrder.some((item) => typeof item !== "string" || !item.trim()))) {

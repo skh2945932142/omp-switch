@@ -187,6 +187,14 @@ export interface RetrySettings {
   modelFallback?: boolean;
   fallbackRevertPolicy?: "cooldown-expiry" | "never";
   fallbackChains?: Record<string, string[]>;
+  /** OMP v18.5+: allow authoritative usage-reset waits beyond maxDelayMs. */
+  waitForUsageReset?: boolean;
+  /** OMP v18.5+: use coding-plan quota reports before selecting a fallback model. */
+  usageAwareFallback?: boolean;
+  /** OMP v18.5+: percentage of quota to protect from usage-aware routing. */
+  usageReservePct?: number;
+  /** OMP v18.5+: behavior at the configured usage reserve. */
+  usageReservePolicy?: "confirm" | "auto" | "fail-closed";
 }
 
 /** Compaction settings as documented for OMP v17.4.0+. */
@@ -197,6 +205,10 @@ export interface CompactionSettings {
   methodOrder?: string[];
   /** Speculative background summarization (default on). */
   asyncEnabled?: boolean;
+  /** OMP v18.8+: per-model token/percentage compaction points. */
+  modelThresholds?: Record<string, number | string | null>;
+  /** OMP v18.8+: enable modelThresholds globally. */
+  modelThresholdsEnabled?: boolean;
   thresholdPercent?: number;
   thresholdTokens?: number;
   reserveTokens?: number;

@@ -72,7 +72,23 @@ for (const template of walk(templateRoot)) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   let content = fs.readFileSync(template, "utf8");
   for (const [key, value] of replacements) content = content.replaceAll(key, value);
+  // These manifests track the last submitted release, not a fixed 0.2.0 scaffold. Stamp every
+  // semantic version in known version fields and release URLs so each later update is rendered.
+  content = content.replace(/^(\s*PackageVersion:\s*)\d+\.\d+\.\d+/gm, `$1${version}`);
+  content = content.replace(/(releases\/download\/v)\d+\.\d+\.\d+/g, `$1${version}`);
+  content = content.replace(/(releases\/tag\/v)\d+\.\d+\.\d+/g, `$1${version}`);
+  content = content.replace(/OMP-Switch-Setup-\d+\.\d+\.\d+\.exe/g, `OMP-Switch-Setup-${version}.exe`);
+  content = content.replace(/OMP-Switch-\d+\.\d+\.\d+-win\.zip/g, `OMP-Switch-${version}-win.zip`);
+  content = content.replace(/<version>\d+\.\d+\.\d+<\/version>/g, `<version>${version}</version>`);
+  content = content.replace(/("version"\s*:\s*")\d+\.\d+\.\d+("?)/g, `$1${version}$2`);
   content = content.replace(/0\.2\.0/g, version);
+  if (relative === path.join("scoop", "omp-switch.json")) {
+    const manifest = JSON.parse(content);
+    manifest.version = version;
+    manifest.architecture["64bit"].url = `https://github.com/skh2945932142/omp-switch/releases/download/v${version}/${portable.name}`;
+    manifest.architecture["64bit"].hash = portable.hash;
+    content = JSON.stringify(manifest, null, 2) + "\n";
+  }
   content = content.replaceAll(`OMP-Switch-Setup-${version}.exe`, installer.name);
   content = content.replaceAll(`OMP-Switch-${version}-win.zip`, portable.name);
   fs.writeFileSync(target, content, { encoding: "utf8" });

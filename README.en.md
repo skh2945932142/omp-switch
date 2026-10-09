@@ -15,16 +15,16 @@ It edits files that belong to you, not to it: `~/.omp/agent/models.yml` and `con
 
 ![Roles page, dark theme](docs/images/roles-dark.png)
 
-## What's new in v0.9.0
+## What's new in v1.0.0
 
-v0.9.0 adds a read-only-first local prompt library on top of the v0.8.0 OMP v18.4 foundation:
+v1.0.0 updates the OMP compatibility baseline to v18.8 and adds guarded CLI snapshot recovery plus field-level schema drift monitoring:
 
-- Add dedicated Markdown folders explicitly, then search file names or text, including Chinese names, nested paths, and same-named files from different sources.
-- Favorite, tag, copy, and track recent use locally; external sources remain read-only and coverage limits are visible.
-- Preview a material before adopting it as a one-time Profile prompt copy. Existing targets require confirmation, and hash-guarded snapshots support guarded recovery.
-- The existing Profile Prompts editor remains available as a sibling view.
+- Restore a snapshot from the JSON CLI or TUI; external edits are refused unless `--force` is explicit.
+- Type and validate OMP v18.8 model compaction thresholds and usage-aware retry fields; add the built-in `judge` role.
+- The weekly watch now checks pinned upstream schema source hashes within supported majors and requires manual review before changing compatibility.
+- Linux and Windows packaged CLI regression coverage includes guarded and forced restore.
 
-v0.9.0 also includes the v0.8.0 OMP v18.4 support, 81 provider presets, and `thinkingLevelMap` data. See the [v0.9.0 release notes](docs/releases/v0.9.0.md), [v0.8.0 release notes](docs/releases/v0.8.0.md), and the [CHANGELOG](CHANGELOG.md).
+See the [v1.0.0 release notes](docs/releases/v1.0.0.md), [feature list](docs/features.en.md), and [CHANGELOG](CHANGELOG.md).
 
 > The installers are not code-signed, so Windows SmartScreen will warn you. Check what you downloaded against `SHA256SUMS.txt` and the build provenance on the release page; [docs/install.md](docs/install.md) shows how.
 
@@ -50,7 +50,7 @@ On either system the key never goes into `models.yml`. The config holds only the
 Windows:
 
 ```powershell
-# winget (listed; currently up to 0.8.0, with a 0.9.0 PR submitted for review ([#446675](https://github.com/microsoft/winget-pkgs/pull/446675)))
+# winget (listed; currently up to 0.9.0 ([#446675](https://github.com/microsoft/winget-pkgs/pull/446675)); 1.0.0 submission pending)
 winget install skh2945932142.OMPSwitch
 
 # Scoop (this repo hosts the bucket and syncs it after every release)
@@ -62,9 +62,9 @@ Linux:
 
 ```bash
 # Download from the Releases page, then pick one
-sudo dpkg -i OMP-Switch-0.9.0-linux.deb
-sudo rpm -i OMP-Switch-0.9.0-linux.rpm
-chmod +x OMP-Switch-0.9.0-linux.AppImage && ./OMP-Switch-0.9.0-linux.AppImage
+sudo dpkg -i OMP-Switch-1.0.0-linux.deb
+sudo rpm -i OMP-Switch-1.0.0-linux.rpm
+chmod +x OMP-Switch-1.0.0-linux.AppImage && ./OMP-Switch-1.0.0-linux.AppImage
 ```
 
 You can also download the Windows installer or portable build from [Releases](https://github.com/skh2945932142/omp-switch/releases/latest). The Chocolatey package is ready but hasn't been submitted to the official feed yet.
@@ -73,7 +73,7 @@ If you only want the CLI, use Docker:
 
 ```bash
 docker run --rm -v "$HOME/.omp:/home/node/.omp" \
-  ghcr.io/skh2945932142/omp-switch-cli:0.9.0 validate --profile default
+  ghcr.io/skh2945932142/omp-switch-cli:1.0.0 validate --profile default
 ```
 
 The image is on GHCR, but GitHub makes new container packages private by default, and only the repository owner can change that in settings. If the pull says `unauthorized`, see [docs/install.md](docs/install.md#docker); a local `docker build` always works.

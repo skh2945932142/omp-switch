@@ -29,10 +29,14 @@ Commands:
                                 Apply a ConfigPatch
   snapshot  --profile <name>    Create a snapshot of the current files
   snapshots --profile <name>    List existing snapshots
+  restore   --profile <name> --snapshot <id>
+                                Restore a snapshot with hash protection
 
 Options:
   --profile <name>              Profile to operate on (default: default)
   --patch <json>                ConfigPatch JSON, required by apply and plan
+  --snapshot <id>               Snapshot ID, required by restore
+  --force                       Allow restore after an external edit (restore only)
   -h, --help                    Show this help
 
 Environment:
@@ -44,7 +48,8 @@ stdout is always a single line of JSON: {"version":1,"ok":true,"data":...} or
 {"version":1,"ok":false,"error":{"code":...,"message":...}}.
 Exit codes: 0 success, 1 command failure, 2 usage error.
 
-Credentials are not accessible here; use the desktop app to store an API key.`;
+Credentials are not accessible here; use the desktop app to store an API key.
+Restore refuses to overwrite files changed after the snapshot unless --force is explicit.`;
 
 /** Mirrors the location the native secret bridge defaults to, so both agree per platform. */
 function resolveDataDir(): string {
