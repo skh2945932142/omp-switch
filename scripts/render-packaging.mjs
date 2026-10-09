@@ -36,8 +36,8 @@ function getAsset(pattern, label) {
   return { name: candidates[0], hash: sha256(path.join(sourceDir, candidates[0])) };
 }
 
-const installer = getAsset("Setup.*\\.exe", "NSIS installer");
-const portable = getAsset("-win\\.zip", "portable ZIP");
+const installer = getAsset("Setup.*\\.exe$", "NSIS installer");
+const portable = getAsset("-win\\.zip$", "portable ZIP");
 
 console.log(`version   : ${version}`);
 console.log(`installer : ${installer.name}  ${installer.hash}`);
