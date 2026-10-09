@@ -33,7 +33,7 @@ planned:
 | --- | --- |
 | Direct download (GitHub Releases) | **Works** — Windows exe/zip, Linux AppImage/deb/rpm |
 | Scoop (bucket hosted in this repository) | **Works** — auto-syncs on every release |
-| winget | **Listed** (`skh2945932142.OMPSwitch`); latest merged is 0.8.0 ([#446159](https://github.com/microsoft/winget-pkgs/pull/446159)); 0.9.0 is submitted as [#446675](https://github.com/microsoft/winget-pkgs/pull/446675) |
+| winget | **Listed** (`skh2945932142.OMPSwitch`); latest merged is 0.9.0 ([#446675](https://github.com/microsoft/winget-pkgs/pull/446675)); v1.0.0 submission follows release publication |
 | Chocolatey | Package prepared; feed submission and moderation **pending** |
 
 The winget and Chocolatey manifests live in `packaging/` and are rendered with real release hashes by
@@ -80,8 +80,8 @@ gh attestation verify OMP-Switch-Setup-<version>.exe --repo skh2945932142/omp-sw
 ### Docker
 
 ```bash
-docker pull ghcr.io/skh2945932142/omp-switch-cli:0.9.0
-docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:0.9.0 validate --profile default
+docker pull ghcr.io/skh2945932142/omp-switch-cli:1.0.0
+docker run --rm -v "$HOME/.omp:/home/node/.omp"   ghcr.io/skh2945932142/omp-switch-cli:1.0.0 validate --profile default
 ```
 
 `:latest` also tracks the newest release.
@@ -134,7 +134,7 @@ stdout is always one line of JSON:
 ```
 
 Exit codes: `0` success, `1` command failure, `2` usage error. Errors and help go to stderr, so
-stdout stays parseable. Commands: `list`, `get`, `validate`, `snapshot`, `apply`.
+stdout stays parseable. Commands: `list`, `get`, `validate`, `plan`, `apply`, `snapshot`, `snapshots`, `restore`. Restore requires `--snapshot <id>` and refuses external edits unless `--force` is supplied. `get --reveal-secrets` is available for explicit local use; treat its output as sensitive.
 
 Environment: `OMP_SWITCH_DATA_DIR` moves the snapshot/data location. `PI_CONFIG_DIR`, `OMP_PROFILE`,
 `PI_PROFILE` and `PI_CODING_AGENT_DIR` are honored exactly as Oh My Pi honors them, so the CLI edits

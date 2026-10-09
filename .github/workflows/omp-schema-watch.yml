@@ -1,6 +1,6 @@
 name: OMP schema watch
 
-# Weekly canary: fails (and opens an issue) when OMP upstream ships a major we cannot write yet.
+# Weekly canary: detects unsupported majors and schema-source drift within supported majors.
 on:
   schedule:
     - cron: "0 8 * * 1"
@@ -19,7 +19,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Compare upstream latest against WRITABLE_OMP_SCHEMA_MAJORS
+      - name: Compare upstream release and pinned schema sources
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/check-omp-version.mjs
@@ -30,6 +30,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue create \
-            --title "OMP upstream released a new major — schema support needed" \
-            --body "The weekly schema watch detected that Oh My Pi upstream shipped a major version that OMP Switch cannot write yet. Users on that version get a read-only app until support lands. See the check output in the failed run for the maintainer checklist (schema.ts, validation.ts, catalog.ts, tests)." \
+            --title "OMP upstream schema changed — compatibility review needed" \
+            --body "The weekly schema watch detected either an unsupported Oh My Pi major or drift in a pinned schema/config source. Do not expand the writable set automatically. Review the failed run, scripts/omp-schema-baseline.json, schema.ts, validation.ts, catalog.ts, and tests before updating compatibility documentation." \
             --label "maintenance" || true

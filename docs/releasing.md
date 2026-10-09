@@ -37,6 +37,9 @@ The workflow produces only these user-facing assets:
 - `latest.json` + `latest.json.sig` (the signed update manifest; present only when the
   `OMP_UPDATE_ED25519` secret is set — see "Update Manifest" below)
 
+The Windows build also uploads a separate `chocolatey-package` workflow artifact (`.nupkg`) for the
+human-gated Chocolatey feed submission; it is not attached to the GitHub Release asset list.
+
 It also creates GitHub build-provenance attestations for the install assets. Review the artifact
 names, checksums, release notes, installation behavior, and provenance before publishing the draft.
 When the manifest is present, confirm `latest.json` carries the correct release version and that

@@ -30,7 +30,9 @@ When the watch fires (or proactively after browsing upstream's
 1. **Read the upstream schema sources** — the definition of truth is:
    - `packages/coding-agent/src/config/models-config-schema-bundle.ts` (providers, models,
      thinking levels, tokenizers, codeMode, discovery, auth)
-   - `packages/coding-agent/src/config/settings-schema.ts` (config.yml)
+   - `packages/coding-agent/src/config/all-settings.ts` (registered config.yml settings)
+   - `packages/coding-agent/src/session/settings.ts` (retry settings and runtime types)
+   - `packages/coding-agent/src/config/compaction-threshold.ts` (per-model threshold grammar)
    - `packages/coding-agent/src/config/config-file.ts` (loading semantics, JSON→YAML migration)
    Fetch them at the new tag:
    ```bash
@@ -53,9 +55,17 @@ checker and this doc both prefer them when the API refuses.
 
 ## Where we are now
 
-### OMP Switch v0.8.0 ↔ OMP v18.4
+### OMP Switch v1.0.0 ↔ OMP v18.8.7 / CC Switch v4.0.6
 
-v0.8.0 was checked against OMP v18.4.9, with CC Switch's Pi presets as a reference for the catalog. It added:
+The 2026-10-10 synchronization audit pins OMP v18.8.7 at commit
+`f261ed9faf16b61880b544f599876bface4ded0d` and CC Switch v4.0.6 at commit
+`c261126630b3416e67b407da018cc614bbbe84cd` as the current feature reference.
+The exact OMP source hashes are in `scripts/omp-schema-baseline.json`. CC Switch is a reference for
+portable UX ideas (provider search, connectivity checks, usage presentation and terminal ergonomics),
+not a compatibility target: its multi-CLI routing, OAuth account center, cloud sync and account
+rotation are outside OMP Switch's product boundary.
+
+The previous v0.8.0 work was checked against OMP v18.4.9, with CC Switch's Pi presets as a reference for the catalog. It added:
 
 - **API types:** `openrouter-decisions`, `typesafe`.
 - **Discovery type:** `apple-foundation-models`.
@@ -65,11 +75,11 @@ v0.8.0 was checked against OMP v18.4.9, with CC Switch's Pi presets as a referen
 
 See [pi-contract.md](pi-contract.md) and [pi-thinking-profiles.md](pi-thinking-profiles.md).
 
-### Checked against OMP v18.5.0 (2026-10-03)
+### Checked against OMP v18.5.0 (historical, 2026-10-03)
 
-Between v18.4.9 and v18.5.0, upstream did not touch `models-config-schema-bundle.ts` or
-`settings-schema.ts`, so no validator or catalog change was needed, and
-`node scripts/check-omp-version.mjs` reports major 18 as writable.
+Between v18.4.9 and v18.5.0, upstream did not touch the then-tracked model/settings schema files.
+The active baseline is now v18.8.7; run `node scripts/check-omp-version.mjs` to compare the current
+upstream source hashes with that baseline before making a compatibility claim.
 
 Upstream did change some docs and behavior in that range. None of it affects what OMP Switch reads or writes today, but it's worth knowing about:
 

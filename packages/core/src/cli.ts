@@ -2,12 +2,14 @@ import type { OmpAdapter } from "./adapter";
 import type { ConfigPatch, EffectiveConfig, ProfileRef } from "./domain";
 import { looksLikePlaintextSecret } from "./validation";
 
-export type JsonCliCommand = "list" | "get" | "validate" | "plan" | "apply" | "snapshot" | "snapshots";
+export type JsonCliCommand = "list" | "get" | "validate" | "plan" | "apply" | "snapshot" | "snapshots" | "restore";
 
 export interface ParsedJsonCliCommand {
   command: JsonCliCommand;
   profile: string;
   patch?: ConfigPatch;
+  snapshotId?: string;
+  force?: boolean;
   revealSecrets?: boolean;
 }
 
@@ -66,13 +68,20 @@ export function parseJsonCliArguments(args: string[]): ParsedJsonCliCommand {
     command !== "plan" &&
     command !== "apply" &&
     command !== "snapshot" &&
-    command !== "snapshots"
+    command !== "snapshots" &&
+    command !== "restore"
   ) {
-    throw new Error("Expected one of: list, get, validate, plan, apply, snapshot, snapshots");
+    throw new Error("Expected one of: list, get, validate, plan, apply, snapshot, snapshots, restore");
   }
   const profile = getOption(args, "--profile") ?? "default";
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(profile)) throw new Error("Invalid profile");
   const revealSecrets = args.includes("--reveal-secrets") || args.includes("--unmasked");
+  const snapshotId = getOption(args, "--snapshot");
+  const force = args.includes("--force");
+  if (command === "restore" && !snapshotId) throw new Error("restore requires --snapshot <id>");
+  if (command !== "restore" && (snapshotId !== undefined || force)) {
+    throw new Error("--snapshot and --force are only valid with restore");
+  }
   const patchText = getOption(args, "--patch");
   if ((command === "apply" || command === "plan") && !patchText) throw new Error(`${command} requires --patch <json>`);
   let patch: ConfigPatch | undefined;
@@ -85,7 +94,7 @@ export function parseJsonCliArguments(args: string[]): ParsedJsonCliCommand {
       throw new Error(error instanceof Error ? `Invalid patch: ${error.message}` : "Invalid patch");
     }
   }
-  return { command, profile, patch, revealSecrets };
+  return { command, profile, patch, snapshotId, force, revealSecrets };
 }
 
 export async function runJsonCli(command: ParsedJsonCliCommand, runtime: JsonCliRuntime): Promise<JsonCliResponse> {
@@ -93,6 +102,14 @@ export async function runJsonCli(command: ParsedJsonCliCommand, runtime: JsonCli
     if (command.command === "list") return { version: 1, ok: true, data: await runtime.adapter.listProfiles() };
     const profile = runtime.profile(command.profile);
     if (command.command === "snapshots") return { version: 1, ok: true, data: await runtime.adapter.listSnapshots(profile) };
+    if (command.command === "restore") {
+      const snapshots = await runtime.adapter.listSnapshots(profile);
+      const snapshot = snapshots.find((item) => item.id === command.snapshotId);
+      if (!snapshot) throw new Error(`Snapshot not found: ${command.snapshotId}`);
+      await runtime.adapter.restoreSnapshot(snapshot, { force: command.force });
+      const config = await runtime.adapter.loadProfile(profile);
+      return { version: 1, ok: true, data: { snapshot, config: maskConfigSecrets(config) } };
+    }
     const config = await runtime.adapter.loadProfile(profile);
     if (command.command === "get") {
       const result = command.revealSecrets ? config : maskConfigSecrets(config);

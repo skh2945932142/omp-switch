@@ -39,6 +39,62 @@ describe("JSON CLI", () => {
     expect(result).toMatchObject({ version: 1, ok: true, data: [] });
   });
 
+  it("restores a snapshot and refuses external edits unless --force is explicit", async () => {
+    expect(() => parseJsonCliArguments(["restore"])).toThrow("restore requires --snapshot <id>");
+    expect(parseJsonCliArguments(["restore", "--profile", "default", "--snapshot", "snap-1"])).toMatchObject({
+      command: "restore",
+      profile: "default",
+      snapshotId: "snap-1",
+      force: false,
+    });
+    expect(parseJsonCliArguments(["restore", "--snapshot", "snap-1", "--force"]).force).toBe(true);
+    expect(() => parseJsonCliArguments(["snapshots", "--force"])).toThrow("only valid with restore");
+
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-cli-restore-"));
+    roots.push(root);
+    const agentDir = path.join(root, ".omp", "agent");
+    await fs.mkdir(agentDir, { recursive: true });
+    await fs.writeFile(
+      path.join(agentDir, "models.yml"),
+      [
+        "providers:",
+        "  demo:",
+        "    baseUrl: https://api.example.test/v1",
+        "    api: openai-completions",
+        "    auth: none",
+        "    models:",
+        "      - id: demo-1",
+      ].join("\n"),
+    );
+    await fs.writeFile(path.join(agentDir, "config.yml"), "default: demo/demo-1\n");
+
+    const adapter = new OmpFilesystemAdapter({ homeDir: root, snapshotDir: path.join(root, "snapshots") });
+    const runtime = { adapter, profile: (id: string) => toProfileRef(root, id) };
+    const apply = await runJsonCli(
+      parseJsonCliArguments(["apply", "--patch", '{"roleAssignments":{"default":"demo/demo-1"}}']),
+      runtime,
+    );
+    expect(apply.ok).toBe(true);
+    const snapshot = (apply.data as { snapshot: { id: string } }).snapshot;
+    const settingsPath = path.join(agentDir, "config.yml");
+    await fs.writeFile(settingsPath, "default: demo/demo-1\n# external edit\n");
+
+    const refused = await runJsonCli(
+      parseJsonCliArguments(["restore", "--snapshot", snapshot.id]),
+      runtime,
+    );
+    expect(refused.ok).toBe(false);
+    expect((refused.error?.message ?? "")).toContain("Configuration changed outside OMP Switch");
+    expect(await fs.readFile(settingsPath, "utf8")).toContain("external edit");
+
+    const restored = await runJsonCli(
+      parseJsonCliArguments(["restore", "--snapshot", snapshot.id, "--force"]),
+      runtime,
+    );
+    expect(restored).toMatchObject({ version: 1, ok: true });
+    expect(await fs.readFile(settingsPath, "utf8")).not.toContain("external edit");
+  });
+
   it("masks plaintext API keys on get unless --reveal-secrets is passed", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-switch-cli-get-"));
     roots.push(root);

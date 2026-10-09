@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.0 - 2026-10-10
+
+### Added
+- Added guarded `restore --snapshot <id> [--force]` support to the JSON CLI and TUI non-interactive command path.
+- Added a pinned OMP v18.8.7 schema-source baseline and weekly same-major drift detection.
+- Added OMP v18.8 `compaction.modelThresholds` and usage-aware retry validation, plus the built-in `judge` role.
+- Added restore conflict and force-path regression coverage to Linux and Windows packaged CLI checks.
+
+### Changed
+- Updated the OMP configuration contract and CC Switch reference audit to v18.8.7 / v4.0.6.
+- Documented CLI restore, explicit force semantics, and plaintext-secret output warnings.
+
+### Security
+- Snapshot restore remains hash-guarded by default; `--force` is explicit. CLI restore output masks configured secrets.
+
+### Known Limitations
+- Model compaction thresholds and usage-aware retry settings are typed and validated but not fully editable in the GUI.
+- Windows Native AOT, installer, DPAPI, and packaged CLI validation must run on the Windows release runner.
+- Installers are unsigned; WinGet and Chocolatey remain subject to their upstream publishing/review processes.
+
 ## 0.9.0 - 2026-10-05
 
 ### Added

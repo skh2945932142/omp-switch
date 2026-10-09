@@ -84,9 +84,21 @@ foreach ($template in Get-ChildItem -Path $templateRoot -Recurse -File -Include 
 
   $content = Get-Content -Raw -LiteralPath $template.FullName
   foreach ($key in $replacements.Keys) { $content = $content.Replace($key, $replacements[$key]) }
+  $content = $content -replace '(?m)^(\s*PackageVersion:\s*)\d+\.\d+\.\d+', "`$1$version"
+  $content = $content -replace '(releases/download/v)\d+\.\d+\.\d+', "`$1$version"
+  $content = $content -replace '(releases/tag/v)\d+\.\d+\.\d+', "`$1$version"
+  $content = $content -replace 'OMP-Switch-Setup-\d+\.\d+\.\d+\.exe', "OMP-Switch-Setup-$version.exe"
+  $content = $content -replace 'OMP-Switch-\d+\.\d+\.\d+-win\.zip', "OMP-Switch-$version-win.zip"
+  $content = $content -replace '<version>\d+\.\d+\.\d+</version>', "<version>$version</version>"
+  $content = $content -replace '"version"\s*:\s*"\d+\.\d+\.\d+"', "`"version`": `"$version`""
   $content = $content -replace "0\.2\.0", $version
-  $content = $content.Replace("OMP-Switch-Setup-$version.exe", $installerUrlName)
-  $content = $content.Replace("OMP-Switch-$version-win.zip", $portableUrlName)
+  if ($relative -eq (Join-Path "scoop" "omp-switch.json")) {
+    $manifest = $content | ConvertFrom-Json
+    $manifest.version = $version
+    $manifest.architecture."64bit".url = "https://github.com/skh2945932142/omp-switch/releases/download/v$version/$portableUrlName"
+    $manifest.architecture."64bit".hash = $portable.Hash
+    $content = $manifest | ConvertTo-Json -Depth 10
+  }
   [IO.File]::WriteAllText($target, $content, [Text.UTF8Encoding]::new($false))
   Write-Host "rendered  : $relative"
 }

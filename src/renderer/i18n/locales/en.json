@@ -191,7 +191,8 @@
       "commit": "Commit",
       "tiny": "Tiny",
       "task": "Task",
-      "advisor": "Advisor"
+      "advisor": "Advisor",
+      "judge": "Judge"
     }
   },
   "quickAssign": {
