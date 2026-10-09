@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   verify:
-    name: Verify Windows build
+    name: Verify Windows build and packaged CLI
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -47,6 +47,14 @@ jobs:
       - name: Build
         shell: pwsh
         run: pnpm build
+
+      - name: Package Windows artifacts
+        shell: pwsh
+        run: pnpm package:win
+
+      - name: Verify packaged JSON CLI
+        shell: pwsh
+        run: pnpm verify:package-cli
 
       - name: Ensure builds leave no source changes
         shell: pwsh
@@ -286,9 +294,12 @@ jobs:
             xvfb-run -a "dist/linux-unpacked/omp-switch" --no-sandbox --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
           HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" ELECTRON_DISABLE_SANDBOX=1 \
             xvfb-run -a dist/linux-unpacked/omp-switch-cli --json list 2>pkg-smoke.err | grep -q '"ok":true' || { cat pkg-smoke.err >&2; exit 1; }
-          apply_json="$(HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" ELECTRON_DISABLE_SANDBOX=1 \
-            xvfb-run -a dist/linux-unpacked/omp-switch-cli --json apply --patch '{"roleAssignments":{"default":"demo/demo-1"}}' 2>pkg-smoke.err)"
-          snapshot_id="$(printf '%s' "$apply_json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).data.snapshot.id))')"
+          HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" ELECTRON_DISABLE_SANDBOX=1 \
+            xvfb-run -a dist/linux-unpacked/omp-switch-cli --json apply --patch '{"roleAssignments":{"default":"demo/demo-1"}}' >pkg-apply.json 2>pkg-smoke.err
+          # Chromium can emit an optional DBus diagnostic during headless startup; derive the new
+          # snapshot identifier from the isolated data directory rather than parsing mixed output.
+          snapshot_id="$(find "$root/data/snapshots/default" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)"
+          test -n "$snapshot_id"
           printf '\n# external edit\n' >> "$root/home/.omp/agent/config.yml"
           if HOME="$root/home" OMP_SWITCH_DATA_DIR="$root/data" ELECTRON_DISABLE_SANDBOX=1 \
             xvfb-run -a dist/linux-unpacked/omp-switch-cli --json restore --snapshot "$snapshot_id" >pkg-restore.json 2>pkg-smoke.err; then

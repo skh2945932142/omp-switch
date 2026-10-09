@@ -7,6 +7,32 @@ if (-not $testRoot.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnor
   throw "Refusing to create test data outside the workspace"
 }
 
+function Invoke-NativeCli([string]$cliPath, [string[]]$arguments, [string]$stdoutPath, [string]$stderrPath) {
+  # ProcessStartInfo.ArgumentList passes the JSON patch as one exact argv item. PowerShell's
+  # native-command quoting can otherwise strip its embedded quotes before the console proxy sees it.
+  $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+  $startInfo.FileName = $cliPath
+  $startInfo.WorkingDirectory = Split-Path -Parent $cliPath
+  $startInfo.UseShellExecute = $false
+  $startInfo.CreateNoWindow = $true
+  $startInfo.RedirectStandardOutput = $true
+  $startInfo.RedirectStandardError = $true
+  foreach ($argument in $arguments) { [void]$startInfo.ArgumentList.Add($argument) }
+
+  $process = [System.Diagnostics.Process]::Start($startInfo)
+  if (-not $process) { throw "Failed to start packaged CLI: $cliPath" }
+  try {
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    [IO.File]::WriteAllText($stdoutPath, $stdoutTask.GetAwaiter().GetResult(), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($stderrPath, $stderrTask.GetAwaiter().GetResult(), [Text.UTF8Encoding]::new($false))
+    return $process.ExitCode
+  } finally {
+    $process.Dispose()
+  }
+}
+
 function Invoke-PackagedCli([string]$cliPath, [string]$label) {
   $stdoutPath = Join-Path $testRoot "$label.stdout"
   $stderrPath = Join-Path $testRoot "$label.stderr"
@@ -26,12 +52,10 @@ function Invoke-PackagedCli([string]$cliPath, [string]$label) {
     @("providers:", "  demo:", "    baseUrl: https://api.example.test/v1", "    api: openai-completions", "    auth: none", "    models:", "      - id: demo-1") | Set-Content -LiteralPath (Join-Path $agentDir "models.yml") -Encoding utf8
     "default: demo/demo-1" | Set-Content -LiteralPath (Join-Path $agentDir "config.yml") -Encoding utf8
 
-    & $cliPath list 1> $stdoutPath 2> $stderrPath
-    $exitCode = $LASTEXITCODE
+    $exitCode = Invoke-NativeCli -cliPath $cliPath -arguments @("list") -stdoutPath $stdoutPath -stderrPath $stderrPath
     if ($exitCode -ne 0) { throw "$label list failed: $(Get-Content -Raw $stderrPath)" }
     $applyPatch = '{"roleAssignments":{"default":"demo/demo-1"}}'
-    & $cliPath apply --profile default --patch $applyPatch 1> $stdoutPath 2> $stderrPath
-    $exitCode = $LASTEXITCODE
+    $exitCode = Invoke-NativeCli -cliPath $cliPath -arguments @("apply", "--profile", "default", "--patch", $applyPatch) -stdoutPath $stdoutPath -stderrPath $stderrPath
     if ($exitCode -ne 0) { throw "$label apply failed: $(Get-Content -Raw $stderrPath)" }
     $applyResponse = (Get-Content -Raw $stdoutPath) | ConvertFrom-Json
     if (-not $applyResponse.ok -or -not $applyResponse.data.snapshot.id) { throw "$label apply returned no snapshot ID" }
@@ -39,13 +63,11 @@ function Invoke-PackagedCli([string]$cliPath, [string]$label) {
     $settingsPath = Join-Path $agentDir "config.yml"
     Add-Content -LiteralPath $settingsPath -Value "# external edit"
 
-    & $cliPath restore --profile default --snapshot $snapshotId 1> $stdoutPath 2> $stderrPath
-    $exitCode = $LASTEXITCODE
+    $exitCode = Invoke-NativeCli -cliPath $cliPath -arguments @("restore", "--profile", "default", "--snapshot", $snapshotId) -stdoutPath $stdoutPath -stderrPath $stderrPath
     if ($exitCode -eq 0) { throw "$label restore unexpectedly overwrote an external edit" }
     if (-not (Select-String -LiteralPath $settingsPath -Pattern "external edit" -Quiet)) { throw "$label restore modified the externally edited file" }
 
-    & $cliPath restore --profile default --snapshot $snapshotId --force 1> $stdoutPath 2> $stderrPath
-    $exitCode = $LASTEXITCODE
+    $exitCode = Invoke-NativeCli -cliPath $cliPath -arguments @("restore", "--profile", "default", "--snapshot", $snapshotId, "--force") -stdoutPath $stdoutPath -stderrPath $stderrPath
     if ($exitCode -ne 0) { throw "$label forced restore failed: $(Get-Content -Raw $stderrPath)" }
     $restoreResponse = (Get-Content -Raw $stdoutPath) | ConvertFrom-Json
     if (-not $restoreResponse.ok) { throw "$label restore returned an invalid response" }
