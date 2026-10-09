@@ -43,7 +43,8 @@ function Compute-Sha256([string]$filePath) {
 function Get-Asset([string]$pattern, [string]$label) {
   # Version-qualified: a dist/ directory that still holds an older build would otherwise be picked
   # alphabetically and stamp the manifests with the wrong release hash.
-  $candidates = @(Get-ChildItem -Path $sourceDir -Filter $pattern -File | Where-Object { $_.Name -like "*$version*" })
+  $expectedExtension = [IO.Path]::GetExtension($pattern)
+  $candidates = @(Get-ChildItem -Path $sourceDir -Filter $pattern -File | Where-Object { $_.Name -like "*$version*" -and $_.Extension -eq $expectedExtension })
   if ($candidates.Count -eq 0) { throw "Missing $label for version $version in ${sourceDir} (pattern: $pattern)" }
   if ($candidates.Count -gt 1) { throw "Ambiguous $label for version ${version}: $($candidates.Name -join ', ')" }
   $asset = $candidates[0]
