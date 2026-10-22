@@ -193,7 +193,8 @@
       "task": "Task",
       "advisor": "Advisor",
       "judge": "Judge"
-    }
+    },
+    "unknownProviderWarning": "Provider \"{{provider}}\" is not declared in models.yml; OMP resolves it only when a built-in or extension registers it"
   },
   "quickAssign": {
     "title": "Assign to role",

@@ -88,9 +88,20 @@ const OVERRIDE_ONLY_KEYS = [
 ] as const;
 
 export type ParsedRoleSelector =
-  | { kind: "model"; provider: string; model: string; thinking?: RoleThinkingLevel }
+  | { kind: "model"; provider: string; model: string; thinking?: RoleThinkingLevel; unknownProvider?: boolean }
   | { kind: "role"; role: string; thinking?: RoleThinkingLevel }
   | { kind: "wildcard"; thinking?: RoleThinkingLevel };
+
+export interface ParseRoleSelectorOptions {
+  /**
+   * Keep a `provider/model` selector whose provider is absent from `providerIds`. OMP resolves role
+   * selectors against every provider it has registered — built-ins such as `web`, OAuth CLI
+   * providers, and extension providers registered at runtime through `pi.registerProvider` — so an
+   * undeclared provider is unknown to this app, not invalid. Callers that only need syntax (and
+   * report the unknown provider separately) pass this.
+   */
+  allowUnknownProvider?: boolean;
+}
 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -122,7 +133,7 @@ export function findMisusedRoleThinkingSuffix(selector: string): "off" | "auto" 
   return match ? (match[1] as "off" | "auto") : null;
 }
 
-export function parseRoleSelector(selector: string, providerIds?: Iterable<string>): ParsedRoleSelector | null {
+export function parseRoleSelector(selector: string, providerIds?: Iterable<string>, options?: ParseRoleSelectorOptions): ParsedRoleSelector | null {
   const value = selector.trim();
   if (!value || /\s/.test(value)) return null;
   // Only documented role levels are stripped; anything else stays part of the model id so that
@@ -135,12 +146,19 @@ export function parseRoleSelector(selector: string, providerIds?: Iterable<strin
   if (base === "*") return { kind: "wildcard", ...(thinking ? { thinking } : {}) };
   if (base.startsWith("@")) return /^@[A-Za-z0-9._-]+$/.test(base) ? { kind: "role", role: base.slice(1), ...(thinking ? { thinking } : {}) } : null;
 
-  const knownProviders = providerIds ? Array.from(providerIds).filter((provider) => /^[A-Za-z0-9._-]+$/.test(provider)).sort((left, right) => right.length - left.length) : [];
-  const provider = knownProviders.find((candidate) => base.startsWith(`${candidate}/`)) ?? base.slice(0, base.indexOf("/"));
-  if (!provider || !/^[A-Za-z0-9._-]+$/.test(provider) || (providerIds && !knownProviders.includes(provider))) return null;
+  // Provider ids are YAML keys OMP accepts verbatim, so they are not limited to ASCII — a Chinese
+  // name such as `小水管` is a legitimate provider. Only whitespace and `/` are structurally
+  // impossible in one.
+  const isProviderToken = (token: string): boolean => token.length > 0 && !/[\s/]/.test(token);
+  const knownProviders = providerIds ? Array.from(providerIds).filter(isProviderToken).sort((left, right) => right.length - left.length) : [];
+  const slash = base.indexOf("/");
+  const provider = knownProviders.find((candidate) => base.startsWith(`${candidate}/`)) ?? (slash > 0 ? base.slice(0, slash) : "");
+  if (!provider || !isProviderToken(provider)) return null;
+  const unknownProvider = Boolean(providerIds) && !knownProviders.includes(provider);
+  if (unknownProvider && !options?.allowUnknownProvider) return null;
   const model = base.slice(provider.length + 1);
   if (!model || /[\r\n\t]/.test(model)) return null;
-  return { kind: "model", provider, model, ...(thinking ? { thinking } : {}) };
+  return { kind: "model", provider, model, ...(thinking ? { thinking } : {}), ...(unknownProvider ? { unknownProvider: true } : {}) };
 }
 
 /**
@@ -341,7 +359,12 @@ export function validateModelsDocument(value: Record<string, unknown>): Diagnost
         diagnostics.push({ severity: "error", code: "model.tokenizer", path: `providers.${providerId}.models.${index}.tokenizer`, message: "tokenizer must be a family string" });
       }
       if (model.compactionModel !== undefined && !validateRoleSelector(model.compactionModel, providerIds)) {
-        diagnostics.push({ severity: "error", code: "model.compactionModel", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" is not a valid provider/model selector` });
+        const relaxed = typeof model.compactionModel === "string" ? parseRoleSelector(model.compactionModel, providerIds, { allowUnknownProvider: true }) : null;
+        if (relaxed?.kind === "model" && relaxed.unknownProvider) {
+          diagnostics.push({ severity: "warning", code: "model.compactionModel-unknown-provider", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" names provider "${relaxed.provider}", which is not declared in models.yml; OMP only resolves it when a built-in or extension registers that provider` });
+        } else {
+          diagnostics.push({ severity: "error", code: "model.compactionModel", path: `providers.${providerId}.models.${index}.compactionModel`, message: `compactionModel "${model.compactionModel}" is not a valid provider/model selector` });
+        }
       }
       if (model.thinkingFormat !== undefined && !KNOWN_THINKING_FORMATS.has(model.thinkingFormat)) {
         // Warning, not error — same posture as `api`: a future OMP may add formats, and refusing
@@ -468,9 +491,24 @@ export function validateSettingsDocument(value: SettingsDocument, providerIds?: 
     diagnostics.push({ severity: "error", code: "settings.modelRoles", message: "modelRoles must be a mapping" });
   }
   for (const [role, selector] of Object.entries(value.modelRoles ?? {})) {
-    if (typeof selector !== "string" || !validateRoleSelector(selector, providerIds)) {
+    if (typeof selector !== "string") {
       diagnostics.push({ severity: "error", code: "settings.role-selector", path: `modelRoles.${role}`, message: `Invalid selector for role ${role}` });
       continue;
+    }
+    if (!validateRoleSelector(selector, providerIds)) {
+      const relaxed = parseRoleSelector(selector, providerIds, { allowUnknownProvider: true });
+      if (relaxed?.kind !== "model" || !relaxed.unknownProvider) {
+        diagnostics.push({ severity: "error", code: "settings.role-selector", path: `modelRoles.${role}`, message: `Invalid selector for role ${role}` });
+        continue;
+      }
+      // OMP also resolves built-in and extension-registered providers, which models.yml does not
+      // list, so an undeclared provider is a hint rather than a reason to refuse the file.
+      diagnostics.push({
+        severity: "warning",
+        code: "settings.role-selector-unknown-provider",
+        path: `modelRoles.${role}`,
+        message: `Role ${role} points at provider "${relaxed.provider}", which is not declared in models.yml; OMP only resolves it when a built-in or extension registers that provider`,
+      });
     }
     const misused = findMisusedRoleThinkingSuffix(selector);
     if (misused) {
@@ -610,9 +648,28 @@ function validateRetry(
       } else if (chainKey !== "default" && !(BUILTIN_ROLE_IDS as readonly string[]).includes(chainKey) && !(modelRoles && chainKey in modelRoles)) {
         diagnostics.push({ severity: "warning", code: "settings.retry.fallbackChains-role", path: `retry.fallbackChains.${chainKey}`, message: `"${chainKey}" is not a built-in role nor assigned in modelRoles; OMP may report it as an unused chain unless modelTags introduces it` });
       }
-      if (!Array.isArray(chain) || chain.length === 0 || chain.some((entry) => typeof entry !== "string" || !validateRoleSelector(entry, providerIds))) {
+      if (!Array.isArray(chain) || chain.length === 0 || chain.some((entry) => typeof entry !== "string" || !entry.trim())) {
         diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-entry", path: `retry.fallbackChains.${chainKey}`, message: `Chain "${chainKey}" must be a non-empty array of provider/model selectors (thinking-level suffix allowed)` });
       } else {
+        const unknownProviders = new Set<string>();
+        let malformed: string | undefined;
+        for (const entry of chain) {
+          if (validateRoleSelector(entry, providerIds)) continue;
+          const relaxed = parseRoleSelector(entry, providerIds, { allowUnknownProvider: true });
+          if (relaxed?.kind === "model" && relaxed.unknownProvider) unknownProviders.add(relaxed.provider);
+          else malformed ??= entry;
+        }
+        if (malformed !== undefined) {
+          diagnostics.push({ severity: "error", code: "settings.retry.fallbackChains-entry", path: `retry.fallbackChains.${chainKey}`, message: `Chain "${chainKey}" entry "${malformed}" is not a provider/model selector (thinking-level suffix allowed)` });
+        }
+        if (unknownProviders.size > 0) {
+          diagnostics.push({
+            severity: "warning",
+            code: "settings.retry.fallbackChains-unknown-provider",
+            path: `retry.fallbackChains.${chainKey}`,
+            message: `Chain "${chainKey}" references providers not declared in models.yml: ${[...unknownProviders].join(", ")}; OMP only resolves them when a built-in or extension registers them`,
+          });
+        }
         for (const entry of chain) {
           const misused = findMisusedRoleThinkingSuffix(entry);
           if (misused) {

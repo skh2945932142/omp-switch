@@ -45,6 +45,41 @@ describe("OMP configuration validation", () => {
     expect(parseRoleSelector("ollama/llama3.1:8b", ["ollama"])).toEqual({ kind: "model", provider: "ollama", model: "llama3.1:8b" });
   });
 
+  it("accepts provider ids that are not ASCII", () => {
+    // Provider ids are YAML keys; OMP never restricted them to ASCII, so a Chinese provider name
+    // must resolve like any other and must not be mistaken for a malformed selector.
+    expect(validateRoleSelector("小水管/glm-5.3-flash:high", ["小水管"])).toBe(true);
+    expect(parseRoleSelector("小水管/glm-5.3-flash:high", ["小水管"])).toEqual({ kind: "model", provider: "小水管", model: "glm-5.3-flash", thinking: "high" });
+  });
+
+  it("warns instead of failing on providers it cannot see", () => {
+    // OMP resolves role selectors against built-ins (`web`) and extension-registered providers that
+    // models.yml does not list, so these must not block a save.
+    const diagnostics = validateSettingsDocument(
+      {
+        modelRoles: { web: "web/firecrawl", default: "小水管/glm-5.3-flash:high" },
+        retry: { fallbackChains: { web: ["web/perplexity", "google-gemini-cli/gemini-2.5-flash"] } },
+      },
+      ["小水管"],
+    );
+    expect(diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ severity: "warning", code: "settings.role-selector-unknown-provider", path: "modelRoles.web" }),
+        expect.objectContaining({ severity: "warning", code: "settings.retry.fallbackChains-unknown-provider", path: "retry.fallbackChains.web" }),
+      ]),
+    );
+    // Lenient parsing keeps the target visible to the UI.
+    expect(parseRoleSelector("web/firecrawl", ["小水管"], { allowUnknownProvider: true })).toEqual({ kind: "model", provider: "web", model: "firecrawl", unknownProvider: true });
+    expect(parseRoleSelector("web/firecrawl", ["小水管"])).toBeNull();
+  });
+
+  it("still rejects genuinely malformed selectors", () => {
+    const diagnostics = validateSettingsDocument({ modelRoles: { default: "no-slash" }, retry: { fallbackChains: { default: ["openai/gpt 5"] } } }, ["openai"]);
+    expect(diagnostics.some((item) => item.code === "settings.role-selector")).toBe(true);
+    expect(diagnostics.some((item) => item.code === "settings.retry.fallbackChains-entry")).toBe(true);
+  });
+
   it("validates compactionModel selectors and discovery.injectV1 type and relevance", () => {
     expect(
       validateModelsDocument({ providers: { demo: { baseUrl: "https://api.example/v1", api: "openai-completions", auth: "none", models: [{ id: "m", compactionModel: "demo/m2" }] } } }),

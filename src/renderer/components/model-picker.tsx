@@ -54,7 +54,9 @@ export function ModelPicker({ providers, value, onValueChange, allowSpecial, all
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const providerIds = useMemo(() => providers.map(([id]) => id), [providers]);
-  const parsed = useMemo(() => (value.trim() ? parseRoleSelector(value, providerIds) : null), [value, providerIds]);
+  // Lenient: a provider OMP knows but models.yml does not (built-in, extension) is still a real
+  // target, so only genuinely malformed text should render as unresolvable.
+  const parsed = useMemo(() => (value.trim() ? parseRoleSelector(value, providerIds, { allowUnknownProvider: true }) : null), [value, providerIds]);
   const allOptions = useMemo(() => providers.flatMap(([providerId, provider]) => (Array.isArray(provider.models) ? provider.models : []).map((model) => ({ providerId, model }))), [providers]);
   const options = useMemo(() => {
     const text = query.trim().toLowerCase();

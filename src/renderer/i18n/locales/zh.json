@@ -193,7 +193,8 @@
       "task": "任务",
       "advisor": "顾问",
       "judge": "评审"
-    }
+    },
+    "unknownProviderWarning": "模型文件未声明供应商 \"{{provider}}\"，仅当 OMP 内置或扩展注册了它时才能解析"
   },
   "quickAssign": {
     "title": "分配到角色",

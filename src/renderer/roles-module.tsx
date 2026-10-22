@@ -46,7 +46,9 @@ export function RolesModule({ providers, roleIds, roles, baseline, profileId, re
         const value = roles[role] ?? "";
         const changed = value !== (baseline[role] ?? "");
         const misused = value.trim() ? findMisusedRoleThinkingSuffix(value) : null;
-        const invalid = Boolean(value.trim()) && parseRoleSelector(value, providerIds) === null;
+        const relaxed = value.trim() ? parseRoleSelector(value, providerIds, { allowUnknownProvider: true }) : null;
+        const invalid = Boolean(value.trim()) && relaxed === null;
+        const unknownProvider = relaxed?.kind === "model" ? relaxed.unknownProvider === true : false;
         const resolution = resolveChain(roles, role, providerIds);
         const finalModel = resolution.final?.kind === "model" ? modelLabel(providers, resolution.final.provider, resolution.final.model) : undefined;
         const filtered = Boolean(isEnabled && resolution.final?.kind === "model" && !isEnabled(resolution.final.provider, resolution.final.model));
@@ -85,6 +87,7 @@ export function RolesModule({ providers, roleIds, roles, baseline, profileId, re
             )}
             {resolution.cycle ? <span className="role-warning"><CircleAlert size={13} />{t("roles.cycleWarning")}</span> : null}
             {invalid ? <span className="role-warning"><CircleAlert size={13} />{t("roles.invalidWarning")}</span> : null}
+            {unknownProvider ? <span className="role-warning"><CircleAlert size={13} />{t("roles.unknownProviderWarning", { provider: relaxed?.kind === "model" ? relaxed.provider : "" })}</span> : null}
             {misused ? <span className="role-warning"><CircleAlert size={13} />{t("roles.misusedWarning", { suffix: misused })}</span> : null}
             {filtered ? <span className="role-warning"><CircleAlert size={13} />{t("roles.filteredWarning")}</span> : null}
           </div>

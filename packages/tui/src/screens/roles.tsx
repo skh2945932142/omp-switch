@@ -23,7 +23,7 @@ export function RolesScreen({ roles, roleDrafts, providerIds, onRoleDraft }: Rol
         const draft = roleDrafts[role] ?? roles[role] ?? "";
         const baseline = roles[role] ?? "";
         const dirty = draft !== baseline;
-        const parsed = draft.trim() ? parseRoleSelector(draft, providerIds) : null;
+        const parsed = draft.trim() ? parseRoleSelector(draft, providerIds, { allowUnknownProvider: true }) : null;
         const chain = resolveChain({ ...roles, ...roleDrafts }, role, providerIds);
         const invalid = Boolean(draft.trim()) && !parsed;
         const finalTarget = chain.final?.kind === "model" ? `${chain.final.provider}/${chain.final.model}` : chain.final?.kind === "role" ? `@${chain.final.role}` : "—";

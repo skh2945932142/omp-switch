@@ -35,7 +35,9 @@ export function resolveChain(roles: Record<string, string>, role: string, provid
   const seen = new Set<string>([role]);
   const chain: string[] = [];
   while (selector) {
-    const parsed = parseRoleSelector(selector, providerIds);
+    // Lenient: OMP resolves providers this app cannot see (built-ins, extension registrations), so
+    // a selector naming one still describes a real target rather than an unset role.
+    const parsed = parseRoleSelector(selector, providerIds, { allowUnknownProvider: true });
     if (!parsed) return { chain, final: null, cycle: false };
     chain.push(selector);
     if (parsed.kind !== "role") return { chain, final: parsed, cycle: false };
