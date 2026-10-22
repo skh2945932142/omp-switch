@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 - 2026-10-22
+
+### Fixed
+- Role and fallback-chain selectors that name a provider absent from `models.yml` are now a warning instead of an error. OMP also resolves built-in providers (`web`, `google-gemini-cli`, `anthropic`, `xai`, …) and providers registered by extensions at runtime, so refusing those selectors blocked every save in the app.
+- Provider ids are no longer restricted to ASCII. A non-ASCII provider name such as `小水管` was dropped from the known-provider list, which made every role pointing at it look invalid.
+- The roles page, model picker, and TUI role screen now keep such a selector visible as its real target instead of showing it as unset or unresolvable.
+
+### Changed
+- `parseRoleSelector` accepts an optional `allowUnknownProvider` mode for callers that validate syntax and report the unknown provider separately.
+
 ## 1.0.0 - 2026-10-10
 
 ### Added
